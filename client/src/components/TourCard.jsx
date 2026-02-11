@@ -12,7 +12,11 @@ const TourCard = ({ tour }) => {
       </div>
       <div className="tour-card__content">
         <h3 className="tour-card__title">{tour.title}</h3>
-        <p className="tour-card__description">{tour.description.substring(0, 120)}...</p>
+        <p className="tour-card__description">
+          {tour.description.length > 120 
+            ? tour.description.substring(0, 120) + '...' 
+            : tour.description}
+        </p>
         <div className="tour-card__details">
           <span className="tour-card__duration">⏱️ {tour.duration}</span>
           <span className="tour-card__rating">⭐ {tour.rating}</span>
