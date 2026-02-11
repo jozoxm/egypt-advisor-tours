@@ -1,143 +1,109 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import axios from 'axios';
+import BookingForm from '../components/BookingForm';
+import './TourDetail.css';
 
 const TourDetail = () => {
   const { id } = useParams();
+  const [tour, setTour] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const tour = {
-    id: id,
-    title: 'Giza Pyramids & Sphinx',
-    description: 'Explore the iconic pyramids and the great sphinx of Giza',
-    duration: '2 days',
-    price: 299,
-    rating: 4.8,
-    highlights: [
-      'Visit the Great Pyramid of Khufu',
-      'Explore the Pyramid of Khafre',
-      'See the mysterious Sphinx',
-      'Learn about ancient Egyptian civilization',
-      'Professional Egyptologist guide',
-      'Hotel transfers included'
-    ]
-  };
+  useEffect(() => {
+    const fetchTour = async () => {
+      try {
+        const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+        const response = await axios.get(`${API_URL}/tours/${id}`);
+        setTour(response.data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching tour:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchTour();
+  }, [id]);
+
+  if (loading) {
+    return <div className="loading">Loading tour details...</div>;
+  }
+
+  if (!tour) {
+    return <div className="error">Tour not found</div>;
+  }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '900px', margin: '0 auto' }}>
-      <h1>{tour.title}</h1>
-      
-      <div style={{
-        display: 'flex',
-        gap: '20px',
-        marginBottom: '30px',
-        backgroundColor: '#f5f5f5',
-        padding: '15px',
-        borderRadius: '5px'
-      }}>
-        <span>⏱️ Duration: {tour.duration}</span>
-        <span>💰 Price: ${tour.price}</span>
-        <span>⭐ Rating: {tour.rating}/5</span>
+    <div className="tour-detail">
+      <div className="tour-detail__hero" style={{ backgroundImage: `url(${tour.image})` }}>
+        <div className="tour-detail__hero-overlay">
+          <div className="container">
+            <h1>{tour.title}</h1>
+            <div className="tour-detail__meta">
+              <span>⏱️ {tour.duration}</span>
+              <span>⭐ {tour.rating}/5</span>
+              <span>📍 {tour.category}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <h2>Highlights</h2>
-      <ul>
-        {tour.highlights.map((highlight, index) => (
-          <li key={index}>✓ {highlight}</li>
-        ))}
-      </ul>
+      <div className="tour-detail__content">
+        <div className="container">
+          <div className="tour-detail__grid">
+            <div className="tour-detail__main">
+              <section className="tour-section">
+                <h2>About This Tour</h2>
+                <p>{tour.description}</p>
+              </section>
 
-      <h2>Book This Tour</h2>
-      <form style={{ 
-        backgroundColor: '#f5f5f5',
-        padding: '20px',
-        borderRadius: '5px',
-        maxWidth: '500px'
-      }}>
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Name *</label>
-          <input 
-            type="text" 
-            required 
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: '1px solid #ccc'
-            }}
-          />
+              <section className="tour-section">
+                <h2>Highlights</h2>
+                <ul className="highlights-list">
+                  {tour.highlights.map((highlight, index) => (
+                    <li key={index}>✓ {highlight}</li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="tour-section">
+                <h2>What's Included</h2>
+                <ul className="included-list">
+                  {tour.included.map((item, index) => (
+                    <li key={index}>✓ {item}</li>
+                  ))}
+                </ul>
+              </section>
+
+              {tour.itinerary && tour.itinerary.length > 0 && (
+                <section className="tour-section">
+                  <h2>Itinerary</h2>
+                  <div className="itinerary">
+                    {tour.itinerary.map((day, index) => (
+                      <div key={index} className="itinerary-day">
+                        <h3>Day {day.day}</h3>
+                        <p>{day.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+
+            <div className="tour-detail__sidebar">
+              <div className="price-box">
+                <div className="price-amount">
+                  <span className="price-label">From</span>
+                  <span className="price-value">${tour.price}</span>
+                  <span className="price-per">per person</span>
+                </div>
+              </div>
+
+              <BookingForm tourId={tour._id} tourTitle={tour.title} />
+            </div>
+          </div>
         </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Email *</label>
-          <input 
-            type="email" 
-            required 
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Phone *</label>
-          <input 
-            type="tel" 
-            required 
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Date *</label>
-          <input 
-            type="date" 
-            required 
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: '15px' }}>
-          <label style={{ display: 'block', marginBottom: '5px' }}>Number of Travelers *</label>
-          <input 
-            type="number" 
-            required 
-            style={{
-              width: '100%',
-              padding: '10px',
-              borderRadius: '5px',
-              border: '1px solid #ccc'
-            }}
-          />
-        </div>
-
-        <button 
-          type="submit"
-          style={{
-            backgroundColor: '#007bff',
-            color: 'white',
-            padding: '12px 30px',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            width: '100%',
-            fontSize: '16px'
-          }}
-        >
-          Book Now
-        </button>
-      </form>
+      </div>
     </div>
   );
 };
