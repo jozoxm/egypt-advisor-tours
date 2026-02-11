@@ -10,6 +10,7 @@ import EgyptianFood from './pages/EgyptianFood';
 import TailorTrip from './pages/TailorTrip';
 import About from './pages/About';
 import Contact from './pages/Contact';
+import Blog from './pages/Blog';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path='/' element={<Home />} />
         <Route path='/tours' element={<Tours />} />
         <Route path='/tours/:id' element={<TourDetail />} />
+        <Route path='/blog' element={<Blog />} />
         <Route path='/egyptian-phrases' element={<EgyptianPhrases />} />
         <Route path='/egyptian-food' element={<EgyptianFood />} />
         <Route path='/tailor-trip' element={<TailorTrip />} />

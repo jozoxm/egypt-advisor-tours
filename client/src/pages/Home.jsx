@@ -29,6 +29,48 @@ const Home = () => {
         <div className="home">
             <Hero />
             
+            {/* Video Section */}
+            <section id="video-showcase" className="video-section">
+                <div className="container">
+                    <h2>Experience Egypt Like Never Before</h2>
+                    <p className="section-subtitle">Watch our virtual tour of Egypt's most iconic destinations</p>
+                    
+                    <div className="video-grid">
+                        <div className="video-card">
+                            <div className="video-wrapper">
+                                <iframe
+                                    src="https://www.youtube.com/embed/lOULjR7fJr0"
+                                    title="Egypt Travel Guide"
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                ></iframe>
+                            </div>
+                            <div className="video-info">
+                                <h3>Pyramids of Giza</h3>
+                                <p>Explore the ancient wonders of Egypt</p>
+                            </div>
+                        </div>
+                        
+                        <div className="video-card">
+                            <div className="video-wrapper">
+                                <iframe
+                                    src="https://www.youtube.com/embed/q8ej_8tG5eI"
+                                    title="Nile River Cruise"
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                ></iframe>
+                            </div>
+                            <div className="video-info">
+                                <h3>Nile River Cruise</h3>
+                                <p>Sail through Egypt's historic waterways</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
             <section id="featured-tours" className="featured-tours-section">
                 <div className="container">
                     <h2>Featured Tours</h2>
