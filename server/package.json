@@ -16,7 +16,7 @@
     "cors": "^2.8.5"
   },
   "devDependencies": {
-    "nodemon": "^2.0.7"
+    "nodemon": "^3.1.11"
   },
   "author": "jozoxm",
   "license": "ISC",
