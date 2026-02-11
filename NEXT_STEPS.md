@@ -434,3 +434,89 @@ That's it! You should now have a fully functional travel agency website running 
 **Questions? Issues? Want guidance on a specific task?**
 
 Just ask! I'm here to help you succeed with your Egypt Advisor Tours project. 🏛️✨
+
+---
+
+## 🔧 Troubleshooting Common Issues
+
+### Git Merge Conflict: "untracked working tree files would be overwritten"
+
+**Error Message:**
+```
+error: The following untracked working tree files would be overwritten by merge:
+        server/package-lock.json
+Please move or remove them before you merge.
+```
+
+**Quick Fix (Windows):**
+```cmd
+# Run the provided fix script
+fix-merge-conflict.bat
+```
+
+**Quick Fix (Mac/Linux):**
+```bash
+# Run the provided fix script
+./fix-merge-conflict.sh
+```
+
+**Manual Fix:**
+```bash
+# Option 1: Remove the conflicting file
+cd server
+rm package-lock.json    # Mac/Linux
+del package-lock.json   # Windows
+
+# Then pull updates
+cd ..
+git pull origin copilot/finish-project-tasks
+cd server
+npm install
+
+# Option 2: Force sync (discards ALL local changes - use carefully!)
+git fetch origin copilot/finish-project-tasks
+git reset --hard origin/copilot/finish-project-tasks
+```
+
+**Why This Happens:**
+- You have a local untracked `package-lock.json` file
+- The remote branch has a tracked version of the same file
+- Git won't overwrite your local file to prevent data loss
+
+**Full Documentation:**
+See [GIT_MERGE_CONFLICT_GUIDE.md](GIT_MERGE_CONFLICT_GUIDE.md) for detailed instructions.
+
+---
+
+### Other Common Issues
+
+**MongoDB Won't Connect:**
+```bash
+# Check if MongoDB is running
+brew services list  # Mac
+systemctl status mongod  # Linux
+
+# Start MongoDB
+brew services start mongodb-community  # Mac
+sudo systemctl start mongod  # Linux
+```
+
+**npm Install Fails:**
+```bash
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+```
+
+**Port Already in Use:**
+```bash
+# Find process using port 5000
+lsof -i:5000  # Mac/Linux
+netstat -ano | findstr :5000  # Windows
+
+# Change port in server/.env
+PORT=5001
+```
+
+---
