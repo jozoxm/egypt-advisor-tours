@@ -1,42 +1,73 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import './Footer.css';
 
 const Footer = () => {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleNewsletterSubmit = (e) => {
+    e.preventDefault();
+    if (email) {
+      setMessage('Thank you for subscribing!');
+      setEmail('');
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
   return (
-    <footer>
-      <div className="company-info">
-        <h3>Company Name</h3>
-        <p>About the company and its mission statement.</p>
+    <footer className="footer">
+      <div className="footer-container">
+        <div className="footer-section company-info">
+          <h3>Egypt Advisor Tours</h3>
+          <p>Your trusted partner in exploring the magnificent wonders of Egypt. We create unforgettable experiences that bring ancient history to life.</p>
+        </div>
+        
+        <div className="footer-section quick-links">
+          <h3>Quick Links</h3>
+          <ul>
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/tours">Tours</Link></li>
+            <li><Link to="/about">About Us</Link></li>
+            <li><Link to="/egyptian-phrases">Egyptian Phrases</Link></li>
+            <li><Link to="/egyptian-food">Egyptian Food</Link></li>
+            <li><Link to="/contact">Contact</Link></li>
+          </ul>
+        </div>
+        
+        <div className="footer-section contact-details">
+          <h3>Contact Us</h3>
+          <p><strong>Email:</strong> info@egyptadvisortours.com</p>
+          <p><strong>Phone:</strong> +20 123 456 7890</p>
+          <p><strong>Address:</strong> Cairo, Egypt</p>
+        </div>
+        
+        <div className="footer-section newsletter-signup">
+          <h3>Subscribe to Our Newsletter</h3>
+          <p>Get the latest tours and travel tips!</p>
+          <form onSubmit={handleNewsletterSubmit}>
+            <input 
+              type="email" 
+              placeholder="Enter your email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required 
+            />
+            <button type="submit">Subscribe</button>
+          </form>
+          {message && <p className="success-message">{message}</p>}
+        </div>
       </div>
-      <div className="quick-links">
-        <h3>Quick Links</h3>
-        <ul>
-          <li><a href="#">Home</a></li>
-          <li><a href="#">About Us</a></li>
-          <li><a href="#">Services</a></li>
-          <li><a href="#">Contact</a></li>
-        </ul>
-      </div>
-      <div className="contact-details">
-        <h3>Contact Us</h3>
-        <p>Email: info@company.com</p>
-        <p>Phone: (123) 456-7890</p>
-        <p>Address: 1234 Street Name, City, State, Zip</p>
-      </div>
-      <div className="social-media">
-        <h3>Follow Us</h3>
-        <a href="#">Facebook</a> |
-        <a href="#">Twitter</a> |
-        <a href="#">Instagram</a>
-      </div>
-      <div className="newsletter-signup">
-        <h3>Subscribe to Our Newsletter</h3>
-        <form>
-          <input type="email" placeholder="Enter your email" required />
-          <button type="submit">Subscribe</button>
-        </form>
-      </div>
-      <div className="copyright">
-        <p>&copy; 2026 Company Name. All rights reserved.</p>
+      
+      <div className="footer-bottom">
+        <div className="social-media">
+          <a href="https://facebook.com" target="_blank" rel="noopener noreferrer">Facebook</a>
+          <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">Twitter</a>
+          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">Instagram</a>
+        </div>
+        <div className="copyright">
+          <p>&copy; 2026 Egypt Advisor Tours. All rights reserved.</p>
+        </div>
       </div>
     </footer>
   );

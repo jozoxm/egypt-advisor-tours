@@ -40,25 +40,55 @@ const TailorTrip = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Trip Customization Data:', formData);
-    setSubmitted(true);
     
-    setTimeout(() => {
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        budget: '',
-        duration: '',
-        interests: [],
-        startDate: '',
-        groupSize: '',
-        specialRequests: ''
+    try {
+      const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+      const requestData = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        destination: 'Egypt',
+        startDate: formData.startDate,
+        endDate: '', // Can be calculated from duration if needed
+        participants: formData.groupSize,
+        budget: formData.budget,
+        interests: formData.interests.join(', '),
+        message: `Duration: ${formData.duration}\nSpecial Requests: ${formData.specialRequests}`
+      };
+      
+      const response = await fetch(`${API_URL}/tailor-trip`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
       });
-      setSubmitted(false);
-    }, 3000);
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setSubmitted(true);
+        setTimeout(() => {
+          setFormData({
+            name: '',
+            email: '',
+            phone: '',
+            budget: '',
+            duration: '',
+            interests: [],
+            startDate: '',
+            groupSize: '',
+            specialRequests: ''
+          });
+          setSubmitted(false);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error submitting trip request:', error);
+      alert('Failed to submit request. Please try again later.');
+    }
   };
 
   return (
