@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import ThemeSwitcher from './ThemeSwitcher';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -20,16 +21,19 @@ const Navbar = () => {
           {isMenuOpen ? '✕' : '☰'}
         </button>
 
-        <ul className={`navbar-menu ${isMenuOpen ? 'active' : ''}`}>
-          <li><Link to='/' onClick={() => setIsMenuOpen(false)}>Home</Link></li>
-          <li><Link to='/tours' onClick={() => setIsMenuOpen(false)}>Tours</Link></li>
-          <li><Link to='/blog' onClick={() => setIsMenuOpen(false)}>Blog</Link></li>
-          <li><Link to='/egyptian-phrases' onClick={() => setIsMenuOpen(false)}>Phrases</Link></li>
-          <li><Link to='/egyptian-food' onClick={() => setIsMenuOpen(false)}>Food</Link></li>
-          <li><Link to='/tailor-trip' className="highlight" onClick={() => setIsMenuOpen(false)}>✨ Tailor Trip</Link></li>
-          <li><Link to='/about' onClick={() => setIsMenuOpen(false)}>About</Link></li>
-          <li><Link to='/contact' onClick={() => setIsMenuOpen(false)}>Contact</Link></li>
-        </ul>
+        <div className="navbar-right">
+          <ul className={`navbar-menu ${isMenuOpen ? 'active' : ''}`}>
+            <li><Link to='/' onClick={() => setIsMenuOpen(false)}>Home</Link></li>
+            <li><Link to='/tours' onClick={() => setIsMenuOpen(false)}>Tours</Link></li>
+            <li><Link to='/blog' onClick={() => setIsMenuOpen(false)}>Blog</Link></li>
+            <li><Link to='/egyptian-phrases' onClick={() => setIsMenuOpen(false)}>Phrases</Link></li>
+            <li><Link to='/egyptian-food' onClick={() => setIsMenuOpen(false)}>Food</Link></li>
+            <li><Link to='/tailor-trip' className="highlight" onClick={() => setIsMenuOpen(false)}>✨ Tailor Trip</Link></li>
+            <li><Link to='/about' onClick={() => setIsMenuOpen(false)}>About</Link></li>
+            <li><Link to='/contact' onClick={() => setIsMenuOpen(false)}>Contact</Link></li>
+          </ul>
+          <ThemeSwitcher />
+        </div>
       </div>
     </nav>
   );
