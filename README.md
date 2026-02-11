@@ -3,6 +3,33 @@
 ## Project Overview
 Egypt Advisor Tours is a full-stack travel agency website designed to help travelers plan their visits to Egypt with ease. It provides comprehensive information about various tours, attractions, accommodations, and travel tips to create unforgettable experiences.
 
+## 🚀 Quick Start - Preview the Website
+
+Want to see the website running locally? **It's easy!**
+
+### Fastest Way (Automated):
+```bash
+# Mac/Linux
+./preview.sh
+
+# Windows
+preview.bat
+```
+
+### Manual Way (5 Minutes):
+See **[HOW_TO_PREVIEW.md](HOW_TO_PREVIEW.md)** for detailed step-by-step instructions.
+
+### What You Need:
+- Node.js (v14+)
+- MongoDB (local or Atlas account)
+- 5 minutes of your time
+
+**Preview URLs:**
+- Frontend (Website): http://localhost:3000
+- Backend (API): http://localhost:5000
+
+---
+
 ## Tech Stack
 - **Frontend**: React 17, React Router, Axios, Bootstrap, Styled Components
 - **Backend**: Node.js, Express, MongoDB, Nodemailer
