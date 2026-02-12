@@ -6,7 +6,34 @@ Before running the website, you **MUST** install dependencies first!
 
 ---
 
-## 🔧 Quick Setup (3 Steps)
+## ⭐ Automated Setup (Recommended!)
+
+**The easiest way to get started - just one command!**
+
+### Windows Users:
+```bash
+setup.bat
+```
+
+### Mac/Linux Users:
+```bash
+./setup.sh
+```
+
+**What this does:**
+- ✅ Checks if Node.js is installed
+- ✅ Automatically navigates to client folder
+- ✅ Installs all dependencies (~1,300 packages)
+- ✅ Starts the development server
+- ✅ Opens your browser to `http://localhost:3000`
+
+**That's it!** The script handles everything automatically.
+
+---
+
+## 🔧 Manual Setup (3 Steps)
+
+If you prefer to do it manually:
 
 ### Step 1: Navigate to Client Folder
 ```bash

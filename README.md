@@ -1,6 +1,28 @@
 # Egypt Advisor Tours
 
-## 🚀 Quick Start (Required!)
+## 🚀 Quick Start (Choose One Method)
+
+### ⭐ Option 1: Automated Setup (Easiest!)
+
+**Windows Users:**
+```bash
+setup.bat
+```
+
+**Mac/Linux Users:**
+```bash
+./setup.sh
+```
+
+This single command will:
+- ✅ Check if Node.js is installed
+- ✅ Automatically install dependencies
+- ✅ Start the development server
+- ✅ Open your browser to `http://localhost:3000`
+
+---
+
+### Option 2: Manual Setup
 
 **⚠️ IMPORTANT: You MUST install dependencies before running the website!**
 
