@@ -1,0 +1,25 @@
+{
+  "name": "egypt-advisor-tours-root",
+  "version": "1.0.0",
+  "description": "Egypt Advisor Tours - Travel Agency Website",
+  "private": true,
+  "scripts": {
+    "install:client": "cd client && npm install",
+    "install:server": "cd server && npm install",
+    "install:all": "npm run install:client && npm run install:server",
+    "start": "cd client && npm start",
+    "start:client": "cd client && npm start",
+    "start:server": "cd server && node index.js",
+    "build": "cd client && npm run build",
+    "test": "cd client && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jozoxm/egypt-advisor-tours.git"
+  },
+  "author": "jozoxm",
+  "license": "ISC",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
