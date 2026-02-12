@@ -8,14 +8,16 @@ Egypt Advisor Tours is a travel agency website designed to help travelers plan t
    `git clone https://github.com/jozoxm/egypt-advisor-tours.git`
 2. Navigate to the project directory:  
    `cd egypt-advisor-tours`
-3. Install the required dependencies:  
-   `npm install`  
-   or  
-   `pip install -r requirements.txt` (depending on the tech stack used)
+3. Install all dependencies (client and server):  
+   `npm run install:all`  
+   
+   Or install individually:
+   - Client only: `npm run install:client`
+   - Server only: `npm run install:server`
+   
 4. Start the development server:  
-   `npm start`  
-   or  
-   `python app.py` (adjust based on your framework)
+   - Client: `npm run start:client`
+   - Server: `npm run start:server`
 
 ## Features
 - Comprehensive tour listings with detailed descriptions
