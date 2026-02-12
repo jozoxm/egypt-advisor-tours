@@ -111,7 +111,8 @@ const Tours = () => {
             } else if (sortOrder === 'desc') {
                 return b.price - a.price;
             } else if (sortOrder === 'popular') {
-                return b.featured ? 1 : -1;
+                // Featured tours should appear first
+                return b.featured === a.featured ? 0 : b.featured ? 1 : -1;
             }
             return 0;
         });

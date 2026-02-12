@@ -98,7 +98,7 @@ const Home = () => {
                                 <p className="tour-preview-description">{tour.description}</p>
                                 <div className="tour-preview-footer">
                                     <span className="tour-preview-price">From ${tour.price}</span>
-                                    <span style={{ color: '#999' }}>per person</span>
+                                    <span className="tour-preview-per-person">per person</span>
                                 </div>
                             </div>
                         </div>

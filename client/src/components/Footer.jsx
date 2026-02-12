@@ -69,16 +69,16 @@ const Footer = () => {
           <h3>Follow Us</h3>
           <div className="social-media">
             <a href="https://facebook.com" className="social-link" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
-              f
+              FB
             </a>
             <a href="https://twitter.com" className="social-link" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
-              𝕏
+              X
             </a>
             <a href="https://instagram.com" className="social-link" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
-              📷
+              IG
             </a>
             <a href="https://youtube.com" className="social-link" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-              ▶
+              YT
             </a>
           </div>
         </div>

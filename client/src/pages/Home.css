@@ -88,6 +88,10 @@
   color: #d4a574;
 }
 
+.tour-preview-per-person {
+  color: #999;
+}
+
 .view-all-button {
   display: block;
   margin: 30px auto 0;
