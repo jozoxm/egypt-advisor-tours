@@ -9,6 +9,7 @@ node_modules/
 # Production
 /build
 /dist
+client/build/
 
 # Misc
 .DS_Store
@@ -30,3 +31,7 @@ yarn-error.log*
 
 # OS
 Thumbs.db
+
+# Package locks (optional - comment out if you want to track them)
+# package-lock.json
+# yarn.lock

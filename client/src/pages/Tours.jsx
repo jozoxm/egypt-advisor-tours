@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Tours.css';
 
 const Tours = () => {
     const navigate = useNavigate();
     
+    const [sortOrder, setSortOrder] = useState('asc');
+    const [filter, setFilter] = useState('');
+    
     // Sample tour data - in a real app this would come from an API
-    const allTours = [
+    const allTours = useMemo(() => [
         {
             id: 1,
             name: 'Pyramids of Giza Tour',
@@ -87,11 +90,9 @@ const Tours = () => {
             icon: '🗿',
             featured: true
         }
-    ];
+    ], []);
 
     const [filteredTours, setFilteredTours] = useState(allTours);
-    const [sortOrder, setSortOrder] = useState('asc');
-    const [filter, setFilter] = useState('');
 
     useEffect(() => {
         let updatedTours = [...allTours];
@@ -118,7 +119,7 @@ const Tours = () => {
         });
 
         setFilteredTours(updatedTours);
-    }, [sortOrder, filter]);
+    }, [sortOrder, filter, allTours]);
 
     return (
         <div className="tours-container">
