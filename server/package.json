@@ -4,6 +4,7 @@
   "description": "Node.js backend for Egypt Advisor Tours. NOTE: Most scripts are in the root package.json. Run 'npm run' from the root directory to see all available commands.",
   "main": "index.js",
   "scripts": {
+    "prestart": "node -e \"try { require('express') } catch(e) { console.error('\\n❌ ERROR: Dependencies not installed!\\n\\nPlease run from the ROOT directory:\\n  npm run install:all\\n\\nOr install server dependencies only:\\n  npm run install:server\\n'); process.exit(1) }\"",
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo 'Error: no test specified' && exit 1",

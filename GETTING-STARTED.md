@@ -186,6 +186,21 @@ npm run install:all
 npm run install:all
 ```
 
+### Problem: "Cannot find module 'express'" or "Cannot find module [...]/server/index.js"
+
+**Cause:** Server dependencies aren't installed.
+
+**Fix:**
+```bash
+# From root directory
+npm run install:all
+
+# Or install only server dependencies
+npm run install:server
+```
+
+The server includes a pre-start check that will show a helpful error message if dependencies are missing.
+
 ### Problem: Port already in use
 
 **Cause:** Another process is using port 3000 or 5000.

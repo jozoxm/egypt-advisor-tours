@@ -106,6 +106,21 @@ npm run install:all
 npm run install:all
 ```
 
+### ❌ Error: "Cannot find module 'express'" or "Cannot find module '[...]/server/index.js'"
+
+**Problem:** Server dependencies haven't been installed yet.
+
+**Solution:** 
+```bash
+# From root directory - install all dependencies
+npm run install:all
+
+# Or install only server dependencies
+npm run install:server
+```
+
+**Note:** The server now includes a pre-start check that will display a helpful error message if dependencies are missing.
+
 ### ❌ Build or start errors
 
 **Problem:** Dependencies might be outdated or corrupted.

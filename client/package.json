@@ -13,6 +13,7 @@
     "bootstrap": "^5.0.0"
   },
   "scripts": {
+    "prestart": "node -e \"try { require('react-scripts') } catch(e) { console.error('\\n❌ ERROR: Dependencies not installed!\\n\\nPlease run from the ROOT directory:\\n  npm run install:all\\n\\nOr install client dependencies only:\\n  npm run install:client\\n'); process.exit(1) }\"",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
