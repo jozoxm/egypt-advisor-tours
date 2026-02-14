@@ -10,10 +10,10 @@ const Footer = () => {
       <div className="quick-links">
         <h3>Quick Links</h3>
         <ul>
-          <li><a href="#">Home</a></li>
-          <li><a href="#">About Us</a></li>
-          <li><a href="#">Services</a></li>
-          <li><a href="#">Contact</a></li>
+          <li><a href="/">Home</a></li>
+          <li><a href="/about">About Us</a></li>
+          <li><a href="/tours">Services</a></li>
+          <li><a href="/contact">Contact</a></li>
         </ul>
       </div>
       <div className="contact-details">
@@ -24,9 +24,9 @@ const Footer = () => {
       </div>
       <div className="social-media">
         <h3>Follow Us</h3>
-        <a href="#">Facebook</a> |
-        <a href="#">Twitter</a> |
-        <a href="#">Instagram</a>
+        <a href="https://facebook.com" target="_blank" rel="noopener noreferrer">Facebook</a> |
+        <a href="https://twitter.com" target="_blank" rel="noopener noreferrer">Twitter</a> |
+        <a href="https://instagram.com" target="_blank" rel="noopener noreferrer">Instagram</a>
       </div>
       <div className="newsletter-signup">
         <h3>Subscribe to Our Newsletter</h3>

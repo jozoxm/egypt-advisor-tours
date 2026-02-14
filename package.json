@@ -1,0 +1,23 @@
+{
+  "name": "egypt-advisor-tours-monorepo",
+  "version": "1.0.0",
+  "description": "Egypt Advisor Tours - Travel agency website with client and server",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "install:client": "cd client && npm install",
+    "install:server": "cd server && npm install",
+    "start:client": "cd client && npm start",
+    "start:server": "cd server && npm start",
+    "dev:server": "cd server && npm run dev",
+    "build:client": "cd client && npm run build",
+    "test:client": "cd client && npm test",
+    "clean": "rm -rf client/node_modules server/node_modules client/package-lock.json server/package-lock.json node_modules package-lock.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jozoxm/egypt-advisor-tours.git"
+  },
+  "author": "jozoxm",
+  "license": "ISC"
+}

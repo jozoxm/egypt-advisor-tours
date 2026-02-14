@@ -1,1 +1,34 @@
-{\n  \"name\": \"egypt-advisor-tours\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Node.js backend for Egypt Advisor Tours\",\n  \"main\": \"index.js\",\n  \"scripts\": {\n    \"test\": \"echo 'Error: no test specified' && exit 1\"\n  },\n  \"dependencies\": {\n    \"express\": \"^4.17.1\",\n    \"mongoose\": \"^5.10.9\",\n    \"nodemailer\": \"^6.4.11\"\n  },\n  \"devDependencies\": {},\n  \"author\": \"jozoxm\",\n  \"license\": \"ISC\",\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"https://github.com/jozoxm/egypt-advisor-tours.git\"\n  },\n  \"keywords\": [\n    \"nodejs\",\n    \"express\",\n    \"mongodb\",\n    \"nodemailer\"\n  ],\n  \"engines\": {\n    \"node\": \">=14.0.0\"\n  }\n}
+{
+  "name": "egypt-advisor-tours-server",
+  "version": "1.0.0",
+  "description": "Node.js backend for Egypt Advisor Tours",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo 'Error: no test specified' && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "mongoose": "^6.13.6",
+    "nodemailer": "^7.0.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  },
+  "author": "jozoxm",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jozoxm/egypt-advisor-tours.git"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "mongodb",
+    "nodemailer"
+  ],
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
