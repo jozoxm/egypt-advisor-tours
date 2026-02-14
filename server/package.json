@@ -1,12 +1,13 @@
 {
   "name": "egypt-advisor-tours-server",
   "version": "1.0.0",
-  "description": "Node.js backend for Egypt Advisor Tours",
+  "description": "Node.js backend for Egypt Advisor Tours. NOTE: Most scripts are in the root package.json. Run 'npm run' from the root directory to see all available commands.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo 'Error: no test specified' && exit 1"
+    "test": "echo 'Error: no test specified' && exit 1",
+    "help": "echo '\n⚠️  You are in the SERVER directory!\n\nMost commands should be run from the ROOT directory.\n\nTo go back to root:\n  cd ..\n\nThen run:\n  npm run install:all     (install all dependencies)\n  npm run start:client    (start the client)\n  npm run start:server    (start this server)\n\nFor more info, see GETTING-STARTED.md in the root directory.\n'"
   },
   "dependencies": {
     "cors": "^2.8.6",

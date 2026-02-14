@@ -1,7 +1,8 @@
 {
-  "name": "egypt-advisor-tours",
+  "name": "egypt-advisor-tours-client",
   "version": "1.0.0",
   "private": true,
+  "description": "React frontend for Egypt Advisor Tours. NOTE: Most scripts are in the root package.json. Run 'npm run' from the root directory to see all available commands.",
   "dependencies": {
     "react": "^17.0.0",
     "react-dom": "^17.0.0",
@@ -15,7 +16,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "help": "echo '\n⚠️  You are in the CLIENT directory!\n\nMost commands should be run from the ROOT directory.\n\nTo go back to root:\n  cd ..\n\nThen run:\n  npm run install:all     (install all dependencies)\n  npm run start:client    (start this client)\n  npm run start:server    (start the server)\n\nFor more info, see GETTING-STARTED.md in the root directory.\n'"
   },
   "eslintConfig": {
     "extends": [
