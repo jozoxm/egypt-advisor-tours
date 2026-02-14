@@ -17,7 +17,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "help": "echo '\n⚠️  You are in the CLIENT directory!\n\nMost commands should be run from the ROOT directory.\n\nTo go back to root:\n  cd ..\n\nThen run:\n  npm run install:all     (install all dependencies)\n  npm run start:client    (start this client)\n  npm run start:server    (start the server)\n\nFor more info, see GETTING-STARTED.md in the root directory.\n'"
+    "help": "echo \"\" && echo \"⚠️  You are in the CLIENT directory!\" && echo \"\" && echo \"Most commands should be run from the ROOT directory.\" && echo \"\" && echo \"To go back to root:\" && echo \"  cd ..\" && echo \"\" && echo \"Then run:\" && echo \"  npm run install:all     (install all dependencies)\" && echo \"  npm run start:client    (start this client)\" && echo \"  npm run start:server    (start the server)\" && echo \"\" && echo \"For more info, see GETTING-STARTED.md in the root directory.\" && echo \"\""
   },
   "eslintConfig": {
     "extends": [

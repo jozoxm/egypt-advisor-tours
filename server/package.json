@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo 'Error: no test specified' && exit 1",
-    "help": "echo '\n⚠️  You are in the SERVER directory!\n\nMost commands should be run from the ROOT directory.\n\nTo go back to root:\n  cd ..\n\nThen run:\n  npm run install:all     (install all dependencies)\n  npm run start:client    (start the client)\n  npm run start:server    (start this server)\n\nFor more info, see GETTING-STARTED.md in the root directory.\n'"
+    "help": "echo \"\" && echo \"⚠️  You are in the SERVER directory!\" && echo \"\" && echo \"Most commands should be run from the ROOT directory.\" && echo \"\" && echo \"To go back to root:\" && echo \"  cd ..\" && echo \"\" && echo \"Then run:\" && echo \"  npm run install:all     (install all dependencies)\" && echo \"  npm run start:client    (start the client)\" && echo \"  npm run start:server    (start this server)\" && echo \"\" && echo \"For more info, see GETTING-STARTED.md in the root directory.\" && echo \"\""
   },
   "dependencies": {
     "cors": "^2.8.6",
