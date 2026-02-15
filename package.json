@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Egypt Advisor Tours - Travel agency website with client and server",
   "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "install:all": "npm install && cd client && npm install && cd ../server && npm install",
     "install:client": "cd client && npm install",
@@ -10,6 +14,7 @@
     "start:client": "cd client && npm start",
     "start:server": "cd server && npm start",
     "dev:server": "cd server && npm run dev",
+    "build": "npm run install:client && npm run build:client",
     "build:client": "cd client && npm run build",
     "test:client": "cd client && npm test",
     "clean": "rm -rf client/node_modules server/node_modules client/package-lock.json server/package-lock.json node_modules package-lock.json"

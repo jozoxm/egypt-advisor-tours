@@ -60,7 +60,7 @@ npm run install:server
 - `npm run install:all` - Install all dependencies
 - `npm run start:client` - Start React development server
 - `npm run start:server` - Start Node.js server
-- `npm run build:client` - Build React app for production
+- `npm run build` - Build React app for production (same as build:client)
 - `npm run test:client` - Run client tests
 - `npm run clean` - Remove all node_modules and lock files
 
@@ -71,6 +71,31 @@ npm run install:server
 - Customer reviews and ratings for each tour
 - Blog section for travel tips and advice
 - Multi-language support
+
+---
+
+## Deployment
+
+### Deploying to Vercel
+
+This project is configured for easy deployment to Vercel:
+
+1. **Install Vercel CLI** (if not already installed):
+   ```bash
+   npm install -g vercel
+   ```
+
+2. **Deploy from root directory**:
+   ```bash
+   vercel deploy
+   ```
+
+The `vercel.json` configuration file ensures:
+- Client dependencies are installed automatically during build
+- Build output is taken from `client/build/`
+- All routes are properly handled with SPA rewrites
+
+**Note**: The build process automatically installs client dependencies, so you don't need to run `npm run install:all` before deploying.
 
 ---
 
