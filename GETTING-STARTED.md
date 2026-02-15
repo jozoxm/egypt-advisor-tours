@@ -102,7 +102,7 @@ egypt-advisor-tours/              ← YOU ARE HERE (root directory)
 | `npm run install:all` | Install all dependencies (client + server) |
 | `npm run start:client` | Start React development server |
 | `npm run start:server` | Start Node.js API server |
-| `npm run build:client` | Build React app for production |
+| `npm run build` | Build React app for production |
 | `npm run test:client` | Run client tests |
 | `npm run clean` | Remove all node_modules and start fresh |
 

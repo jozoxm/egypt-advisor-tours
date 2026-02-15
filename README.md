@@ -60,7 +60,7 @@ npm run install:server
 - `npm run install:all` - Install all dependencies
 - `npm run start:client` - Start React development server
 - `npm run start:server` - Start Node.js server
-- `npm run build:client` - Build React app for production
+- `npm run build` - Build React app for production (same as build:client)
 - `npm run test:client` - Run client tests
 - `npm run clean` - Remove all node_modules and lock files
 
