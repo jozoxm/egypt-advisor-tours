@@ -1,25 +1,28 @@
 const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3000;
+const cors = require('cors');
+require('dotenv').config();
 
-// Middleware to parse JSON bodies
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Enable CORS
+app.use(cors());
 app.use(express.json());
 
-// Basic route for root
-app.get('/', (req, res) => {
-    res.send('Welcome to the Egypt Advisor Tours API!');
+app.get('/api', (req, res) => {
+    res.json({
+        message: 'Welcome to Egypt Advisor Tours API',
+        version: '1.0.0',
+        status: 'Server is running'
+    });
 });
 
-// Sample route for tours
-app.get('/tours', (req, res) => {
-    res.json([
-        { id: 1, name: 'Pyramids of Giza' },
-        { id: 2, name: 'Luxor Temple' },
-        { id: 3, name: 'Valley of the Kings' }
-    ]);
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
-// Starting the server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = app;
