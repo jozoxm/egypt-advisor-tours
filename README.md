@@ -74,6 +74,31 @@ npm run install:server
 
 ---
 
+## Deployment
+
+### Deploying to Vercel
+
+This project is configured for easy deployment to Vercel:
+
+1. **Install Vercel CLI** (if not already installed):
+   ```bash
+   npm install -g vercel
+   ```
+
+2. **Deploy from root directory**:
+   ```bash
+   vercel deploy
+   ```
+
+The `vercel.json` configuration file ensures:
+- Client dependencies are installed automatically during build
+- Build output is taken from `client/build/`
+- All routes are properly handled with SPA rewrites
+
+**Note**: The build process automatically installs client dependencies, so you don't need to run `npm run install:all` before deploying.
+
+---
+
 ## Troubleshooting
 
 ### ❌ Error: "Missing script: 'install:all'"
