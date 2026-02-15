@@ -1,8 +1,6 @@
-(
-  echo {
-  echo   "version": 2,
-  echo   "buildCommand": "npm run build --prefix client",
-  echo   "outputDirectory": "client/build",
-  echo   "installCommand": "npm install --prefix client"
-  echo }
-) > vercel.json
+{
+  "version": 2,
+  "buildCommand": "npm run build --prefix client",
+  "outputDirectory": "client/build",
+  "installCommand": "npm install --prefix client"
+}
