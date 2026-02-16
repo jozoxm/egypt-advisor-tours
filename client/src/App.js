@@ -117,7 +117,12 @@ function App() {
             <img src="/logo.svg" alt="Egypt Advisor Tours" className="logo-img" />
           </div>
           
-          <button className="hamburger" onClick={toggleMobileMenu} aria-label="Toggle menu">
+          <button 
+            className="hamburger" 
+            onClick={toggleMobileMenu} 
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+          >
             <span className={`hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
             <span className={`hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
             <span className={`hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>

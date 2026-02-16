@@ -12,6 +12,7 @@
   --light-bg: #f5f1e8;
   --text-dark: #2c2c2c;
   --text-light: #666;
+  --navbar-height: 70px;
 }
 
 body {
@@ -919,10 +920,10 @@ body {
 
   .nav-menu {
     position: fixed;
-    top: 70px;
+    top: var(--navbar-height);
     left: -100%;
     width: 100%;
-    height: calc(100vh - 70px);
+    height: calc(100vh - var(--navbar-height));
     background: white;
     flex-direction: column;
     justify-content: flex-start;
