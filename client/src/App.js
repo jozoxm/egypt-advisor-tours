@@ -4,6 +4,7 @@ import './App.css';
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -12,6 +13,14 @@ function App() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
 
   const tours = [
     {
@@ -104,14 +113,23 @@ function App() {
     <div className="App">
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
-          <h1 className="logo">✨ Egypt Advisor</h1>
-          <ul className="nav-menu">
-            <li><a href="#home">Home</a></li>
-            <li><a href="#tours">Tours</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#contact">Contact</a></li>
+          <div className="logo">
+            <img src="/logo.svg" alt="Egypt Advisor Tours" className="logo-img" />
+          </div>
+          
+          <button className="hamburger" onClick={toggleMobileMenu} aria-label="Toggle menu">
+            <span className={`hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
+            <span className={`hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
+            <span className={`hamburger-line ${mobileMenuOpen ? 'open' : ''}`}></span>
+          </button>
+
+          <ul className={`nav-menu ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+            <li><a href="#home" onClick={closeMobileMenu}>Home</a></li>
+            <li><a href="#tours" onClick={closeMobileMenu}>Tours</a></li>
+            <li><a href="#about" onClick={closeMobileMenu}>About</a></li>
+            <li><a href="#contact" onClick={closeMobileMenu}>Contact</a></li>
           </ul>
-          <button className="contact-btn">Inquiry</button>
+          <button className="contact-btn desktop-only">Inquiry</button>
         </div>
       </nav>
 

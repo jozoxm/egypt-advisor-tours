@@ -51,13 +51,54 @@ body {
 }
 
 .logo {
-  font-size: 1.6rem;
-  font-weight: 700;
-  background: var(--primary-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  height: 50px;
+}
+
+.logo-img {
+  height: 50px;
+  width: auto;
+  max-width: 200px;
+  transition: transform 0.3s;
+}
+
+.logo-img:hover {
+  transform: scale(1.05);
+}
+
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: space-around;
+  width: 30px;
+  height: 25px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1001;
+}
+
+.hamburger-line {
+  width: 30px;
+  height: 3px;
+  background: var(--accent-color);
+  border-radius: 3px;
+  transition: all 0.3s ease;
+  transform-origin: center;
+}
+
+.hamburger-line.open:nth-child(1) {
+  transform: translateY(11px) rotate(45deg);
+}
+
+.hamburger-line.open:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-line.open:nth-child(3) {
+  transform: translateY(-11px) rotate(-45deg);
 }
 
 .nav-menu {
@@ -830,43 +871,156 @@ body {
 }
 
 /* Responsive Design */
+
+/* Tablet Styles (768px - 1024px) */
+@media (max-width: 1024px) {
+  .nav-container {
+    padding: 0 30px;
+  }
+
+  .nav-menu {
+    gap: 1.8rem;
+    font-size: 0.9rem;
+  }
+
+  .hero-content h1 {
+    font-size: 3.5rem;
+  }
+
+  .tours-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px;
+  }
+
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile Styles (< 768px) */
 @media (max-width: 768px) {
+  /* Navigation */
   .nav-container {
     padding: 0 20px;
   }
 
-  .nav-menu {
-    gap: 1rem;
+  .logo {
+    height: 40px;
   }
 
+  .logo-img {
+    height: 40px;
+    max-width: 160px;
+  }
+
+  .hamburger {
+    display: flex;
+  }
+
+  .nav-menu {
+    position: fixed;
+    top: 70px;
+    left: -100%;
+    width: 100%;
+    height: calc(100vh - 70px);
+    background: white;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 40px 20px;
+    gap: 0;
+    transition: left 0.3s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    z-index: 999;
+  }
+
+  .nav-menu.mobile-open {
+    left: 0;
+  }
+
+  .nav-menu li {
+    width: 100%;
+    text-align: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .nav-menu a {
+    display: block;
+    font-size: 1.1rem;
+    padding: 10px 0;
+  }
+
+  .nav-menu a::after {
+    display: none;
+  }
+
+  .desktop-only {
+    display: none;
+  }
+
+  /* Hero Section */
   .hero {
     padding: 80px 20px;
     margin-top: 0;
+    min-height: 70vh;
   }
 
   .hero-content h1 {
     font-size: 2.5rem;
+    line-height: 1.2;
   }
 
   .hero-content p {
     font-size: 1rem;
+    margin-bottom: 30px;
+  }
+
+  .hero-tag {
+    font-size: 0.8rem;
+    padding: 6px 16px;
   }
 
   .hero-buttons {
     flex-direction: column;
+    width: 100%;
+    gap: 15px;
   }
 
+  .btn {
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 12px 30px;
+  }
+
+  /* Stats Section */
   .stats {
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    gap: 15px;
     margin: -40px 20px 40px;
+    padding: 0;
   }
 
-  .tours,
-  .about,
-  .testimonials,
-  .contact {
+  .stat-item {
+    padding: 20px 15px;
+  }
+
+  .stat-item h3 {
+    font-size: 2rem;
+  }
+
+  .stat-item p {
+    font-size: 0.9rem;
+  }
+
+  /* Tours Section */
+  .tours {
     padding: 60px 20px;
+    margin: 60px auto;
+  }
+
+  .section-header {
+    margin-bottom: 40px;
   }
 
   .section-header h2,
@@ -874,28 +1028,211 @@ body {
   .testimonials h2,
   .contact h2 {
     font-size: 2rem;
+    line-height: 1.3;
+  }
+
+  .section-header p {
+    font-size: 1rem;
   }
 
   .tours-grid {
     grid-template-columns: 1fr;
-    gap: 30px;
+    gap: 25px;
   }
 
-  .features-grid {
-    grid-template-columns: 1fr;
+  .tour-card {
+    max-width: 500px;
+    margin: 0 auto;
   }
 
+  .tour-image-wrapper {
+    height: 180px;
+  }
+
+  .tour-icon {
+    font-size: 4rem;
+  }
+
+  .tour-content {
+    padding: 25px;
+  }
+
+  .tour-content h3 {
+    font-size: 1.3rem;
+  }
+
+  .tour-description {
+    font-size: 0.9rem;
+  }
+
+  .tour-details {
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .price {
+    font-size: 1.5rem;
+  }
+
+  /* Modal */
   .modal-content {
-    padding: 30px;
+    padding: 30px 20px;
     margin: 20px;
+    max-width: 90%;
+  }
+
+  .modal-icon {
+    font-size: 3rem;
+  }
+
+  .modal-content h2 {
+    font-size: 1.8rem;
   }
 
   .modal-details {
     grid-template-columns: 1fr;
+    gap: 15px;
+    padding: 15px;
+  }
+
+  .close-button {
+    font-size: 2rem;
+    top: 15px;
+    right: 15px;
+  }
+
+  /* About Section */
+  .about {
+    padding: 60px 20px;
+  }
+
+  .about-intro {
+    font-size: 1rem;
+    margin-bottom: 40px;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+
+  .feature-card {
+    padding: 30px 25px;
+  }
+
+  .feature-icon {
+    font-size: 3rem;
+  }
+
+  .feature-card h3 {
+    font-size: 1.2rem;
+  }
+
+  /* Testimonials Section */
+  .testimonials {
+    padding: 60px 20px;
+  }
+
+  .testimonials > p {
+    font-size: 1rem;
+    margin-bottom: 40px;
+  }
+
+  .testimonials-grid {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+
+  .testimonial-card {
+    padding: 25px;
+  }
+
+  .testimonial-text {
+    font-size: 0.95rem;
+  }
+
+  /* Contact Section */
+  .contact {
+    padding: 60px 20px;
+  }
+
+  .contact-content {
+    max-width: 100%;
+  }
+
+  .contact > p {
+    font-size: 1rem;
+    margin-bottom: 40px;
+  }
+
+  .contact-form {
+    gap: 15px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    padding: 12px;
+    font-size: 0.95rem;
+  }
+
+  /* Footer */
+  .footer {
+    padding: 40px 20px 20px;
   }
 
   .footer-content {
     grid-template-columns: 1fr;
     gap: 30px;
+  }
+
+  .footer-section h4 {
+    font-size: 1.1rem;
+  }
+
+  .footer-section p,
+  .footer-section a {
+    font-size: 0.9rem;
+  }
+
+  .social-links {
+    justify-content: center;
+  }
+
+  .footer-bottom {
+    font-size: 0.85rem;
+    padding-top: 20px;
+  }
+}
+
+/* Small Mobile Styles (< 480px) */
+@media (max-width: 480px) {
+  .hero-content h1 {
+    font-size: 2rem;
+  }
+
+  .hero-content p {
+    font-size: 0.95rem;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .section-header h2,
+  .about-content h2,
+  .testimonials h2,
+  .contact h2 {
+    font-size: 1.7rem;
+  }
+
+  .tour-card {
+    max-width: 100%;
+  }
+
+  .modal-content {
+    padding: 25px 15px;
   }
 }
