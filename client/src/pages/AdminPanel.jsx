@@ -68,8 +68,13 @@ const AdminPanel = () => {
   };
 
   const copyToClipboard = (text, type) => {
-    navigator.clipboard.writeText(text);
-    showSaveMessage(`${type} code copied to clipboard! Now paste it into the corresponding file.`);
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        showSaveMessage(`${type} code copied to clipboard! Now paste it into the corresponding file.`);
+      })
+      .catch((err) => {
+        showSaveMessage(`Failed to copy code. Please manually select and copy the code below. Error: ${err.message}`);
+      });
   };
 
   return (
