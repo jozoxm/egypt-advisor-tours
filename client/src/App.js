@@ -117,19 +117,8 @@ function App() {
       </nav>
 
       <section id="home" className="hero">
-        <div className="hero-overlay"></div>
-        <div className="hero-content">
-          <span className="hero-tag">Discover Ancient Wonders</span>
-          <h1>Unveil the Mysteries of Egypt</h1>
-          <p>Embark on an unforgettable journey through time, exploring the world's most magnificent ancient civilizations</p>
-          <div className="hero-buttons">
-            <button className="btn btn-primary">Explore Tours</button>
-            <button className="btn btn-secondary">Learn More</button>
-          </div>
-        </div>
+        <VideoSlideshow />
       </section>
-
-      <VideoSlideshow />
 
       <section className="stats">
         <div className="stat-item">
