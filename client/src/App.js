@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import VideoSlideshow from './components/VideoSlideshow';
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
@@ -127,6 +128,8 @@ function App() {
           </div>
         </div>
       </section>
+
+      <VideoSlideshow />
 
       <section className="stats">
         <div className="stat-item">
