@@ -1,5 +1,22 @@
 # Egypt Advisor Tours
 
+## 🎓 For Beginners: How to Edit This Website
+
+**New to coding?** We've made it easy for you!
+
+- 📖 **[Quick Edit Guide](QUICK-EDIT-GUIDE.md)** - 5 minute guide to edit tours & contact info
+- 📚 **[Beginner's Guide](BEGINNER-GUIDE.md)** - Complete guide with step-by-step instructions
+
+**What you can easily edit:**
+- Tour prices, descriptions, and details
+- Contact information (email, phone, address)
+- Social media links
+- Business hours
+
+All the data is organized in easy-to-edit files - no complex coding required!
+
+---
+
 ## Project Overview
 Egypt Advisor Tours is a travel agency website designed to help travelers plan their visits to Egypt with ease. It provides useful information about various tours, attractions, accommodations, and travel tips to create unforgettable experiences.
 

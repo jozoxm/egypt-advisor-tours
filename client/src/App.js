@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import VideoSlideshow from './components/VideoSlideshow';
+import { tours, testimonials } from './data/tours-data';
+import { contactInfo } from './data/contact-info';
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
@@ -14,92 +16,9 @@ function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const tours = [
-    {
-      id: 1,
-      name: 'Pyramids of Giza',
-      price: '$199',
-      duration: '4 hours',
-      description: 'Stand in awe of the world\'s last remaining wonder. Explore the Great Pyramid, Khafre\'s Pyramid, and the enigmatic Sphinx.',
-      image: '🏛️',
-      rating: 4.9,
-      reviews: 324,
-      groupSize: '2-10 people'
-    },
-    {
-      id: 2,
-      name: 'Luxor Temple',
-      price: '$159',
-      duration: '3 hours',
-      description: 'Discover the magnificent Luxor Temple on the banks of the Nile River with stunning hieroglyphic carvings.',
-      image: '🕌',
-      rating: 4.8,
-      reviews: 287,
-      groupSize: '2-12 people'
-    },
-    {
-      id: 3,
-      name: 'Valley of the Kings',
-      price: '$179',
-      duration: '5 hours',
-      description: 'Explore the royal tombs of ancient pharaohs in the mystical Valley of the Kings with expert Egyptologist guides.',
-      image: '⚱️',
-      rating: 4.95,
-      reviews: 412,
-      groupSize: '2-10 people'
-    },
-    {
-      id: 4,
-      name: 'Nile River Cruise',
-      price: '$249',
-      duration: '3-7 hours',
-      description: 'Experience a luxurious sunset or evening cruise along the iconic Nile River with traditional music and cuisine.',
-      image: '🚤',
-      rating: 4.7,
-      reviews: 356,
-      groupSize: '2-50 people'
-    },
-    {
-      id: 5,
-      name: 'Cairo Museum',
-      price: '$89',
-      duration: '3 hours',
-      description: 'Immerse yourself in Egyptian history at the world-renowned Cairo Museum housing treasures of Tutankhamun.',
-      image: '🏺',
-      rating: 4.8,
-      reviews: 521,
-      groupSize: '1-15 people'
-    },
-    {
-      id: 6,
-      name: 'Abu Simbel Temples',
-      price: '$299',
-      duration: '8-10 hours',
-      description: 'Visit the spectacular Abu Simbel temples carved into the mountainside with breathtaking colossal statues.',
-      image: '🗿',
-      rating: 4.85,
-      reviews: 189,
-      groupSize: '2-15 people'
-    }
-  ];
-
-  const testimonials = [
-    {
-      name: 'Sarah Johnson',
-      country: 'USA',
-      text: 'An absolutely life-changing experience! The guides were knowledgeable and the itinerary was perfectly planned.'
-    },
-    {
-      name: 'Marco Ferrari',
-      country: 'Italy',
-      text: 'Egypt Advisor Tours exceeded all my expectations. The attention to detail and customer service is outstanding.'
-    },
-    {
-      name: 'Amara Khan',
-      country: 'UAE',
-      text: 'Best tour company in Egypt! Professional, punctual, and incredibly passionate about their work.'
-    }
-  ];
+  // Tours and testimonials are now imported from data files
+  // To edit tours, go to: client/src/data/tours-data.js
+  // To edit contact info, go to: client/src/data/contact-info.js
 
   return (
     <div className="App">
@@ -301,8 +220,8 @@ function App() {
       <footer className="footer">
         <div className="footer-content">
           <div className="footer-section">
-            <h4>Egypt Advisor Tours</h4>
-            <p>Your trusted partner in discovering the wonders of Ancient Egypt</p>
+            <h4>{contactInfo.companyName}</h4>
+            <p>{contactInfo.companyTagline}</p>
           </div>
           <div className="footer-section">
             <h4>Quick Links</h4>
@@ -314,21 +233,21 @@ function App() {
           </div>
           <div className="footer-section">
             <h4>Contact Info</h4>
-            <p>📧 info@egyptadvisortours.com</p>
-            <p>📞 +20 (123) 456-7890</p>
-            <p>📍 Cairo, Egypt</p>
+            <p>📧 {contactInfo.emailPrimary}</p>
+            <p>📞 {contactInfo.phone}</p>
+            <p>📍 {contactInfo.address.fullAddress}</p>
           </div>
           <div className="footer-section">
             <h4>Follow Us</h4>
             <div className="social-links">
-              <a href="#">Facebook</a>
-              <a href="#">Instagram</a>
-              <a href="#">Twitter</a>
+              <a href={contactInfo.socialMedia.facebook}>Facebook</a>
+              <a href={contactInfo.socialMedia.instagram}>Instagram</a>
+              <a href={contactInfo.socialMedia.twitter}>Twitter</a>
             </div>
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; 2026 Egypt Advisor Tours. All rights reserved. | Privacy Policy | Terms of Service</p>
+          <p>&copy; 2026 {contactInfo.companyName}. All rights reserved. | Privacy Policy | Terms of Service</p>
         </div>
       </footer>
     </div>
