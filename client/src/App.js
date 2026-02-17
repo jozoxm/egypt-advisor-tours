@@ -114,7 +114,7 @@ function App() {
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
           <a href="#home" className="logo" aria-label="Egypt Advisor Tours Home">
-            <img src="/Gold Logo.png" alt="Egypt Advisor Tours" className="logo-img" />
+            <img src="/Gold Logo.png?v=2" alt="Egypt Advisor Tours" className="logo-img" />
           </a>
           
           <button 
