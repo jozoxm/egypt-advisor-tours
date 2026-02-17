@@ -84,11 +84,12 @@ const VideoSlideshow = () => {
             ‹
           </button>
 
-          <div className="slides-wrapper">
+          <div className="slides-wrapper" aria-live="polite">
             {slides.map((slide, index) => (
               <div
                 key={slide.id}
                 className={`slide ${index === currentSlide ? 'active' : ''}`}
+                aria-hidden={index !== currentSlide}
               >
                 <div className="video-container">
                   <iframe
