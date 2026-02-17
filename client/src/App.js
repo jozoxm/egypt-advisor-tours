@@ -5,6 +5,9 @@ import AdminPanel from './pages/AdminPanel';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 
+// App version for cache busting - increment when Admin button issues occur
+const APP_VERSION = '1.0.1';
+
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
   const [scrolled, setScrolled] = useState(false);
@@ -15,6 +18,11 @@ function App() {
       setScrolled(window.scrollY > 50);
     };
     window.addEventListener('scroll', handleScroll);
+    
+    // Log version on mount to verify fresh load
+    console.log(`🎨 Egypt Advisor Tours - Version ${APP_VERSION}`);
+    console.log('Admin button should be visible in navigation');
+    
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 

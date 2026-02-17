@@ -1,5 +1,22 @@
 # Egypt Advisor Tours
 
+## 🚨 CAN'T SEE THE ADMIN BUTTON?
+
+**Follow these steps RIGHT NOW:** [REFRESH-ADMIN-BUTTON.md](REFRESH-ADMIN-BUTTON.md)
+
+**Quick Fix:**
+```bash
+# 1. Pull latest changes
+git pull
+
+# 2. Hard refresh browser (do this 3 times!)
+Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
+
+# 3. Check console (F12) - should show: Version 1.0.1
+```
+
+---
+
 ## 🚀 Quick Start - Commands in Order
 
 **Need the exact commands to follow?** See **[COMMANDS-IN-ORDER.md](COMMANDS-IN-ORDER.md)** for a step-by-step guide!
