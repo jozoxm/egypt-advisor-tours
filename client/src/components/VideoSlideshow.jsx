@@ -1,55 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import './VideoSlideshow.css';
 
+const slides = [
+  {
+    id: 1,
+    title: 'Discover Ancient Egypt',
+    description: 'Experience the magnificent pyramids and temples that have stood for millennia',
+    videoUrl: 'https://www.youtube.com/embed/VX4XfSvcU04',
+    thumbnail: '🏛️'
+  },
+  {
+    id: 2,
+    title: 'Cruise the Nile River',
+    description: 'Sail through history on the legendary Nile, Egypt\'s lifeline',
+    videoUrl: 'https://www.youtube.com/embed/KfD4BsFVOzI',
+    thumbnail: '🚤'
+  },
+  {
+    id: 3,
+    title: 'Explore Luxor & Karnak',
+    description: 'Marvel at the grandeur of ancient Egyptian architecture',
+    videoUrl: 'https://www.youtube.com/embed/A-BMlXQt1aI',
+    thumbnail: '🕌'
+  }
+];
+
+const highlights = [
+  {
+    icon: '🌟',
+    title: 'Expert Egyptologists',
+    description: 'Learn from certified guides with deep knowledge of Egyptian history'
+  },
+  {
+    icon: '🛡️',
+    title: 'Safe & Comfortable',
+    description: 'Premium vehicles and accommodations for your peace of mind'
+  },
+  {
+    icon: '💎',
+    title: 'Exclusive Access',
+    description: 'VIP entry to monuments with skip-the-line privileges'
+  },
+  {
+    icon: '📸',
+    title: 'Unforgettable Memories',
+    description: 'Professional photography opportunities at iconic locations'
+  }
+];
+
 const VideoSlideshow = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
-
-  const slides = [
-    {
-      id: 1,
-      title: 'Discover Ancient Egypt',
-      description: 'Experience the magnificent pyramids and temples that have stood for millennia',
-      videoUrl: 'https://www.youtube.com/embed/VX4XfSvcU04',
-      thumbnail: '🏛️'
-    },
-    {
-      id: 2,
-      title: 'Cruise the Nile River',
-      description: 'Sail through history on the legendary Nile, Egypt\'s lifeline',
-      videoUrl: 'https://www.youtube.com/embed/KfD4BsFVOzI',
-      thumbnail: '🚤'
-    },
-    {
-      id: 3,
-      title: 'Explore Luxor & Karnak',
-      description: 'Marvel at the grandeur of ancient Egyptian architecture',
-      videoUrl: 'https://www.youtube.com/embed/A-BMlXQt1aI',
-      thumbnail: '🕌'
-    }
-  ];
-
-  const highlights = [
-    {
-      icon: '🌟',
-      title: 'Expert Egyptologists',
-      description: 'Learn from certified guides with deep knowledge of Egyptian history'
-    },
-    {
-      icon: '🛡️',
-      title: 'Safe & Comfortable',
-      description: 'Premium vehicles and accommodations for your peace of mind'
-    },
-    {
-      icon: '💎',
-      title: 'Exclusive Access',
-      description: 'VIP entry to monuments with skip-the-line privileges'
-    },
-    {
-      icon: '📸',
-      title: 'Unforgettable Memories',
-      description: 'Professional photography opportunities at iconic locations'
-    }
-  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,7 +57,7 @@ const VideoSlideshow = () => {
     }, 8000);
 
     return () => clearInterval(timer);
-  }, [slides.length]);
+  }, []);
 
   const goToSlide = (index) => {
     setCurrentSlide(index);
@@ -92,10 +92,10 @@ const VideoSlideshow = () => {
               >
                 <div className="video-container">
                   <iframe
-                    src={`${slide.videoUrl}?autoplay=0&mute=1&controls=1&rel=0`}
+                    src={`${slide.videoUrl}?autoplay=1&mute=1&controls=1&rel=0`}
                     title={slide.title}
                     frameBorder="0"
-                    allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   ></iframe>
                 </div>
