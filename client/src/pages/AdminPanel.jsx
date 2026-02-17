@@ -1,15 +1,59 @@
-import React, { useState } from 'react';
-import { tours as initialTours } from '../data/tours-data';
-import { contactInfo as initialContactInfo } from '../data/contact-info';
+import React, { useState, useEffect } from 'react';
 import './AdminPanel.css';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('tours');
-  const [tours, setTours] = useState(initialTours);
-  const [contactInfo, setContactInfo] = useState(initialContactInfo);
+  const [tours, setTours] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
+  const [contactInfo, setContactInfo] = useState({});
   const [editingTourId, setEditingTourId] = useState(null);
   const [editingTour, setEditingTour] = useState(null);
   const [saveMessage, setSaveMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [toursRes, contactRes] = await Promise.all([
+        fetch(`${API_URL}/api/tours`),
+        fetch(`${API_URL}/api/contact`)
+      ]);
+      
+      if (toursRes.ok && contactRes.ok) {
+        const toursData = await toursRes.json();
+        const contactData = await contactRes.json();
+        
+        setTours(toursData.tours || []);
+        setTestimonials(toursData.testimonials || []);
+        setContactInfo(contactData);
+        showSaveMessage('Data loaded successfully!', 'success');
+      } else {
+        showSaveMessage('Failed to load data from server', 'error');
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      showSaveMessage('Server not running. Using local data.', 'warning');
+      // Fallback to local imports if server is not running
+      try {
+        const { tours: localTours, testimonials: localTestimonials } = await import('../data/tours-data');
+        const { contactInfo: localContactInfo } = await import('../data/contact-info');
+        setTours(localTours);
+        setTestimonials(localTestimonials || []);
+        setContactInfo(localContactInfo);
+      } catch (importError) {
+        showSaveMessage('Failed to load data', 'error');
+      }
+    }
+    setLoading(false);
+  };
 
   // Handle tour editing
   const startEditTour = (tour) => {
@@ -22,14 +66,42 @@ const AdminPanel = () => {
     setEditingTour(null);
   };
 
-  const saveTour = () => {
+  const saveTour = async () => {
     const updatedTours = tours.map(tour => 
       tour.id === editingTour.id ? editingTour : tour
     );
     setTours(updatedTours);
     setEditingTourId(null);
     setEditingTour(null);
-    showSaveMessage('Tour updated! (Note: Changes are temporary until you copy the code below)');
+    
+    // Save to server
+    await saveToursToServer(updatedTours);
+  };
+
+  const saveToursToServer = async (toursData) => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/tours`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tours: toursData,
+          testimonials: testimonials
+        }),
+      });
+
+      if (response.ok) {
+        showSaveMessage('✓ Tours saved successfully! Changes are now permanent.', 'success');
+      } else {
+        showSaveMessage('Failed to save tours to server', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving tours:', error);
+      showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
+    }
+    setSaving(false);
   };
 
   const updateEditingTour = (field, value) => {
@@ -38,55 +110,74 @@ const AdminPanel = () => {
 
   // Handle contact info editing
   const updateContactInfo = (field, value) => {
+    let updatedContactInfo;
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
-      setContactInfo({
+      updatedContactInfo = {
         ...contactInfo,
         [parent]: {
           ...contactInfo[parent],
           [child]: value
         }
-      });
+      };
     } else {
-      setContactInfo({ ...contactInfo, [field]: value });
+      updatedContactInfo = { ...contactInfo, [field]: value };
     }
-    showSaveMessage('Contact info updated! (Note: Changes are temporary until you copy the code below)');
+    setContactInfo(updatedContactInfo);
+    
+    // Auto-save contact info
+    saveContactInfoToServer(updatedContactInfo);
   };
 
-  const showSaveMessage = (message) => {
-    setSaveMessage(message);
+  const saveContactInfoToServer = async (contactData) => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/contact`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactData),
+      });
+
+      if (response.ok) {
+        showSaveMessage('✓ Contact info saved successfully!', 'success');
+      } else {
+        showSaveMessage('Failed to save contact info to server', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving contact info:', error);
+      showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
+    }
+    setSaving(false);
+  };
+
+  const showSaveMessage = (message, type = 'info') => {
+    setSaveMessage({ text: message, type });
     setTimeout(() => setSaveMessage(''), 5000);
   };
 
-  // Generate code to copy
-  const generateToursCode = () => {
-    return `export const tours = ${JSON.stringify(tours, null, 2)};`;
-  };
-
-  const generateContactCode = () => {
-    return `export const contactInfo = ${JSON.stringify(contactInfo, null, 2)};`;
-  };
-
-  const copyToClipboard = (text, type) => {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        showSaveMessage(`${type} code copied to clipboard! Now paste it into the corresponding file.`);
-      })
-      .catch((err) => {
-        showSaveMessage(`Failed to copy code. Please manually select and copy the code below. Error: ${err.message}`);
-      });
-  };
+  if (loading) {
+    return (
+      <div className="admin-panel">
+        <div className="admin-header">
+          <h1>🎨 Admin Panel - Loading...</h1>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-panel">
       <div className="admin-header">
-        <h1>🎨 Admin Panel - No Coding Required!</h1>
-        <p>Edit your website content using simple forms below</p>
+        <h1>🎨 Full Control Admin Panel</h1>
+        <p>Edit your website content with automatic saving - no coding required!</p>
+        {saving && <p className="saving-indicator">💾 Saving...</p>}
       </div>
 
       {saveMessage && (
-        <div className="save-message">
-          ✓ {saveMessage}
+        <div className={`save-message ${saveMessage.type}`}>
+          {saveMessage.text}
         </div>
       )}
 
@@ -107,7 +198,7 @@ const AdminPanel = () => {
           className={activeTab === 'instructions' ? 'active' : ''} 
           onClick={() => setActiveTab('instructions')}
         >
-          📚 How to Save Changes
+          📚 How It Works
         </button>
       </div>
 
@@ -230,15 +321,6 @@ const AdminPanel = () => {
                   )}
                 </div>
               ))}
-            </div>
-
-            <div className="code-output">
-              <h3>📋 Step 2: Copy This Code</h3>
-              <p>After editing, copy the code below and paste it into: <code>client/src/data/tours-data.js</code></p>
-              <button className="btn-copy" onClick={() => copyToClipboard(generateToursCode(), 'Tours')}>
-                📋 Copy Tours Code
-              </button>
-              <pre className="code-block">{generateToursCode()}</pre>
             </div>
           </div>
         )}
@@ -398,70 +480,58 @@ const AdminPanel = () => {
                 </div>
               </div>
             </div>
-
-            <div className="code-output">
-              <h3>📋 Step 2: Copy This Code</h3>
-              <p>After editing, copy the code below and paste it into: <code>client/src/data/contact-info.js</code></p>
-              <button className="btn-copy" onClick={() => copyToClipboard(generateContactCode(), 'Contact Info')}>
-                📋 Copy Contact Info Code
-              </button>
-              <pre className="code-block">{generateContactCode()}</pre>
-            </div>
           </div>
         )}
 
         {/* INSTRUCTIONS TAB */}
         {activeTab === 'instructions' && (
           <div className="instructions-section">
-            <h2>📚 How to Save Your Changes</h2>
+            <h2>📚 How the Full Control Panel Works</h2>
             
             <div className="instruction-card">
-              <h3>Step 1: Edit Using Forms</h3>
+              <h3>✨ Automatic Saving</h3>
+              <p>This is a <strong>full control panel</strong> - changes are saved automatically!</p>
+              <ul>
+                <li><strong>Tours</strong>: Click "Save Changes" button after editing</li>
+                <li><strong>Contact Info</strong>: Changes save automatically as you type</li>
+                <li>No more copy/paste needed!</li>
+              </ul>
+            </div>
+
+            <div className="instruction-card">
+              <h3>🔧 How It Works</h3>
               <ol>
-                <li>Go to the "Edit Tours" or "Edit Contact Info" tab</li>
-                <li>Make your changes using the forms</li>
-                <li>Click the "Copy Code" button at the bottom</li>
+                <li>Make sure the backend server is running (<code>npm run server</code>)</li>
+                <li>Edit tours or contact information using the forms</li>
+                <li>Changes are saved directly to the data files</li>
+                <li>Refresh your website to see the updates</li>
               </ol>
             </div>
 
             <div className="instruction-card">
-              <h3>Step 2: Paste Into the Data File</h3>
-              <ol>
-                <li>Open your text editor (VS Code, Notepad++, etc.)</li>
-                <li><strong>For tours:</strong> Open <code>client/src/data/tours-data.js</code></li>
-                <li><strong>For contact info:</strong> Open <code>client/src/data/contact-info.js</code></li>
-                <li>Select ALL the existing code (Ctrl+A or Cmd+A)</li>
-                <li>Paste the copied code (Ctrl+V or Cmd+V)</li>
-                <li>Save the file (Ctrl+S or Cmd+S)</li>
-              </ol>
-            </div>
-
-            <div className="instruction-card">
-              <h3>Step 3: See Your Changes</h3>
-              <ol>
-                <li>If the website is already running, refresh your browser</li>
-                <li>If not, run: <code>npm start</code> from the project root</li>
-                <li>Your changes will appear on the website!</li>
-              </ol>
+              <h3>🚀 Starting the Server</h3>
+              <p>The admin panel needs the backend server to save changes. Run from project root:</p>
+              <pre className="code-block">npm run server</pre>
+              <p>The server should start on port 5000.</p>
             </div>
 
             <div className="instruction-card warning">
               <h3>⚠️ Important Notes</h3>
               <ul>
-                <li>Changes in this admin panel are <strong>temporary</strong> - they won't save automatically</li>
-                <li>You MUST copy the code and paste it into the actual data files</li>
-                <li>Always keep a backup of your working files before making changes</li>
-                <li>Test changes on a local copy before updating your live website</li>
+                <li>The backend server must be running for automatic saves to work</li>
+                <li>If the server is not running, you'll see an error message</li>
+                <li>Changes are saved to files immediately - no manual copy/paste needed!</li>
+                <li>Refresh the website after saving to see your changes</li>
               </ul>
             </div>
 
             <div className="instruction-card tip">
               <h3>💡 Pro Tips</h3>
               <ul>
-                <li>Make small changes and test them one at a time</li>
-                <li>Use this admin panel to preview changes before saving</li>
-                <li>Keep your browser's developer console open to catch any errors</li>
-                <li>If something breaks, just paste back your backup code</li>
+                <li>Watch for the green "saved successfully" message</li>
+                <li>If you see errors, check that the server is running</li>
+                <li>Changes persist across browser refreshes</li>
+                <li>Use this panel for all content updates - it's the easiest way!</li>
               </ul>
             </div>
           </div>
