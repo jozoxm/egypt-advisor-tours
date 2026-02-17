@@ -1,5 +1,22 @@
 # Egypt Advisor Tours
 
+## 🚀 Quick Start - Commands in Order
+
+**Need the exact commands to follow?** See **[COMMANDS-IN-ORDER.md](COMMANDS-IN-ORDER.md)** for a step-by-step guide!
+
+**TL;DR:**
+```bash
+# Terminal 1:
+npm run start:server
+
+# Terminal 2:
+npm run start:client
+
+# Then open: http://localhost:3000
+```
+
+---
+
 ## 🎨 Full Control Admin Panel - NEW!
 
 **Want to edit without ANY coding?** We now have a **Full Control Admin Panel with automatic saving**!
