@@ -4,7 +4,9 @@
 
 **Common Issue:** Getting "Missing script" errors?
 
-➡️ **[Read the Quick Start Guide](QUICK-START-GUIDE.md)** for detailed instructions!
+➡️ **[📚 Command Reference Guide](COMMAND-REFERENCE.md)** - **ALL COMMANDS YOU NEED!** ⭐
+
+➡️ **[Read the Quick Start Guide](QUICK-START-GUIDE.md)** - Complete setup instructions
 
 You're probably in the wrong directory. All npm commands must be run from the repository root:
 ```bash
