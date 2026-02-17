@@ -1,5 +1,22 @@
 # ✅ YOUR ADMIN BUTTON IS READY!
 
+## 🚨 GOT MERGE CONFLICTS?
+
+If you see merge conflict errors when pulling, **DON'T PANIC!**
+
+**Quick Fix:**
+```bash
+# Windows:
+resolve-conflicts.bat
+
+# Mac/Linux:
+./resolve-conflicts.sh
+```
+
+**Or see:** [RESOLVE-MERGE-CONFLICTS.md](RESOLVE-MERGE-CONFLICTS.md) for detailed steps.
+
+---
+
 ## 🎯 What You Need to Do RIGHT NOW
 
 The Admin button **IS in the code** - you just need to pull the updates and refresh!
