@@ -916,13 +916,13 @@ body {
   }
 
   .logo {
-    height: 45px;
+    height: 60px;
     padding: 3px 0;
   }
 
   .logo-img {
     height: 100%;
-    max-width: 220px;
+    max-width: 300px;
   }
 
   .hamburger {
