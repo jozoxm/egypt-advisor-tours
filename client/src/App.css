@@ -60,6 +60,25 @@ body {
   letter-spacing: -0.5px;
 }
 
+.logo-link {
+  display: inline-block;
+  text-decoration: none;
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.logo-link:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.logo-image {
+  height: 60px;
+  width: auto;
+  max-width: 280px;
+  object-fit: contain;
+  display: block;
+}
+
 .nav-menu {
   display: flex;
   list-style: none;
@@ -837,6 +856,11 @@ body {
 
   .nav-menu {
     gap: 1rem;
+  }
+
+  .logo-image {
+    height: 45px;
+    max-width: 220px;
   }
 
   .hero {

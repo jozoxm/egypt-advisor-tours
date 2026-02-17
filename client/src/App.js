@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-import VideoSlideshow from './components/VideoSlideshow';
 import AdminPanel from './pages/AdminPanel';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 
 // App version for cache busting - increment when Admin button issues occur
-const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.2';
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
@@ -21,7 +20,7 @@ function App() {
     
     // Log version on mount to verify fresh load
     console.log(`🎨 Egypt Advisor Tours - Version ${APP_VERSION}`);
-    console.log('Admin button should be visible in navigation');
+    console.log('Admin button moved to footer');
     
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -36,7 +35,9 @@ function App() {
       <div className="App">
         <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
           <div className="nav-container">
-            <h1 className="logo">✨ Egypt Advisor</h1>
+            <a href="#home" className="logo-link">
+              <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
+            </a>
             <button className="contact-btn" onClick={() => setShowAdmin(false)}>
               ← Back to Website
             </button>
@@ -51,20 +52,34 @@ function App() {
     <div className="App">
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
-          <h1 className="logo">✨ Egypt Advisor</h1>
+          <a href="#home" className="logo-link">
+            <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
+          </a>
           <ul className="nav-menu">
             <li><a href="#home">Home</a></li>
             <li><a href="#tours">Tours</a></li>
             <li><a href="#about">About</a></li>
             <li><a href="#contact">Contact</a></li>
-            <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin</a></li>
           </ul>
           <button className="contact-btn">Inquiry</button>
         </div>
       </nav>
 
       <section id="home" className="hero">
-        <VideoSlideshow />
+        <div className="hero-overlay"></div>
+        <div className="hero-content">
+          <span className="hero-tag">🌟 Premium Travel Experiences</span>
+          <h1>Discover the Wonders of Ancient Egypt</h1>
+          <p>Embark on an unforgettable journey through millennia of history, culture, and breathtaking landscapes with expert local guides</p>
+          <div className="hero-buttons">
+            <button className="btn btn-primary" onClick={() => document.getElementById('tours').scrollIntoView({ behavior: 'smooth' })}>
+              Explore Tours
+            </button>
+            <button className="btn btn-secondary" onClick={() => document.getElementById('contact').scrollIntoView({ behavior: 'smooth' })}>
+              Contact Us
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="stats">
@@ -257,6 +272,7 @@ function App() {
               <li><a href="#tours">Tours</a></li>
               <li><a href="#about">About Us</a></li>
               <li><a href="#contact">Contact</a></li>
+              <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
             </ul>
           </div>
           <div className="footer-section">
