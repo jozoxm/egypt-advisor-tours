@@ -114,7 +114,7 @@ function App() {
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
           <div className="logo">
-            <img src="/logo.svg" alt="Egypt Advisor Tours" className="logo-img" />
+            <img src="/Gold Logo.png" alt="Egypt Advisor Tours" className="logo-img" />
           </div>
           
           <button 
