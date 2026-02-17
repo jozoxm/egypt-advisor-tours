@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './AdminPanel.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -14,12 +14,14 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Load data on mount
-  useEffect(() => {
-    loadData();
+  // Helper function to show messages
+  const showSaveMessage = useCallback((message, type = 'info') => {
+    setSaveMessage({ text: message, type });
+    setTimeout(() => setSaveMessage(''), 5000);
   }, []);
 
-  const loadData = async () => {
+  // Load data from server
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [toursRes, contactRes] = await Promise.all([
@@ -53,7 +55,12 @@ const AdminPanel = () => {
       }
     }
     setLoading(false);
-  };
+  }, [showSaveMessage]);
+
+  // Load data on mount
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Handle tour editing
   const startEditTour = (tour) => {
@@ -150,11 +157,6 @@ const AdminPanel = () => {
       showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
     }
     setSaving(false);
-  };
-
-  const showSaveMessage = (message, type = 'info') => {
-    setSaveMessage({ text: message, type });
-    setTimeout(() => setSaveMessage(''), 5000);
   };
 
   if (loading) {
