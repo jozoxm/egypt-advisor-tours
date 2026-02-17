@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { contactInfo } from '../data/contact-info';
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -49,34 +50,34 @@ const Contact = () => {
           
           <div style={{ marginBottom: '30px' }}>
             <h3>📍 Address</h3>
-            <p>Cairo, Egypt</p>
+            <p>{contactInfo.address.fullAddress}</p>
           </div>
 
           <div style={{ marginBottom: '30px' }}>
             <h3>📞 Phone</h3>
-            <p>+20 123 456 7890</p>
-            <p>Available 24/7</p>
+            <p>{contactInfo.phone}</p>
+            <p>{contactInfo.phoneAvailability}</p>
           </div>
 
           <div style={{ marginBottom: '30px' }}>
             <h3>📧 Email</h3>
-            <p>info@egyptadvisortours.com</p>
-            <p>support@egyptadvisortours.com</p>
+            <p>{contactInfo.emailPrimary}</p>
+            <p>{contactInfo.emailSupport}</p>
           </div>
 
           <div style={{ marginBottom: '30px' }}>
             <h3>🕐 Business Hours</h3>
-            <p>Monday - Friday: 9 AM - 6 PM (Egypt Time)</p>
-            <p>Saturday - Sunday: 10 AM - 4 PM (Egypt Time)</p>
+            <p>{contactInfo.businessHours.weekdays}</p>
+            <p>{contactInfo.businessHours.weekends}</p>
           </div>
 
           <div>
             <h3>Follow Us</h3>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <a href="#facebook" style={{ marginRight: '15px' }}>Facebook</a>
-              <a href="#instagram" style={{ marginRight: '15px' }}>Instagram</a>
-              <a href="#twitter" style={{ marginRight: '15px' }}>Twitter</a>
-              <a href="#youtube">YouTube</a>
+              <a href={contactInfo.socialMedia.facebook} style={{ marginRight: '15px' }}>Facebook</a>
+              <a href={contactInfo.socialMedia.instagram} style={{ marginRight: '15px' }}>Instagram</a>
+              <a href={contactInfo.socialMedia.twitter} style={{ marginRight: '15px' }}>Twitter</a>
+              <a href={contactInfo.socialMedia.youtube}>YouTube</a>
             </div>
           </div>
         </div>

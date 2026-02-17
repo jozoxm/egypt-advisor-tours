@@ -1,0 +1,376 @@
+.video-slideshow-section {
+  background: linear-gradient(to bottom, #f9f7f4 0%, #ffffff 100%);
+  padding: 80px 20px;
+  overflow: hidden;
+}
+
+.slideshow-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.slideshow-header {
+  text-align: center;
+  margin-bottom: 50px;
+}
+
+.slideshow-header h2 {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: #2c2c2c;
+  margin-bottom: 15px;
+  background: linear-gradient(135deg, #8B7D2D 0%, #C9B037 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.slideshow-header p {
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.video-slideshow {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 60px;
+}
+
+.slides-wrapper {
+  position: relative;
+  width: 100%;
+  height: 600px;
+  overflow: hidden;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.slide {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+  pointer-events: none;
+}
+
+.slide.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.video-container {
+  width: 100%;
+  height: 450px;
+  background: #000;
+  border-radius: 15px 15px 0 0;
+  overflow: hidden;
+}
+
+.video-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.slide-content {
+  padding: 30px 40px;
+  background: linear-gradient(135deg, #8B7D2D 0%, #C9B037 100%);
+  border-radius: 0 0 15px 15px;
+  text-align: center;
+}
+
+.slide-content h3 {
+  font-size: 2rem;
+  color: white;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.slide-content p {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.6;
+}
+
+.slide-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.95);
+  color: #8B7D2D;
+  border: none;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  font-size: 2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.slide-nav:hover {
+  background: white;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 6px 20px rgba(139, 125, 45, 0.3);
+}
+
+.slide-nav.prev {
+  left: 0;
+}
+
+.slide-nav.next {
+  right: 0;
+}
+
+.slide-indicators {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #C9B037;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.indicator:hover {
+  transform: scale(1.2);
+  background: rgba(201, 176, 55, 0.3);
+}
+
+.indicator.active {
+  background: #C9B037;
+  transform: scale(1.3);
+}
+
+/* Highlights Section */
+.highlights-container {
+  max-width: 1200px;
+  margin: 80px auto 0;
+  text-align: center;
+}
+
+.highlights-container h3 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2c2c2c;
+  margin-bottom: 50px;
+  background: linear-gradient(135deg, #8B7D2D 0%, #C9B037 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 30px;
+  padding: 0 20px;
+}
+
+.highlight-card {
+  background: white;
+  padding: 40px 30px;
+  border-radius: 15px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.highlight-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.12);
+  border-color: #D4AF37;
+}
+
+.highlight-icon {
+  font-size: 3.5rem;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+.highlight-card h4 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #2c2c2c;
+  margin-bottom: 12px;
+}
+
+.highlight-card p {
+  font-size: 1rem;
+  color: #666;
+  line-height: 1.6;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .slideshow-header h2 {
+    font-size: 2.3rem;
+  }
+
+  .slides-wrapper {
+    height: 550px;
+  }
+
+  .video-container {
+    height: 400px;
+  }
+
+  .slide-content {
+    padding: 25px 30px;
+  }
+
+  .slide-content h3 {
+    font-size: 1.7rem;
+  }
+
+  .slide-content p {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .video-slideshow-section {
+    padding: 60px 15px;
+  }
+
+  .slideshow-header h2 {
+    font-size: 2rem;
+  }
+
+  .slideshow-header p {
+    font-size: 1.1rem;
+  }
+
+  .video-slideshow {
+    padding: 0 50px;
+  }
+
+  .slides-wrapper {
+    height: 480px;
+  }
+
+  .video-container {
+    height: 330px;
+  }
+
+  .slide-content {
+    padding: 20px 25px;
+  }
+
+  .slide-content h3 {
+    font-size: 1.5rem;
+  }
+
+  .slide-content p {
+    font-size: 0.95rem;
+  }
+
+  .slide-nav {
+    width: 45px;
+    height: 45px;
+    font-size: 1.8rem;
+  }
+
+  .highlights-container h3 {
+    font-size: 2rem;
+  }
+
+  .highlights-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 25px;
+  }
+
+  .highlight-card {
+    padding: 30px 25px;
+  }
+}
+
+@media (max-width: 480px) {
+  .video-slideshow-section {
+    padding: 50px 10px;
+  }
+
+  .slideshow-header {
+    margin-bottom: 35px;
+  }
+
+  .slideshow-header h2 {
+    font-size: 1.7rem;
+  }
+
+  .slideshow-header p {
+    font-size: 1rem;
+  }
+
+  .video-slideshow {
+    padding: 0 40px;
+  }
+
+  .slides-wrapper {
+    height: 400px;
+  }
+
+  .video-container {
+    height: 260px;
+  }
+
+  .slide-content {
+    padding: 18px 20px;
+  }
+
+  .slide-content h3 {
+    font-size: 1.3rem;
+  }
+
+  .slide-content p {
+    font-size: 0.9rem;
+  }
+
+  .slide-nav {
+    width: 40px;
+    height: 40px;
+    font-size: 1.6rem;
+  }
+
+  .highlights-container {
+    margin-top: 60px;
+  }
+
+  .highlights-container h3 {
+    font-size: 1.7rem;
+    margin-bottom: 35px;
+  }
+
+  .highlights-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .highlight-card {
+    padding: 25px 20px;
+  }
+
+  .highlight-icon {
+    font-size: 3rem;
+  }
+
+  .highlight-card h4 {
+    font-size: 1.2rem;
+  }
+}
