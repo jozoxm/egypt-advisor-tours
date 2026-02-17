@@ -92,9 +92,8 @@ const VideoSlideshow = () => {
               >
                 <div className="video-container">
                   <iframe
-                    src={`${slide.videoUrl}?autoplay=1&mute=1&controls=1&rel=0`}
+                    src={`${slide.videoUrl}?autoplay=${index === currentSlide ? '1' : '0'}&mute=1&controls=1&rel=0`}
                     title={slide.title}
-                    frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   ></iframe>
