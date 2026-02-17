@@ -126,19 +126,19 @@ socialMedia: {
 ```
 
 ### Update Contact Page Details:
-For more detailed contact page changes, edit: `client/src/pages/Contact.jsx`
+For more detailed contact page changes, the Contact page now automatically uses data from `contact-info.js`.
 
-Find these sections:
+If you need to make direct edits to the contact page layout, edit: `client/src/pages/Contact.jsx`
+
+The page will display information from `contact-info.js` like this:
 ```javascript
-// Address
-<p>Cairo, Egypt</p>
-
-// Phone
-<p>+20 123 456 7890</p>
-
-// Email
-<p>info@egyptadvisortours.com</p>
+// The page automatically shows:
+{contactInfo.address.fullAddress}  // Shows: Cairo, Egypt
+{contactInfo.phone}                 // Shows: +20 (123) 456-7890
+{contactInfo.emailPrimary}          // Shows: info@egyptadvisortours.com
 ```
+
+**Best Practice:** Always edit contact info in `contact-info.js` - it updates everywhere automatically!
 
 ---
 
