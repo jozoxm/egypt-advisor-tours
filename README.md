@@ -1,5 +1,65 @@
 # Egypt Advisor Tours
 
+## 🚨 CAN'T SEE THE ADMIN BUTTON?
+
+**Follow these steps RIGHT NOW:** [REFRESH-ADMIN-BUTTON.md](REFRESH-ADMIN-BUTTON.md)
+
+**Quick Fix:**
+```bash
+# 1. Pull latest changes
+git pull
+
+# 2. Hard refresh browser (do this 3 times!)
+Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
+
+# 3. Check console (F12) - should show: Version 1.0.1
+```
+
+---
+
+## 🚀 Quick Start - Commands in Order
+
+**Need the exact commands to follow?** See **[COMMANDS-IN-ORDER.md](COMMANDS-IN-ORDER.md)** for a step-by-step guide!
+
+**TL;DR:**
+```bash
+# Terminal 1:
+npm run start:server
+
+# Terminal 2:
+npm run start:client
+
+# Then open: http://localhost:3000
+```
+
+---
+
+## 🎨 Full Control Admin Panel - NEW!
+
+**Want to edit without ANY coding?** We now have a **Full Control Admin Panel with automatic saving**!
+
+- 🖱️ **[Full Control Admin Guide](NO-CODE-ADMIN-GUIDE.md)** - Edit with automatic saving (EASIEST!)
+- 📖 **[Quick Edit Guide](QUICK-EDIT-GUIDE.md)** - Edit data files directly
+- 📚 **[Beginner's Guide](BEGINNER-GUIDE.md)** - Complete guide with step-by-step instructions
+
+**How to use the Full Control Panel:**
+1. Start backend server: `npm run start:server`
+2. Start website: `npm run start:client`  
+3. Click "🎨 Admin" in navigation
+4. Edit and save - changes persist automatically!
+
+**No copy/paste, no manual file editing - just click and save!** ✨
+
+---
+
+## 🎓 For Beginners: How to Edit This Website
+
+**New to coding?** We've made it easy for you!
+
+All the data is organized in easy-to-edit files - no complex coding required!
+
+---
+
 ## Project Overview
 Egypt Advisor Tours is a travel agency website designed to help travelers plan their visits to Egypt with ease. It provides useful information about various tours, attractions, accommodations, and travel tips to create unforgettable experiences.
 
