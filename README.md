@@ -30,6 +30,28 @@ Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
 
 ---
 
+## 🚨 SCRIPT NOT FOUND?
+
+**Getting "'resolve-css-conflict.bat' is not recognized" error?**
+
+See **[MISSING-SCRIPTS-FIX.md](MISSING-SCRIPTS-FIX.md)** for complete fix!
+
+**Quick Fix:**
+```bash
+# Switch to the correct branch
+git checkout copilot/remove-video-from-hero
+git pull origin copilot/remove-video-from-hero
+
+# Or resolve manually without scripts
+git checkout --theirs client/src/App.css
+git add client/src/App.css
+git commit -m "Resolve CSS conflict"
+```
+
+**Manual Resolution:** See [CSS-CONFLICT-MANUAL.md](CSS-CONFLICT-MANUAL.md)
+
+---
+
 ## 🚀 Quick Start - Commands in Order
 
 **Need the exact commands to follow?** See **[COMMANDS-IN-ORDER.md](COMMANDS-IN-ORDER.md)** for a step-by-step guide!
