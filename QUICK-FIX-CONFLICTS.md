@@ -1,7 +1,8 @@
 # 🆘 MERGE CONFLICT QUICK FIX
 
-## You're Seeing This Error:
+## You're Seeing One of These Errors:
 
+### Multiple File Conflicts:
 ```
 CONFLICT (content): Merge conflict in README.md
 CONFLICT (add/add): Merge conflict in client/public/Gold Logo.png
@@ -9,10 +10,17 @@ CONFLICT (content): Merge conflict in client/src/App.js
 Automatic merge failed; fix conflicts and then commit the result.
 ```
 
+### CSS Conflict:
+```
+CONFLICT (content): Merge conflict in client/src/App.css
+Automatic merge failed; fix conflicts and then commit the result.
+```
+
 ---
 
-## ✅ SOLUTION - Copy & Paste These Commands:
+## ✅ SOLUTIONS:
 
+### For Multiple File Conflicts:
 ```bash
 cd "D:\save\New folder\egypt-advisor-tours"
 git checkout --theirs README.md
@@ -22,17 +30,31 @@ git add .
 git commit -m "Resolve merge conflicts - accept incoming changes"
 ```
 
+### For CSS Conflict Only:
+```bash
+cd "D:\save\New folder\egypt-advisor-tours"
+git checkout --theirs client/src/App.css
+git add client/src/App.css
+git commit -m "Resolve CSS merge conflict - accept incoming changes"
+```
+
 **That's it!** Conflicts resolved! ✅
 
 ---
 
-## 🎯 Even Easier - Run This:
+## 🎯 Even Easier - Run One of These:
 
+### For Multiple Conflicts:
 ```bash
 resolve-conflicts.bat
 ```
 
-This script does everything for you automatically!
+### For CSS Conflict Only:
+```bash
+resolve-css-conflict.bat
+```
+
+These scripts do everything for you automatically!
 
 ---
 
@@ -96,7 +118,8 @@ git pull origin copilot/remove-video-from-hero
 ```
 
 **Need Help?**
-See [RESOLVE-MERGE-CONFLICTS.md](RESOLVE-MERGE-CONFLICTS.md) for detailed guide.
+- CSS conflict? See [RESOLVE-CSS-CONFLICT.md](RESOLVE-CSS-CONFLICT.md)
+- Multiple conflicts? See [RESOLVE-MERGE-CONFLICTS.md](RESOLVE-MERGE-CONFLICTS.md)
 
 ---
 
@@ -105,9 +128,14 @@ See [RESOLVE-MERGE-CONFLICTS.md](RESOLVE-MERGE-CONFLICTS.md) for detailed guide.
 - [ ] No error messages from git
 - [ ] `git status` shows "nothing to commit"
 - [ ] Both servers running
-- [ ] Browser shows version 1.0.1 in console
-- [ ] Admin button visible between "Contact" and "Inquiry"
+- [ ] Browser shows version 1.0.2 in console
+- [ ] Logo displays as image (not text)
+- [ ] Admin button in footer (not navbar)
 
 ---
 
-**Quick Fix:** Just run `resolve-conflicts.bat` and follow the prompts! 🚀
+**Quick Fix:** 
+- Multiple conflicts? Run `resolve-conflicts.bat`
+- CSS only? Run `resolve-css-conflict.bat`
+
+Then follow the prompts! 🚀
