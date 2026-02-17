@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import VideoSlideshow from './components/VideoSlideshow';
+import AdminPanel from './pages/AdminPanel';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
   const [scrolled, setScrolled] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -20,6 +22,23 @@ function App() {
   // To edit tours, go to: client/src/data/tours-data.js
   // To edit contact info, go to: client/src/data/contact-info.js
 
+  // If admin panel is active, show only the admin panel
+  if (showAdmin) {
+    return (
+      <div className="App">
+        <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
+          <div className="nav-container">
+            <h1 className="logo">✨ Egypt Advisor</h1>
+            <button className="contact-btn" onClick={() => setShowAdmin(false)}>
+              ← Back to Website
+            </button>
+          </div>
+        </nav>
+        <AdminPanel />
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
@@ -30,6 +49,7 @@ function App() {
             <li><a href="#tours">Tours</a></li>
             <li><a href="#about">About</a></li>
             <li><a href="#contact">Contact</a></li>
+            <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin</a></li>
           </ul>
           <button className="contact-btn">Inquiry</button>
         </div>

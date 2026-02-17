@@ -1,17 +1,23 @@
 # Egypt Advisor Tours
 
+## 🎨 No-Code Editing Available!
+
+**Want to edit without coding at all?** We have a visual admin panel!
+
+- 🖱️ **[No-Code Admin Panel Guide](NO-CODE-ADMIN-GUIDE.md)** - Edit using web forms (easiest!)
+- 📖 **[Quick Edit Guide](QUICK-EDIT-GUIDE.md)** - 5 minute guide to edit data files
+- 📚 **[Beginner's Guide](BEGINNER-GUIDE.md)** - Complete guide with step-by-step instructions
+
+**Three ways to edit your website:**
+1. **Admin Panel** (No Coding!) - Click "🎨 Admin" in the navigation bar
+2. **Data Files** (Easy) - Edit `tours-data.js` and `contact-info.js`
+3. **Direct Code** (Advanced) - Edit React components
+
+---
+
 ## 🎓 For Beginners: How to Edit This Website
 
 **New to coding?** We've made it easy for you!
-
-- 📖 **[Quick Edit Guide](QUICK-EDIT-GUIDE.md)** - 5 minute guide to edit tours & contact info
-- 📚 **[Beginner's Guide](BEGINNER-GUIDE.md)** - Complete guide with step-by-step instructions
-
-**What you can easily edit:**
-- Tour prices, descriptions, and details
-- Contact information (email, phone, address)
-- Social media links
-- Business hours
 
 All the data is organized in easy-to-edit files - no complex coding required!
 
