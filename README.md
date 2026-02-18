@@ -1,5 +1,18 @@
 # Egypt Advisor Tours
 
+## 🚨 WINDOWS BUILD ERROR?
+
+**Getting "'CI' is not recognized" error?** See **[BUILD-WINDOWS-FIX.md](BUILD-WINDOWS-FIX.md)**
+
+**Quick Fix:**
+```bash
+git pull origin copilot/remove-video-from-hero
+cd client && npm install && cd ..
+npm run build
+```
+
+---
+
 ## 🚨 CAN'T SEE THE ADMIN BUTTON?
 
 **Follow these steps RIGHT NOW:** [REFRESH-ADMIN-BUTTON.md](REFRESH-ADMIN-BUTTON.md)
@@ -12,8 +25,30 @@ git pull
 # 2. Hard refresh browser (do this 3 times!)
 Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
 
-# 3. Check console (F12) - should show: Version 1.0.1
+# 3. Check console (F12) - should show: Version 1.0.2
 ```
+
+---
+
+## 🚨 SCRIPT NOT FOUND?
+
+**Getting "'resolve-css-conflict.bat' is not recognized" error?**
+
+See **[MISSING-SCRIPTS-FIX.md](MISSING-SCRIPTS-FIX.md)** for complete fix!
+
+**Quick Fix:**
+```bash
+# Switch to the correct branch
+git checkout copilot/remove-video-from-hero
+git pull origin copilot/remove-video-from-hero
+
+# Or resolve manually without scripts
+git checkout --theirs client/src/App.css
+git add client/src/App.css
+git commit -m "Resolve CSS conflict"
+```
+
+**Manual Resolution:** See [CSS-CONFLICT-MANUAL.md](CSS-CONFLICT-MANUAL.md)
 
 ---
 
