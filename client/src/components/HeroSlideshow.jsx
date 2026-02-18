@@ -36,8 +36,7 @@ const HeroSlideshow = () => {
             backgroundSize: 'cover',
             backgroundPosition: 'center'
           }}
-          aria-label={slide.name}
-          aria-hidden={index !== currentIndex}
+          aria-hidden="true"
         />
       ))}
     </div>
