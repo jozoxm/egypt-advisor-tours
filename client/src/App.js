@@ -394,6 +394,18 @@ function App() {
                 </div>
                 <div className="form-row">
                   <input
+                    name="phone"
+                    type="tel"
+                    placeholder="+20 123 456 7890 (WhatsApp)"
+                    aria-label="Phone number (international format)"
+                    required
+                  />
+                  <label className="checkbox-item inline-checkbox">
+                    <input name="whatsapp" type="checkbox" defaultChecked aria-label="WhatsApp" /> WhatsApp
+                  </label>
+                </div>
+                <div className="form-row">
+                  <input
                     name="travelDates"
                     type="text"
                     placeholder="Preferred travel dates or month (e.g., Oct 2026)"
