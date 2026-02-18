@@ -36,7 +36,7 @@ const BookingModal = ({ tour, onClose }) => {
       
       // Create booking object
       const booking = {
-        id: Date.now(), // Simple ID generation
+        id: newId,
         tourId: tour.id,
         tourName: tour.name,
         ...formData,
@@ -49,6 +49,12 @@ const BookingModal = ({ tour, onClose }) => {
       const response = await fetch(`${API_URL}/api/bookings`);
       const data = await response.json();
       const existingBookings = data.bookings || [];
+
+      // Generate unique ID based on existing bookings
+      const maxId = existingBookings.length > 0 
+        ? Math.max(...existingBookings.map(b => b.id)) 
+        : 0;
+      const newId = maxId + 1;
 
       // Add new booking
       const updatedBookings = [...existingBookings, booking];
