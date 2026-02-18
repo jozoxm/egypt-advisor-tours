@@ -179,6 +179,78 @@
   line-height: 1.6;
 }
 
+.tour-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.tour-actions .btn-edit,
+.tour-actions .btn-delete {
+  flex: 1;
+  width: auto;
+}
+
+.tour-photo-preview-image {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+/* File Upload Styles */
+.file-input {
+  padding: 8px 0 !important;
+  border: none !important;
+  cursor: pointer;
+}
+
+.file-input::-webkit-file-upload-button {
+  background: #C9B037;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.file-input::-webkit-file-upload-button:hover {
+  background: #8B7D2D;
+}
+
+.photo-preview-container {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+}
+
+.photo-preview {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 6px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.btn-remove-photo {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-remove-photo:hover {
+  background: #c82333;
+}
+
 /* Edit Form */
 .tour-edit-form {
   padding: 20px;
@@ -258,7 +330,6 @@
 .btn-edit {
   background: #C9B037;
   color: white;
-  width: 100%;
 }
 
 .btn-edit:hover {

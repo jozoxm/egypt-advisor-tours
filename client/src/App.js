@@ -13,6 +13,7 @@ function App() {
   const [bookingTour, setBookingTour] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -40,7 +41,14 @@ function App() {
             <a href="#home" className="logo-link">
               <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
             </a>
-            <button className="contact-btn" onClick={() => setShowAdmin(false)}>
+            <button
+              className="contact-btn"
+              onClick={() => {
+                // Ensure main-site mobile menu is closed when leaving admin
+                setMenuOpen(false);
+                setShowAdmin(false);
+              }}
+            >
               ← Back to Website
             </button>
           </div>
@@ -57,11 +65,25 @@ function App() {
           <a href="#home" className="logo-link">
             <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
           </a>
-          <ul className="nav-menu">
-            <li><a href="#home">Home</a></li>
-            <li><a href="#tours">Tours</a></li>
-            <li><a href="#about">About</a></li>
-            <li><a href="#contact">Contact</a></li>
+          <button 
+            className="hamburger" 
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
+            <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
+            <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
+          </button>
+          <ul 
+            className={`nav-menu ${menuOpen ? 'mobile-open' : ''}`}
+            aria-hidden={!menuOpen}
+            inert={!menuOpen ? '' : undefined}
+          >
+            <li><a href="#home" onClick={() => setMenuOpen(false)}>Home</a></li>
+            <li><a href="#tours" onClick={() => setMenuOpen(false)}>Tours</a></li>
+            <li><a href="#about" onClick={() => setMenuOpen(false)}>About</a></li>
+            <li><a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a></li>
           </ul>
           <button className="contact-btn">Inquiry</button>
         </div>
@@ -280,6 +302,14 @@ function App() {
           </form>
         </div>
       </section>
+
+      {/* Mobile Inquiry Button - Fixed at Bottom */}
+      <button 
+        className="mobile-inquiry-btn"
+        onClick={() => document.getElementById('contact').scrollIntoView({ behavior: 'smooth' })}
+      >
+        📧 Inquiry
+      </button>
 
       <footer className="footer">
         <div className="footer-content">

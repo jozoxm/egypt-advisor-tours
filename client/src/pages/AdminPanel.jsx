@@ -101,6 +101,20 @@ const AdminPanel = () => {
   };
 
   const cancelEditTour = () => {
+    // If this was a new tour that wasn't saved yet, remove it from tours array
+    if (editingTour && !tours.find(t => t.id === editingTour.id && JSON.stringify(t) === JSON.stringify(editingTour))) {
+      // This is a new tour that was just added but not saved
+      const wasSaved = tours.some(tour => 
+        tour.id === editingTour.id && 
+        (tour.name !== 'New Tour' || tour.description !== 'Enter tour description here...')
+      );
+      
+      if (!wasSaved) {
+        // Remove the unsaved new tour from state
+        setTours(tours.filter(tour => tour.id !== editingTour.id));
+      }
+    }
+    
     setEditingTourId(null);
     setEditingTour(null);
   };
@@ -145,6 +159,60 @@ const AdminPanel = () => {
 
   const updateEditingTour = (field, value) => {
     setEditingTour({ ...editingTour, [field]: value });
+  };
+
+  const handleTourPhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showSaveMessage('Image file too large. Please use a file smaller than 5MB.', 'error');
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        showSaveMessage('Please upload an image file.', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Store the base64 encoded image
+        updateEditingTour('photoUrl', reader.result);
+        showSaveMessage('Image uploaded successfully!', 'success');
+      };
+      reader.onerror = () => {
+        showSaveMessage('Failed to upload image. Please try again.', 'error');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const addNewTour = () => {
+    const newTour = {
+      id: Math.max(0, ...tours.map(t => t.id)) + 1,
+      name: 'New Tour',
+      price: '$199',
+      duration: '4 hours',
+      description: 'Enter tour description here...',
+      image: '🏛️',
+      photoUrl: '',
+      rating: 4.5,
+      reviews: 0,
+      groupSize: '2-10 people'
+    };
+    setEditingTour(newTour);
+    setEditingTourId(newTour.id);
+    setTours([...tours, newTour]);
+  };
+
+  const deleteTour = async (tourId) => {
+    if (window.confirm('Are you sure you want to delete this tour?')) {
+      const updatedTours = tours.filter(tour => tour.id !== tourId);
+      setTours(updatedTours);
+      await saveToursToServer(updatedTours);
+    }
   };
 
   // Handle contact info editing
@@ -451,8 +519,13 @@ const AdminPanel = () => {
         {/* TOURS TAB */}
         {activeTab === 'tours' && (
           <div className="tours-section">
-            <h2>Edit Tours</h2>
-            <p className="section-description">Click "Edit" on any tour to change its details</p>
+            <div className="section-header-with-action">
+              <h2>Manage Tours</h2>
+              <button className="btn-add" onClick={addNewTour}>
+                ➕ Add New Tour
+              </button>
+            </div>
+            <p className="section-description">Create, edit, and manage tour packages</p>
             
             <div className="tours-list">
               {tours.map(tour => (
@@ -534,6 +607,44 @@ const AdminPanel = () => {
                       </div>
 
                       <div className="form-row">
+                        <label>Photo URL (Optional):</label>
+                        <input 
+                          type="url" 
+                          value={editingTour.photoUrl && !editingTour.photoUrl.startsWith('data:') ? editingTour.photoUrl : ''}
+                          onChange={(e) => updateEditingTour('photoUrl', e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-..."
+                        />
+                        <small>Enter an image URL or upload a file below. Leave blank to use emoji icon.</small>
+                      </div>
+
+                      <div className="form-row">
+                        <label>Or Upload Photo:</label>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleTourPhotoUpload}
+                          className="file-input"
+                        />
+                        <small>Upload an image file (max 5MB). Supported formats: JPG, PNG, GIF, WebP</small>
+                        {editingTour.photoUrl && (
+                          <div className="photo-preview-container">
+                            <img 
+                              src={editingTour.photoUrl} 
+                              alt="Tour preview" 
+                              className="photo-preview"
+                            />
+                            <button 
+                              type="button"
+                              className="btn-remove-photo"
+                              onClick={() => updateEditingTour('photoUrl', '')}
+                            >
+                              ✕ Remove Photo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-row">
                         <label>Description:</label>
                         <textarea 
                           value={editingTour.description}
@@ -559,9 +670,19 @@ const AdminPanel = () => {
                         ⏱️ {tour.duration} | 👥 {tour.groupSize} | ⭐ {tour.rating} ({tour.reviews} reviews)
                       </p>
                       <p className="tour-description">{tour.description}</p>
-                      <button className="btn-edit" onClick={() => startEditTour(tour)}>
-                        ✏️ Edit This Tour
-                      </button>
+                      {tour.photoUrl && (
+                        <div className="tour-photo-preview">
+                          <img src={tour.photoUrl} alt={tour.name} className="tour-photo-preview-image" />
+                        </div>
+                      )}
+                      <div className="tour-actions">
+                        <button className="btn-edit" onClick={() => startEditTour(tour)}>
+                          ✏️ Edit
+                        </button>
+                        <button className="btn-delete" onClick={() => deleteTour(tour.id)}>
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
