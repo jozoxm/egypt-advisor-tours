@@ -4,6 +4,7 @@ import AdminPanel from './pages/AdminPanel';
 import BookingModal from './components/BookingModal';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
+import { blogs } from './data/blogs-data';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.2';
@@ -14,6 +15,8 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [tourSearch, setTourSearch] = useState('');
+  const [showTripTailor, setShowTripTailor] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,6 +34,30 @@ function App() {
   // Tours and testimonials are now imported from data files
   // To edit tours, go to: client/src/data/tours-data.js
   // To edit contact info, go to: client/src/data/contact-info.js
+
+  const normalizedSearch = tourSearch.trim().toLowerCase();
+  const filteredTours = tours.filter((tour) => {
+    if (!normalizedSearch) return true;
+    const searchable = `${tour.name} ${tour.description} ${tour.duration} ${tour.price} ${tour.groupSize}`.toLowerCase();
+    return searchable.includes(normalizedSearch);
+  });
+
+  const scrollToTripTailor = () => {
+    setShowTripTailor(true);
+    setMenuOpen(false);
+  };
+
+  const formatBlogDate = (dateString) => {
+    const parsedDate = new Date(dateString);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return 'Date unavailable';
+    }
+    return parsedDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
   // If admin panel is active, show only the admin panel
   if (showAdmin) {
@@ -82,10 +109,15 @@ function App() {
           >
             <li><a href="#home" onClick={() => setMenuOpen(false)}>Home</a></li>
             <li><a href="#tours" onClick={() => setMenuOpen(false)}>Tours</a></li>
+            <li><a href="#blogs" onClick={() => setMenuOpen(false)}>Blogs</a></li>
             <li><a href="#about" onClick={() => setMenuOpen(false)}>About</a></li>
-            <li><a href="#contact" onClick={() => setMenuOpen(false)}>Contact</a></li>
           </ul>
-          <button className="contact-btn">Inquiry</button>
+            <button 
+              className="contact-btn"
+              onClick={scrollToTripTailor}
+            >
+              Trip Tailor
+            </button>
         </div>
       </nav>
 
@@ -99,9 +131,9 @@ function App() {
             <button className="btn btn-primary" onClick={() => document.getElementById('tours').scrollIntoView({ behavior: 'smooth' })}>
               Explore Tours
             </button>
-            <button className="btn btn-secondary" onClick={() => document.getElementById('contact').scrollIntoView({ behavior: 'smooth' })}>
-              Contact Us
-            </button>
+          <button className="btn btn-secondary" onClick={scrollToTripTailor}>
+            Plan My Trip
+          </button>
           </div>
         </div>
       </section>
@@ -130,47 +162,76 @@ function App() {
           <h2>Signature Experiences</h2>
           <p>Carefully curated tours designed to showcase Egypt's most breathtaking destinations</p>
         </div>
-        
-        <div className="tours-grid">
-          {tours.map(tour => (
-            <div 
-              key={tour.id} 
-              className="tour-card"
-              onClick={() => setSelectedTour(tour)}
-            >
-              <div className="tour-image-wrapper">
-                <div className="tour-icon">{tour.image}</div>
-                <div className="tour-overlay">
-                  <button className="explore-btn">Explore</button>
-                </div>
-              </div>
-              <div className="tour-content">
-                <h3>{tour.name}</h3>
-                <div className="tour-rating">
-                  <span className="stars">{'⭐'.repeat(Math.floor(tour.rating))}</span>
-                  <span className="rating-text">({tour.reviews} reviews)</span>
-                </div>
-                <p className="tour-description">{tour.description}</p>
-                <div className="tour-details">
-                  <span className="detail">⏱️ {tour.duration}</span>
-                  <span className="detail">👥 {tour.groupSize}</span>
-                </div>
-                <div className="tour-footer">
-                  <span className="price">{tour.price}</span>
-                  <button 
-                    className="book-button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setBookingTour(tour);
-                    }}
-                  >
-                    Book Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+
+        <div className="tours-toolbar">
+          <div className="search-input">
+            <input
+              type="search"
+              value={tourSearch}
+              onChange={(e) => setTourSearch(e.target.value)}
+              placeholder="Search tours by name, duration, or experience (e.g., Nile, pyramids, Luxor)"
+              aria-label="Search tours"
+            />
+            {tourSearch && (
+              <button className="clear-search" onClick={() => setTourSearch('')}>
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="tours-count">
+            Showing {filteredTours.length} of {tours.length} tours
+          </div>
         </div>
+        
+        {filteredTours.length === 0 ? (
+          <div className="empty-state">
+            <p>No tours match that search yet.</p>
+            <button className="btn btn-primary" onClick={() => setTourSearch('')}>
+              Show all tours
+            </button>
+          </div>
+        ) : (
+          <div className="tours-grid">
+            {filteredTours.map(tour => (
+              <div 
+                key={tour.id} 
+                className="tour-card"
+                onClick={() => setSelectedTour(tour)}
+              >
+                <div className="tour-image-wrapper">
+                  <div className="tour-icon">{tour.image}</div>
+                  <div className="tour-overlay">
+                    <button className="explore-btn">Explore</button>
+                  </div>
+                </div>
+                <div className="tour-content">
+                  <h3>{tour.name}</h3>
+                  <div className="tour-rating">
+                    <span className="stars">{'⭐'.repeat(Math.floor(tour.rating))}</span>
+                    <span className="rating-text">({tour.reviews} reviews)</span>
+                  </div>
+                  <p className="tour-description">{tour.description}</p>
+                  <div className="tour-details">
+                    <span className="detail">⏱️ {tour.duration}</span>
+                    <span className="detail">👥 {tour.groupSize}</span>
+                  </div>
+                  <div className="tour-footer">
+                    <span className="price">{tour.price}</span>
+                    <button 
+                      className="book-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBookingTour(tour);
+                      }}
+                    >
+                      Book Now
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {selectedTour && (
@@ -213,6 +274,35 @@ function App() {
           onClose={() => setBookingTour(null)} 
         />
       )}
+
+      <section id="blogs" className="blogs">
+        <div className="section-header">
+          <h2>Travel Insights & Blogs</h2>
+          <p>Fresh stories, tips, and cultural guides to help you craft the perfect journey through Egypt</p>
+        </div>
+
+        <div className="blogs-grid">
+        {blogs.map((blog) => (
+            <article key={blog.id} className="blog-card">
+              <div className="blog-icon">{blog.image}</div>
+              <div className="blog-content">
+                <div className="blog-meta">
+                  <span className="blog-category">{blog.category}</span>
+                  <span className="blog-date">{formatBlogDate(blog.date)}</span>
+                </div>
+                <h3>{blog.title}</h3>
+                <p className="blog-excerpt">{blog.excerpt}</p>
+                <div className="blog-footer">
+                  <span className="blog-author">By {blog.author}</span>
+                  <button className="text-button" onClick={scrollToTripTailor}>
+                    Tailor a trip like this →
+                  </button>
+                </div>
+              </div>
+            </article>
+        ))}
+        </div>
+      </section>
 
       <section id="about" className="about">
         <div className="about-content">
@@ -272,43 +362,140 @@ function App() {
         </div>
       </section>
 
-      <section id="contact" className="contact">
-        <div className="contact-content">
-          <h2>Ready to Explore?</h2>
-          <p>Get in touch with us today and start planning your Egyptian adventure</p>
-          
-          <form className="contact-form">
-            <div className="form-group">
-              <input type="text" placeholder="Full Name" required />
-            </div>
-            <div className="form-group">
-              <input type="email" placeholder="Email Address" required />
-            </div>
-            <div className="form-group">
-              <select required>
-                <option value="">Select Tour Interest</option>
-                <option value="pyramids">Pyramids of Giza</option>
-                <option value="luxor">Luxor Temple</option>
-                <option value="valley">Valley of the Kings</option>
-                <option value="nile">Nile River Cruise</option>
-                <option value="museum">Cairo Museum</option>
-                <option value="abu">Abu Simbel Temples</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <textarea placeholder="Tell us about your travel dates and preferences" rows="4" required></textarea>
-            </div>
-            <button type="submit" className="btn btn-primary submit-button">Send Inquiry</button>
-          </form>
-        </div>
-      </section>
+      {showTripTailor && (
+        <div className="trip-tailor-modal" role="dialog" aria-modal="true" aria-label="Tailor your Egypt trip" onClick={() => setShowTripTailor(false)}>
+          <div className="trip-tailor-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-button" onClick={() => setShowTripTailor(false)} aria-label="Close trip tailor form">✕</button>
+            <div className="trip-tailor-grid">
+              <div className="trip-tailor-copy">
+                <h2>Tailor Your Egypt Journey</h2>
+                <p>Share your dream experiences and we'll craft a bespoke itinerary with expert Egyptologists, luxury stays, and seamless logistics.</p>
+                <ul className="trip-highlights">
+                  <li>✔️ Private guides & skip-the-line access</li>
+                  <li>✔️ Handpicked stays in Cairo, Luxor, Aswan & the Red Sea</li>
+                  <li>✔️ Flexible pace with cultural, culinary, and family-friendly options</li>
+                </ul>
+                <div className="trip-contact">
+                  <span>📧 {contactInfo.emailPrimary}</span>
+                  <span>📞 {contactInfo.phone}</span>
+                </div>
+              </div>
 
-      {/* Mobile Inquiry Button - Fixed at Bottom */}
+              <form
+                className="trip-tailor-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setShowTripTailor(false);
+                }}
+              >
+                <div className="form-row">
+                  <input name="fullName" type="text" placeholder="Full Name" aria-label="Full Name" required />
+                  <input name="email" type="email" placeholder="Email Address" aria-label="Email Address" required />
+                </div>
+                <div className="form-row">
+                  <input
+                    name="phone"
+                    type="tel"
+                    placeholder="+20 123 456 7890 (WhatsApp)"
+                    aria-label="Phone number (international format)"
+                    required
+                  />
+                  <label className="checkbox-item inline-checkbox">
+                    <input name="whatsapp" type="checkbox" defaultChecked aria-label="WhatsApp" /> WhatsApp
+                  </label>
+                </div>
+                <div className="form-row">
+                  <input
+                    name="travelDates"
+                    type="text"
+                    placeholder="Preferred travel dates or month (e.g., Oct 2026)"
+                    aria-label="Preferred travel dates or month"
+                    required
+                  />
+                  <input
+                    name="travelers"
+                    type="number"
+                    min="1"
+                    max="50"
+                    placeholder="Number of travelers"
+                    aria-label="Number of travelers"
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <select
+                    name="travelStyle"
+                    aria-label="Travel style"
+                    defaultValue="placeholder"
+                    required
+                  >
+                    <option value="placeholder" disabled hidden>Travel style</option>
+                    <option value="luxury">Luxury & private</option>
+                    <option value="cultural">Cultural immersion</option>
+                    <option value="adventure">Adventure & outdoors</option>
+                    <option value="family">Family friendly</option>
+                  </select>
+                  <select name="accommodation" aria-label="Accommodation preference" defaultValue="placeholder" required>
+                    <option value="placeholder" disabled hidden>Accommodation preference</option>
+                    <option value="boutique">Boutique & character stays</option>
+                    <option value="luxury-hotels">Luxury hotels & resorts</option>
+                    <option value="heritage">Heritage stays & eco-lodges</option>
+                    <option value="budget">Comfort/budget friendly</option>
+                  </select>
+                </div>
+                <div className="form-group checkbox-group">
+                  <span className="field-label">Travel interests (select all that apply)</span>
+                  <div className="options-grid spacious-options">
+                    <label className="checkbox-item"><input name="interestHistory" type="checkbox" /> Ancient history & temples</label>
+                    <label className="checkbox-item"><input name="interestNile" type="checkbox" /> Nile cruise experiences</label>
+                    <label className="checkbox-item"><input name="interestRedSea" type="checkbox" /> Red Sea beaches & diving</label>
+                    <label className="checkbox-item"><input name="interestFood" type="checkbox" /> Food & culinary tours</label>
+                    <label className="checkbox-item"><input name="interestDesert" type="checkbox" /> Desert adventures & oases</label>
+                    <label className="checkbox-item"><input name="interestFamily" type="checkbox" /> Family-friendly activities</label>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <select name="pace" aria-label="Preferred trip pace" defaultValue="placeholder" required>
+                    <option value="placeholder" disabled hidden>Preferred pace</option>
+                    <option value="relaxed">Relaxed (more downtime)</option>
+                    <option value="balanced">Balanced (mix of sights & rest)</option>
+                    <option value="packed">See-it-all (full days)</option>
+                  </select>
+                  <select name="budget" aria-label="Budget range" defaultValue="placeholder" required>
+                    <option value="placeholder" disabled hidden>Budget range</option>
+                    <option value="premium">Premium (top-tier)</option>
+                    <option value="mid">Mid-range</option>
+                    <option value="value">Value-focused</option>
+                  </select>
+                </div>
+                <div className="form-row">
+                  <input name="mustSee" type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
+                  <select name="language" aria-label="Guiding language preference" defaultValue="placeholder">
+                    <option value="placeholder" disabled hidden>Guiding language (optional)</option>
+                    <option value="english">English</option>
+                    <option value="arabic">Arabic</option>
+                    <option value="french">French</option>
+                    <option value="spanish">Spanish</option>
+                    <option value="german">German</option>
+                    <option value="other">Other (share in notes)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <textarea name="notes" placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
+                </div>
+                <button type="submit" className="btn btn-primary submit-button">Tailor my trip</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Trip Tailor Button - Fixed at Bottom */}
       <button 
         className="mobile-inquiry-btn"
-        onClick={() => document.getElementById('contact').scrollIntoView({ behavior: 'smooth' })}
+        onClick={scrollToTripTailor}
       >
-        📧 Inquiry
+        ✨ Tailor My Trip
       </button>
 
       <footer className="footer">
@@ -321,8 +508,8 @@ function App() {
             <h4>Quick Links</h4>
             <ul>
               <li><a href="#tours">Tours</a></li>
+              <li><a href="#blogs">Blogs</a></li>
               <li><a href="#about">About Us</a></li>
-              <li><a href="#contact">Contact</a></li>
               <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
             </ul>
           </div>
