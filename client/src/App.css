@@ -1055,11 +1055,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.015);
-  padding: 10px 12px;
-  border-radius: 10px;
-  font-weight: 500;
-  border: 1px solid #e8ebf0;
+  background: transparent;
+  padding: 8px 4px;
+  border-radius: 8px;
+  font-weight: 400;
+  border: none;
 }
 
 .inline-checkbox {
