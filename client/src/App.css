@@ -1055,16 +1055,18 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba(0, 0, 0, 0.015);
   padding: 10px 12px;
   border-radius: 10px;
-  font-weight: 600;
+  font-weight: 500;
+  border: 1px solid #e8ebf0;
 }
 
 .inline-checkbox {
   justify-content: flex-start;
   background: transparent;
   padding: 10px 0;
+  border: none;
 }
 
 .form-group {
@@ -1077,14 +1079,14 @@ body {
 .form-row input,
 .form-row select {
   width: 100%;
-  padding: 14px;
-  border: 1px solid #e5e5e5;
+  padding: 13px 14px;
+  border: 1px solid #dfe3e8;
   border-radius: 10px;
-  font-family: inherit;
-  font-size: 1rem;
-  background: rgba(255, 255, 255, 0.95);
+  font-family: 'Inter', 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 0.97rem;
+  background: rgba(255, 255, 255, 0.96);
   color: var(--text-dark);
-  transition: all 0.3s;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .form-group input:focus,
@@ -1094,7 +1096,7 @@ body {
 .form-row select:focus {
   outline: none;
   background: white;
-  box-shadow: 0 0 0 3px rgba(201, 176, 55, 0.2);
+  box-shadow: 0 0 0 2px rgba(201, 176, 55, 0.18);
   border-color: #c9b037;
 }
 
