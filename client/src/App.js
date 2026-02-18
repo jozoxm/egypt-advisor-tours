@@ -107,7 +107,6 @@ function App() {
             <li><a href="#tours" onClick={() => setMenuOpen(false)}>Tours</a></li>
             <li><a href="#blogs" onClick={() => setMenuOpen(false)}>Blogs</a></li>
             <li><a href="#about" onClick={() => setMenuOpen(false)}>About</a></li>
-            <li><a href="#trip-tailor" onClick={() => setMenuOpen(false)}>Trip Tailor</a></li>
           </ul>
             <button 
               className="contact-btn"
@@ -411,7 +410,50 @@ function App() {
                 <option value="adventure">Adventure & outdoors</option>
                 <option value="family">Family friendly</option>
               </select>
+              <select aria-label="Accommodation preference" defaultValue="placeholder" required>
+                <option value="placeholder" disabled hidden>Accommodation preference</option>
+                <option value="boutique">Boutique & character stays</option>
+                <option value="luxury-hotels">Luxury hotels & resorts</option>
+                <option value="heritage">Heritage stays & eco-lodges</option>
+                <option value="budget">Comfort/budget friendly</option>
+              </select>
+            </div>
+            <div className="form-group checkbox-group">
+              <span className="field-label">Travel interests (select all that apply)</span>
+              <div className="options-grid">
+                <label className="checkbox-item"><input type="checkbox" aria-label="Ancient history and temples" /> Ancient history & temples</label>
+                <label className="checkbox-item"><input type="checkbox" aria-label="Nile cruise experiences" /> Nile cruise experiences</label>
+                <label className="checkbox-item"><input type="checkbox" aria-label="Red Sea beaches and diving" /> Red Sea beaches & diving</label>
+                <label className="checkbox-item"><input type="checkbox" aria-label="Food and culinary tours" /> Food & culinary tours</label>
+                <label className="checkbox-item"><input type="checkbox" aria-label="Desert adventures and oases" /> Desert adventures & oases</label>
+                <label className="checkbox-item"><input type="checkbox" aria-label="Family friendly activities" /> Family-friendly activities</label>
+              </div>
+            </div>
+            <div className="form-row">
+              <select aria-label="Preferred trip pace" defaultValue="placeholder" required>
+                <option value="placeholder" disabled hidden>Preferred pace</option>
+                <option value="relaxed">Relaxed (more downtime)</option>
+                <option value="balanced">Balanced (mix of sights & rest)</option>
+                <option value="packed">See-it-all (full days)</option>
+              </select>
+              <select aria-label="Budget range" defaultValue="placeholder" required>
+                <option value="placeholder" disabled hidden>Budget range</option>
+                <option value="premium">Premium (top-tier)</option>
+                <option value="mid">Mid-range</option>
+                <option value="value">Value-focused</option>
+              </select>
+            </div>
+            <div className="form-row">
               <input type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
+              <select aria-label="Guiding language preference" defaultValue="placeholder">
+                <option value="placeholder" disabled hidden>Guiding language (optional)</option>
+                <option value="english">English</option>
+                <option value="arabic">Arabic</option>
+                <option value="french">French</option>
+                <option value="spanish">Spanish</option>
+                <option value="german">German</option>
+                <option value="other">Other (share in notes)</option>
+              </select>
             </div>
             <div className="form-group">
               <textarea placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
@@ -424,7 +466,7 @@ function App() {
       {/* Mobile Trip Tailor Button - Fixed at Bottom */}
       <button 
         className="mobile-inquiry-btn"
-        onClick={() => document.getElementById('trip-tailor')?.scrollIntoView({ behavior: 'smooth' })}
+        onClick={scrollToTripTailor}
       >
         ✨ Tailor My Trip
       </button>
@@ -441,7 +483,6 @@ function App() {
               <li><a href="#tours">Tours</a></li>
               <li><a href="#blogs">Blogs</a></li>
               <li><a href="#about">About Us</a></li>
-              <li><a href="#trip-tailor">Trip Tailor</a></li>
               <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
             </ul>
           </div>
