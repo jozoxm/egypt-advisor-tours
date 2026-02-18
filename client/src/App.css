@@ -949,6 +949,7 @@ body {
   }
 
   .nav-menu {
+    display: flex;
     position: fixed;
     top: var(--navbar-height);
     left: -100%;

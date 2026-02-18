@@ -179,6 +179,18 @@
   line-height: 1.6;
 }
 
+.tour-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.tour-actions .btn-edit,
+.tour-actions .btn-delete {
+  flex: 1;
+  width: auto;
+}
+
 /* Edit Form */
 .tour-edit-form {
   padding: 20px;
@@ -258,7 +270,6 @@
 .btn-edit {
   background: #C9B037;
   color: white;
-  width: 100%;
 }
 
 .btn-edit:hover {

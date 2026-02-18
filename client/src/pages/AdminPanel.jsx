@@ -147,6 +147,32 @@ const AdminPanel = () => {
     setEditingTour({ ...editingTour, [field]: value });
   };
 
+  const addNewTour = () => {
+    const newTour = {
+      id: Math.max(...tours.map(t => t.id), 0) + 1,
+      name: 'New Tour',
+      price: '$199',
+      duration: '4 hours',
+      description: 'Enter tour description here...',
+      image: '🏛️',
+      photoUrl: '',
+      rating: 4.5,
+      reviews: 0,
+      groupSize: '2-10 people'
+    };
+    setEditingTour(newTour);
+    setEditingTourId(newTour.id);
+    setTours([...tours, newTour]);
+  };
+
+  const deleteTour = async (tourId) => {
+    if (window.confirm('Are you sure you want to delete this tour?')) {
+      const updatedTours = tours.filter(tour => tour.id !== tourId);
+      setTours(updatedTours);
+      await saveToursToServer(updatedTours);
+    }
+  };
+
   // Handle contact info editing
   const updateContactInfo = (field, value) => {
     let updatedContactInfo;
@@ -451,8 +477,13 @@ const AdminPanel = () => {
         {/* TOURS TAB */}
         {activeTab === 'tours' && (
           <div className="tours-section">
-            <h2>Edit Tours</h2>
-            <p className="section-description">Click "Edit" on any tour to change its details</p>
+            <div className="section-header-with-action">
+              <h2>Manage Tours</h2>
+              <button className="btn-add" onClick={addNewTour}>
+                ➕ Add New Tour
+              </button>
+            </div>
+            <p className="section-description">Create, edit, and manage tour packages</p>
             
             <div className="tours-list">
               {tours.map(tour => (
@@ -534,6 +565,17 @@ const AdminPanel = () => {
                       </div>
 
                       <div className="form-row">
+                        <label>Photo URL (Optional):</label>
+                        <input 
+                          type="url" 
+                          value={editingTour.photoUrl || ''}
+                          onChange={(e) => updateEditingTour('photoUrl', e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-..."
+                        />
+                        <small>Use Unsplash, Imgur, or your own hosted image URL. Leave blank to use emoji icon.</small>
+                      </div>
+
+                      <div className="form-row">
                         <label>Description:</label>
                         <textarea 
                           value={editingTour.description}
@@ -559,9 +601,19 @@ const AdminPanel = () => {
                         ⏱️ {tour.duration} | 👥 {tour.groupSize} | ⭐ {tour.rating} ({tour.reviews} reviews)
                       </p>
                       <p className="tour-description">{tour.description}</p>
-                      <button className="btn-edit" onClick={() => startEditTour(tour)}>
-                        ✏️ Edit This Tour
-                      </button>
+                      {tour.photoUrl && (
+                        <div className="tour-photo-preview">
+                          <img src={tour.photoUrl} alt={tour.name} style={{maxWidth: '100%', borderRadius: '8px', marginTop: '10px'}} />
+                        </div>
+                      )}
+                      <div className="tour-actions">
+                        <button className="btn-edit" onClick={() => startEditTour(tour)}>
+                          ✏️ Edit
+                        </button>
+                        <button className="btn-delete" onClick={() => deleteTour(tour.id)}>
+                          🗑️ Delete
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
