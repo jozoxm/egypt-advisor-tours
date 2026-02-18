@@ -300,6 +300,14 @@ function App() {
         </div>
       </section>
 
+      {/* Mobile Inquiry Button - Fixed at Bottom */}
+      <button 
+        className="mobile-inquiry-btn"
+        onClick={() => document.getElementById('contact').scrollIntoView({ behavior: 'smooth' })}
+      >
+        📧 Inquiry
+      </button>
+
       <footer className="footer">
         <div className="footer-content">
           <div className="footer-section">

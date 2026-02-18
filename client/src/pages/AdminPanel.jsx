@@ -147,6 +147,34 @@ const AdminPanel = () => {
     setEditingTour({ ...editingTour, [field]: value });
   };
 
+  const handleTourPhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        showSaveMessage('Image file too large. Please use a file smaller than 5MB.', 'error');
+        return;
+      }
+
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        showSaveMessage('Please upload an image file.', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        // Store the base64 encoded image
+        updateEditingTour('photoUrl', reader.result);
+        showSaveMessage('Image uploaded successfully!', 'success');
+      };
+      reader.onerror = () => {
+        showSaveMessage('Failed to upload image. Please try again.', 'error');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const addNewTour = () => {
     const newTour = {
       id: Math.max(0, ...tours.map(t => t.id)) + 1,
@@ -568,11 +596,38 @@ const AdminPanel = () => {
                         <label>Photo URL (Optional):</label>
                         <input 
                           type="url" 
-                          value={editingTour.photoUrl || ''}
+                          value={editingTour.photoUrl && !editingTour.photoUrl.startsWith('data:') ? editingTour.photoUrl : ''}
                           onChange={(e) => updateEditingTour('photoUrl', e.target.value)}
                           placeholder="https://images.unsplash.com/photo-..."
                         />
-                        <small>Use Unsplash, Imgur, or your own hosted image URL. Leave blank to use emoji icon.</small>
+                        <small>Enter an image URL or upload a file below. Leave blank to use emoji icon.</small>
+                      </div>
+
+                      <div className="form-row">
+                        <label>Or Upload Photo:</label>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={handleTourPhotoUpload}
+                          className="file-input"
+                        />
+                        <small>Upload an image file (max 5MB). Supported formats: JPG, PNG, GIF, WebP</small>
+                        {editingTour.photoUrl && (
+                          <div className="photo-preview-container">
+                            <img 
+                              src={editingTour.photoUrl} 
+                              alt="Tour preview" 
+                              className="photo-preview"
+                            />
+                            <button 
+                              type="button"
+                              className="btn-remove-photo"
+                              onClick={() => updateEditingTour('photoUrl', '')}
+                            >
+                              ✕ Remove Photo
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div className="form-row">
