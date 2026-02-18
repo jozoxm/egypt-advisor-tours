@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import AdminPanel from './pages/AdminPanel';
 import BookingModal from './components/BookingModal';
@@ -8,6 +9,96 @@ import { blogs } from './data/blogs-data';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.2';
+const MAX_SCROLL_RETRY_ATTEMPTS = 10;
+const SCROLL_RETRY_DELAY_MS = 50;
+
+const ToursSection = ({
+  filteredTours,
+  tourSearch,
+  setTourSearch,
+  setSelectedTour,
+  setBookingTour,
+  totalTours,
+  heading = 'Signature Experiences',
+  subheading = "Carefully curated tours designed to showcase Egypt's most breathtaking destinations"
+}) => (
+  <section id="tours" className="tours">
+    <div className="section-header">
+      <h2>{heading}</h2>
+      <p>{subheading}</p>
+    </div>
+
+    <div className="tours-toolbar">
+      <div className="search-input">
+        <input
+          type="search"
+          value={tourSearch}
+          onChange={(e) => setTourSearch(e.target.value)}
+          placeholder="Search tours by name, duration, or experience (e.g., Nile, pyramids, Luxor)"
+          aria-label="Search tours"
+        />
+        {tourSearch && (
+          <button className="clear-search" onClick={() => setTourSearch('')}>
+            Clear
+          </button>
+        )}
+      </div>
+      <div className="tours-count">
+        Showing {filteredTours.length} of {totalTours} tours
+      </div>
+    </div>
+    
+    {filteredTours.length === 0 ? (
+      <div className="empty-state">
+        <p>No tours match that search yet.</p>
+        <button className="btn btn-primary" onClick={() => setTourSearch('')}>
+          Show all tours
+        </button>
+      </div>
+    ) : (
+      <div className="tours-grid">
+        {filteredTours.map(tour => (
+          <div 
+            key={tour.id} 
+            className="tour-card"
+            onClick={() => setSelectedTour(tour)}
+          >
+            <div className="tour-image-wrapper">
+              <div className="tour-icon">{tour.image}</div>
+              <div className="tour-overlay">
+                <button className="explore-btn">Explore</button>
+              </div>
+            </div>
+            <div className="tour-content">
+              <h3>{tour.name}</h3>
+              <div className="tour-rating">
+                <span className="stars">{'⭐'.repeat(Math.floor(tour.rating))}</span>
+                <span className="rating-text">({tour.reviews} reviews)</span>
+              </div>
+              <p className="tour-description">{tour.description}</p>
+              <div className="tour-details">
+                <span className="detail">⏱️ {tour.duration}</span>
+                <span className="detail">👥 {tour.groupSize}</span>
+              </div>
+              <div className="tour-footer">
+                <span className="price">{tour.price}</span>
+                <button 
+                  className="book-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBookingTour(tour);
+                  }}
+                >
+                  Book Now
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
+);
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
@@ -17,19 +108,50 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tourSearch, setTourSearch] = useState('');
   const [showTripTailor, setShowTripTailor] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const scrollTimeoutsRef = useRef([]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll);
+  const clearScrollTimeouts = () => {
+    scrollTimeoutsRef.current.forEach((id) => clearTimeout(id));
+    scrollTimeoutsRef.current = [];
+  };
+
+  const scrollToSectionWithRetry = (sectionId, remainingAttempts = MAX_SCROLL_RETRY_ATTEMPTS) => {
+    const section = document.getElementById(sectionId);
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth' });
+      clearScrollTimeouts();
+      return;
+    }
+    if (remainingAttempts > 0) {
+      clearScrollTimeouts();
+      const timeoutId = setTimeout(
+        () => scrollToSectionWithRetry(sectionId, remainingAttempts - 1),
+        SCROLL_RETRY_DELAY_MS
+      );
+      scrollTimeoutsRef.current.push(timeoutId);
+    }
+  };
+
+useEffect(() => {
+  const handleScroll = () => {
+    setScrolled(window.scrollY > 50);
+  };
+  window.addEventListener('scroll', handleScroll);
     
     // Log version on mount to verify fresh load
     console.log(`🎨 Egypt Advisor Tours - Version ${APP_VERSION}`);
     console.log('Admin button moved to footer');
     
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  return () => window.removeEventListener('scroll', handleScroll);
+}, []);
+
+useEffect(() => {
+  return () => {
+    clearScrollTimeouts();
+  };
+}, []);
 
   // Tours and testimonials are now imported from data files
   // To edit tours, go to: client/src/data/tours-data.js
@@ -45,6 +167,23 @@ function App() {
   const scrollToTripTailor = () => {
     setShowTripTailor(true);
     setMenuOpen(false);
+  };
+
+  const goToSection = (sectionId) => {
+    setMenuOpen(false);
+    if (document.getElementById(sectionId)) {
+      scrollToSectionWithRetry(sectionId);
+      return;
+    }
+
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+    const timeoutId = setTimeout(
+      () => scrollToSectionWithRetry(sectionId),
+      SCROLL_RETRY_DELAY_MS * 2
+    );
+    scrollTimeoutsRef.current.push(timeoutId);
   };
 
   const formatBlogDate = (dateString) => {
@@ -89,9 +228,9 @@ function App() {
     <div className="App">
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
-          <a href="#home" className="logo-link">
+          <Link to="/" className="logo-link" onClick={() => { setMenuOpen(false); }}>
             <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
-          </a>
+          </Link>
           <button 
             className="hamburger" 
             onClick={() => setMenuOpen(!menuOpen)}
@@ -107,10 +246,23 @@ function App() {
             aria-hidden={!menuOpen}
             inert={!menuOpen ? '' : undefined}
           >
-            <li><a href="#home" onClick={() => setMenuOpen(false)}>Home</a></li>
-            <li><a href="#tours" onClick={() => setMenuOpen(false)}>Tours</a></li>
-            <li><a href="#blogs" onClick={() => setMenuOpen(false)}>Blogs</a></li>
-            <li><a href="#about" onClick={() => setMenuOpen(false)}>About</a></li>
+            <li><Link to="/" onClick={() => { setMenuOpen(false); }}>Home</Link></li>
+            <li>
+              <Link
+                to="/tours"
+                onClick={(e) => {
+                  if (location.pathname === '/tours') {
+                    e.preventDefault();
+                    scrollToSectionWithRetry('tours');
+                  }
+                  setMenuOpen(false);
+                }}
+              >
+                Tours
+              </Link>
+            </li>
+            <li><a href="#blogs" onClick={(e) => { e.preventDefault(); goToSection('blogs'); }}>Blogs</a></li>
+            <li><a href="#about" onClick={(e) => { e.preventDefault(); goToSection('about'); }}>About</a></li>
           </ul>
             <button 
               className="contact-btn"
@@ -121,118 +273,183 @@ function App() {
         </div>
       </nav>
 
-      <section id="home" className="hero">
-        <div className="hero-overlay"></div>
-        <div className="hero-content">
-          <span className="hero-tag">🌟 Premium Travel Experiences</span>
-          <h1>Discover the Wonders of Ancient Egypt</h1>
-          <p>Embark on an unforgettable journey through millennia of history, culture, and breathtaking landscapes with expert local guides</p>
-          <div className="hero-buttons">
-            <button className="btn btn-primary" onClick={() => document.getElementById('tours').scrollIntoView({ behavior: 'smooth' })}>
-              Explore Tours
-            </button>
-          <button className="btn btn-secondary" onClick={scrollToTripTailor}>
-            Plan My Trip
-          </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="stats">
-        <div className="stat-item">
-          <h3>5000+</h3>
-          <p>Happy Travelers</p>
-        </div>
-        <div className="stat-item">
-          <h3>25+</h3>
-          <p>Unique Tours</p>
-        </div>
-        <div className="stat-item">
-          <h3>15+</h3>
-          <p>Years Experience</p>
-        </div>
-        <div className="stat-item">
-          <h3>4.9★</h3>
-          <p>Average Rating</p>
-        </div>
-      </section>
-
-      <section id="tours" className="tours">
-        <div className="section-header">
-          <h2>Signature Experiences</h2>
-          <p>Carefully curated tours designed to showcase Egypt's most breathtaking destinations</p>
-        </div>
-
-        <div className="tours-toolbar">
-          <div className="search-input">
-            <input
-              type="search"
-              value={tourSearch}
-              onChange={(e) => setTourSearch(e.target.value)}
-              placeholder="Search tours by name, duration, or experience (e.g., Nile, pyramids, Luxor)"
-              aria-label="Search tours"
-            />
-            {tourSearch && (
-              <button className="clear-search" onClick={() => setTourSearch('')}>
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="tours-count">
-            Showing {filteredTours.length} of {tours.length} tours
-          </div>
-        </div>
-        
-        {filteredTours.length === 0 ? (
-          <div className="empty-state">
-            <p>No tours match that search yet.</p>
-            <button className="btn btn-primary" onClick={() => setTourSearch('')}>
-              Show all tours
-            </button>
-          </div>
-        ) : (
-          <div className="tours-grid">
-            {filteredTours.map(tour => (
-              <div 
-                key={tour.id} 
-                className="tour-card"
-                onClick={() => setSelectedTour(tour)}
-              >
-                <div className="tour-image-wrapper">
-                  <div className="tour-icon">{tour.image}</div>
-                  <div className="tour-overlay">
-                    <button className="explore-btn">Explore</button>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <>
+              <section id="home" className="hero">
+                <div className="hero-overlay"></div>
+                <div className="hero-content">
+                  <span className="hero-tag">🌟 Premium Travel Experiences</span>
+                  <h1>Discover the Wonders of Ancient Egypt</h1>
+                  <p>Embark on an unforgettable journey through millennia of history, culture, and breathtaking landscapes with expert local guides</p>
+                  <div className="hero-buttons">
+                    <button className="btn btn-primary" onClick={() => goToSection('tours')}>
+                      Explore Tours
+                    </button>
+                  <button className="btn btn-secondary" onClick={scrollToTripTailor}>
+                    Plan My Trip
+                  </button>
                   </div>
                 </div>
-                <div className="tour-content">
-                  <h3>{tour.name}</h3>
-                  <div className="tour-rating">
-                    <span className="stars">{'⭐'.repeat(Math.floor(tour.rating))}</span>
-                    <span className="rating-text">({tour.reviews} reviews)</span>
+              </section>
+
+              <section className="stats">
+                <div className="stat-item">
+                  <h3>5000+</h3>
+                  <p>Happy Travelers</p>
+                </div>
+                <div className="stat-item">
+                  <h3>25+</h3>
+                  <p>Unique Tours</p>
+                </div>
+                <div className="stat-item">
+                  <h3>15+</h3>
+                  <p>Years Experience</p>
+                </div>
+                <div className="stat-item">
+                  <h3>4.9★</h3>
+                  <p>Average Rating</p>
+                </div>
+              </section>
+
+              <ToursSection
+                filteredTours={filteredTours}
+                tourSearch={tourSearch}
+                setTourSearch={setTourSearch}
+                setSelectedTour={setSelectedTour}
+                setBookingTour={setBookingTour}
+                totalTours={tours.length}
+              />
+
+              <section id="blogs" className="blogs">
+                <div className="section-header">
+                  <h2>Travel Insights & Blogs</h2>
+                  <p>Fresh stories, tips, and cultural guides to help you craft the perfect journey through Egypt</p>
+                </div>
+
+                <div className="blogs-grid">
+                {blogs.map((blog) => (
+                    <article key={blog.id} className="blog-card">
+                      <div className="blog-icon">{blog.image}</div>
+                      <div className="blog-content">
+                        <div className="blog-meta">
+                          <span className="blog-category">{blog.category}</span>
+                          <span className="blog-date">{formatBlogDate(blog.date)}</span>
+                        </div>
+                        <h3>{blog.title}</h3>
+                        <p className="blog-excerpt">{blog.excerpt}</p>
+                        <div className="blog-footer">
+                          <span className="blog-author">By {blog.author}</span>
+                          <button className="text-button" onClick={scrollToTripTailor}>
+                            Tailor a trip like this →
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                ))}
+                </div>
+              </section>
+
+              <section id="about" className="about">
+                <div className="about-content">
+                  <h2>Why Egypt Advisor?</h2>
+                  <p className="about-intro">We're not just a tour company – we're your gateway to authentic Egyptian experiences</p>
+                  
+                  <div className="features-grid">
+                    <div className="feature-card">
+                      <div className="feature-icon">🎓</div>
+                      <h3>Expert Guides</h3>
+                      <p>Certified Egyptologists with decades of combined experience sharing their passion for ancient history</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">🛡️</div>
+                      <h3>Safety & Comfort</h3>
+                      <p>Your safety is paramount. Climate-controlled vehicles and premium accommodations included</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">💎</div>
+                      <h3>Exclusive Access</h3>
+                      <p>Private viewings and special permits to explore off-the-beaten-path archaeological sites</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">🌍</div>
+                      <h3>Personalized Service</h3>
+                      <p>Custom itineraries tailored to your interests, pace, and travel style</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">⭐</div>
+                      <h3>Best Value</h3>
+                      <p>Transparent pricing with no hidden fees. Premium experiences at competitive rates</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">🤝</div>
+                      <h3>24/7 Support</h3>
+                      <p>Round-the-clock customer support before, during, and after your journey</p>
+                    </div>
                   </div>
-                  <p className="tour-description">{tour.description}</p>
-                  <div className="tour-details">
-                    <span className="detail">⏱️ {tour.duration}</span>
-                    <span className="detail">👥 {tour.groupSize}</span>
-                  </div>
-                  <div className="tour-footer">
-                    <span className="price">{tour.price}</span>
-                    <button 
-                      className="book-button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setBookingTour(tour);
-                      }}
-                    >
-                      Book Now
+                </div>
+              </section>
+
+              <section className="testimonials">
+                <h2>Trusted by Travelers Worldwide</h2>
+                <p>See what our satisfied guests have to say about their Egyptian adventures</p>
+                
+                <div className="testimonials-grid">
+                  {testimonials.map((testimonial, index) => (
+                    <div key={index} className="testimonial-card">
+                      <div className="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                      <p className="testimonial-text">"{testimonial.text}"</p>
+                      <div className="testimonial-author">
+                        <h4>{testimonial.name}</h4>
+                        <p>{testimonial.country}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </>
+          }
+        />
+
+        <Route
+          path="/tours"
+          element={
+            <>
+              <section className="hero tours-hero">
+                <div className="hero-overlay"></div>
+                <div className="hero-content">
+                  <span className="hero-tag">🧭 Explore Egypt</span>
+                  <h1>All Tours & Experiences</h1>
+                  <p>Dive into our full collection of curated adventures across Cairo, Luxor, Aswan, the Nile, and beyond.</p>
+                  <div className="hero-buttons">
+                    <button className="btn btn-primary" onClick={() => goToSection('tours')}>
+                      View Tours
+                    </button>
+                    <button className="btn btn-secondary" onClick={scrollToTripTailor}>
+                      Tailor My Trip
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              </section>
+
+              <ToursSection
+                filteredTours={filteredTours}
+                tourSearch={tourSearch}
+                setTourSearch={setTourSearch}
+                setSelectedTour={setSelectedTour}
+                setBookingTour={setBookingTour}
+                totalTours={tours.length}
+                heading="All Egypt Tours"
+                subheading="Browse every signature experience and choose the adventure that fits you best."
+              />
+            </>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
       {selectedTour && (
         <div className="modal-overlay" onClick={() => setSelectedTour(null)}>
@@ -274,93 +491,6 @@ function App() {
           onClose={() => setBookingTour(null)} 
         />
       )}
-
-      <section id="blogs" className="blogs">
-        <div className="section-header">
-          <h2>Travel Insights & Blogs</h2>
-          <p>Fresh stories, tips, and cultural guides to help you craft the perfect journey through Egypt</p>
-        </div>
-
-        <div className="blogs-grid">
-        {blogs.map((blog) => (
-            <article key={blog.id} className="blog-card">
-              <div className="blog-icon">{blog.image}</div>
-              <div className="blog-content">
-                <div className="blog-meta">
-                  <span className="blog-category">{blog.category}</span>
-                  <span className="blog-date">{formatBlogDate(blog.date)}</span>
-                </div>
-                <h3>{blog.title}</h3>
-                <p className="blog-excerpt">{blog.excerpt}</p>
-                <div className="blog-footer">
-                  <span className="blog-author">By {blog.author}</span>
-                  <button className="text-button" onClick={scrollToTripTailor}>
-                    Tailor a trip like this →
-                  </button>
-                </div>
-              </div>
-            </article>
-        ))}
-        </div>
-      </section>
-
-      <section id="about" className="about">
-        <div className="about-content">
-          <h2>Why Egypt Advisor?</h2>
-          <p className="about-intro">We're not just a tour company – we're your gateway to authentic Egyptian experiences</p>
-          
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">🎓</div>
-              <h3>Expert Guides</h3>
-              <p>Certified Egyptologists with decades of combined experience sharing their passion for ancient history</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🛡️</div>
-              <h3>Safety & Comfort</h3>
-              <p>Your safety is paramount. Climate-controlled vehicles and premium accommodations included</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">💎</div>
-              <h3>Exclusive Access</h3>
-              <p>Private viewings and special permits to explore off-the-beaten-path archaeological sites</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🌍</div>
-              <h3>Personalized Service</h3>
-              <p>Custom itineraries tailored to your interests, pace, and travel style</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">⭐</div>
-              <h3>Best Value</h3>
-              <p>Transparent pricing with no hidden fees. Premium experiences at competitive rates</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🤝</div>
-              <h3>24/7 Support</h3>
-              <p>Round-the-clock customer support before, during, and after your journey</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="testimonials">
-        <h2>Trusted by Travelers Worldwide</h2>
-        <p>See what our satisfied guests have to say about their Egyptian adventures</p>
-        
-        <div className="testimonials-grid">
-          {testimonials.map((testimonial, index) => (
-            <div key={index} className="testimonial-card">
-              <div className="testimonial-stars">⭐⭐⭐⭐⭐</div>
-              <p className="testimonial-text">"{testimonial.text}"</p>
-              <div className="testimonial-author">
-                <h4>{testimonial.name}</h4>
-                <p>{testimonial.country}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {showTripTailor && (
         <div className="trip-tailor-modal" role="dialog" aria-modal="true" aria-label="Tailor your Egypt trip" onClick={() => setShowTripTailor(false)}>
@@ -507,9 +637,21 @@ function App() {
           <div className="footer-section">
             <h4>Quick Links</h4>
             <ul>
-              <li><a href="#tours">Tours</a></li>
-              <li><a href="#blogs">Blogs</a></li>
-              <li><a href="#about">About Us</a></li>
+              <li>
+                <Link
+                  to="/tours"
+                  onClick={(e) => {
+                    if (location.pathname === '/tours') {
+                      e.preventDefault();
+                      scrollToSectionWithRetry('tours');
+                    }
+                  }}
+                >
+                  Tours
+                </Link>
+              </li>
+              <li><a href="#blogs" onClick={(e) => { e.preventDefault(); goToSection('blogs'); }}>Blogs</a></li>
+              <li><a href="#about" onClick={(e) => { e.preventDefault(); goToSection('about'); }}>About Us</a></li>
               <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
             </ul>
           </div>
