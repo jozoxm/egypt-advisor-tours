@@ -41,16 +41,14 @@ function App() {
             <a href="#home" className="logo-link">
               <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
             </a>
-            <button 
-              className="hamburger" 
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="Toggle menu"
+            <button
+              className="contact-btn"
+              onClick={() => {
+                // Ensure main-site mobile menu is closed when leaving admin
+                setMenuOpen(false);
+                setShowAdmin(false);
+              }}
             >
-              <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
-              <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
-              <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
-            </button>
-            <button className="contact-btn" onClick={() => setShowAdmin(false)}>
               ← Back to Website
             </button>
           </div>
