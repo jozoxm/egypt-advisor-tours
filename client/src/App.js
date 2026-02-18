@@ -41,6 +41,20 @@ function App() {
     return searchable.includes(normalizedSearch);
   });
 
+  const scrollToTripTailor = () => document.getElementById('trip-tailor')?.scrollIntoView({ behavior: 'smooth' });
+
+  const formatBlogDate = (dateString) => {
+    const parsedDate = new Date(dateString);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return 'Date unavailable';
+    }
+    return parsedDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
   // If admin panel is active, show only the admin panel
   if (showAdmin) {
     return (
@@ -95,15 +109,15 @@ function App() {
             <li><a href="#about" onClick={() => setMenuOpen(false)}>About</a></li>
             <li><a href="#trip-tailor" onClick={() => setMenuOpen(false)}>Trip Tailor</a></li>
           </ul>
-          <button 
-            className="contact-btn"
-            onClick={() => {
-              setMenuOpen(false);
-              document.getElementById('trip-tailor')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          >
-            Trip Tailor
-          </button>
+            <button 
+              className="contact-btn"
+              onClick={() => {
+                setMenuOpen(false);
+                scrollToTripTailor();
+              }}
+            >
+              Trip Tailor
+            </button>
         </div>
       </nav>
 
@@ -117,7 +131,7 @@ function App() {
             <button className="btn btn-primary" onClick={() => document.getElementById('tours').scrollIntoView({ behavior: 'smooth' })}>
               Explore Tours
             </button>
-            <button className="btn btn-secondary" onClick={() => document.getElementById('trip-tailor')?.scrollIntoView({ behavior: 'smooth' })}>
+            <button className="btn btn-secondary" onClick={scrollToTripTailor}>
               Plan My Trip
             </button>
           </div>
@@ -268,25 +282,25 @@ function App() {
         </div>
 
         <div className="blogs-grid">
-          {blogs.map((blog) => (
+        {blogs.map((blog) => (
             <article key={blog.id} className="blog-card">
               <div className="blog-icon">{blog.image}</div>
               <div className="blog-content">
                 <div className="blog-meta">
                   <span className="blog-category">{blog.category}</span>
-                  <span className="blog-date">{new Date(blog.date).toLocaleDateString()}</span>
+                  <span className="blog-date">{formatBlogDate(blog.date)}</span>
                 </div>
                 <h3>{blog.title}</h3>
                 <p className="blog-excerpt">{blog.excerpt}</p>
                 <div className="blog-footer">
                   <span className="blog-author">By {blog.author}</span>
-                  <button className="text-button" onClick={() => document.getElementById('trip-tailor')?.scrollIntoView({ behavior: 'smooth' })}>
+                  <button className="text-button" onClick={scrollToTripTailor}>
                     Tailor a trip like this →
                   </button>
                 </div>
               </div>
             </article>
-          ))}
+        ))}
         </div>
       </section>
 
@@ -366,25 +380,41 @@ function App() {
 
           <form className="trip-tailor-form">
             <div className="form-row">
-              <input type="text" placeholder="Full Name" required />
-              <input type="email" placeholder="Email Address" required />
+              <input type="text" placeholder="Full Name" aria-label="Full Name" required />
+              <input type="email" placeholder="Email Address" aria-label="Email Address" required />
             </div>
             <div className="form-row">
-              <input type="text" placeholder="Preferred travel dates or month" required />
-              <input type="number" min="1" placeholder="Number of travelers" required />
+              <input
+                type="text"
+                placeholder="Preferred travel dates or month (e.g., Oct 2026)"
+                aria-label="Preferred travel dates or month"
+                required
+              />
+              <input
+                type="number"
+                min="1"
+                max="50"
+                placeholder="Number of travelers"
+                aria-label="Number of travelers"
+                required
+              />
             </div>
             <div className="form-row">
-              <select required>
-                <option value="">Travel style</option>
+              <select
+                aria-label="Travel style"
+                defaultValue="placeholder"
+                required
+              >
+                <option value="placeholder" disabled hidden>Travel style</option>
                 <option value="luxury">Luxury & private</option>
                 <option value="cultural">Cultural immersion</option>
                 <option value="adventure">Adventure & outdoors</option>
                 <option value="family">Family friendly</option>
               </select>
-              <input type="text" placeholder="Must-see sites (e.g., Giza, Abu Simbel, Nile cruise)" />
+              <input type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
             </div>
             <div className="form-group">
-              <textarea placeholder="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
+              <textarea placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
             </div>
             <button type="submit" className="btn btn-primary submit-button">Tailor my trip</button>
           </form>
