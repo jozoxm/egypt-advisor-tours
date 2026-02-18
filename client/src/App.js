@@ -16,6 +16,7 @@ function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tourSearch, setTourSearch] = useState('');
+  const [showTripTailor, setShowTripTailor] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -41,7 +42,10 @@ function App() {
     return searchable.includes(normalizedSearch);
   });
 
-  const scrollToTripTailor = () => document.getElementById('trip-tailor')?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToTripTailor = () => {
+    setShowTripTailor(true);
+    setMenuOpen(false);
+  };
 
   const formatBlogDate = (dateString) => {
     const parsedDate = new Date(dateString);
@@ -110,10 +114,7 @@ function App() {
           </ul>
             <button 
               className="contact-btn"
-              onClick={() => {
-                setMenuOpen(false);
-                scrollToTripTailor();
-              }}
+              onClick={scrollToTripTailor}
             >
               Trip Tailor
             </button>
@@ -130,9 +131,9 @@ function App() {
             <button className="btn btn-primary" onClick={() => document.getElementById('tours').scrollIntoView({ behavior: 'smooth' })}>
               Explore Tours
             </button>
-            <button className="btn btn-secondary" onClick={scrollToTripTailor}>
-              Plan My Trip
-            </button>
+          <button className="btn btn-secondary" onClick={scrollToTripTailor}>
+            Plan My Trip
+          </button>
           </div>
         </div>
       </section>
@@ -361,107 +362,112 @@ function App() {
         </div>
       </section>
 
-      <section id="trip-tailor" className="trip-tailor">
-        <div className="trip-tailor-grid">
-          <div className="trip-tailor-copy">
-            <h2>Tailor Your Egypt Journey</h2>
-            <p>Share your dream experiences and we'll craft a bespoke itinerary with expert Egyptologists, luxury stays, and seamless logistics.</p>
-            <ul className="trip-highlights">
-              <li>✔️ Private guides & skip-the-line access</li>
-              <li>✔️ Handpicked stays in Cairo, Luxor, Aswan & the Red Sea</li>
-              <li>✔️ Flexible pace with cultural, culinary, and family-friendly options</li>
-            </ul>
-            <div className="trip-contact">
-              <span>📧 {contactInfo.emailPrimary}</span>
-              <span>📞 {contactInfo.phone}</span>
+      {showTripTailor && (
+        <div className="trip-tailor-modal" role="dialog" aria-modal="true" aria-label="Tailor your Egypt trip" onClick={() => setShowTripTailor(false)}>
+          <div className="trip-tailor-modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="close-button" onClick={() => setShowTripTailor(false)} aria-label="Close trip tailor form">✕</button>
+            <div className="trip-tailor-grid">
+              <div className="trip-tailor-copy">
+                <h2>Tailor Your Egypt Journey</h2>
+                <p>Share your dream experiences and we'll craft a bespoke itinerary with expert Egyptologists, luxury stays, and seamless logistics.</p>
+                <ul className="trip-highlights">
+                  <li>✔️ Private guides & skip-the-line access</li>
+                  <li>✔️ Handpicked stays in Cairo, Luxor, Aswan & the Red Sea</li>
+                  <li>✔️ Flexible pace with cultural, culinary, and family-friendly options</li>
+                </ul>
+                <div className="trip-contact">
+                  <span>📧 {contactInfo.emailPrimary}</span>
+                  <span>📞 {contactInfo.phone}</span>
+                </div>
+              </div>
+
+              <form className="trip-tailor-form">
+                <div className="form-row">
+                  <input type="text" placeholder="Full Name" aria-label="Full Name" required />
+                  <input type="email" placeholder="Email Address" aria-label="Email Address" required />
+                </div>
+                <div className="form-row">
+                  <input
+                    type="text"
+                    placeholder="Preferred travel dates or month (e.g., Oct 2026)"
+                    aria-label="Preferred travel dates or month"
+                    required
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    placeholder="Number of travelers"
+                    aria-label="Number of travelers"
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <select
+                    aria-label="Travel style"
+                    defaultValue="placeholder"
+                    required
+                  >
+                    <option value="placeholder" disabled hidden>Travel style</option>
+                    <option value="luxury">Luxury & private</option>
+                    <option value="cultural">Cultural immersion</option>
+                    <option value="adventure">Adventure & outdoors</option>
+                    <option value="family">Family friendly</option>
+                  </select>
+                  <select aria-label="Accommodation preference" defaultValue="placeholder" required>
+                    <option value="placeholder" disabled hidden>Accommodation preference</option>
+                    <option value="boutique">Boutique & character stays</option>
+                    <option value="luxury-hotels">Luxury hotels & resorts</option>
+                    <option value="heritage">Heritage stays & eco-lodges</option>
+                    <option value="budget">Comfort/budget friendly</option>
+                  </select>
+                </div>
+                <div className="form-group checkbox-group">
+                  <span className="field-label">Travel interests (select all that apply)</span>
+                  <div className="options-grid">
+                    <label className="checkbox-item"><input type="checkbox" aria-label="Ancient history and temples" /> Ancient history & temples</label>
+                    <label className="checkbox-item"><input type="checkbox" aria-label="Nile cruise experiences" /> Nile cruise experiences</label>
+                    <label className="checkbox-item"><input type="checkbox" aria-label="Red Sea beaches and diving" /> Red Sea beaches & diving</label>
+                    <label className="checkbox-item"><input type="checkbox" aria-label="Food and culinary tours" /> Food & culinary tours</label>
+                    <label className="checkbox-item"><input type="checkbox" aria-label="Desert adventures and oases" /> Desert adventures & oases</label>
+                    <label className="checkbox-item"><input type="checkbox" aria-label="Family friendly activities" /> Family-friendly activities</label>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <select aria-label="Preferred trip pace" defaultValue="placeholder" required>
+                    <option value="placeholder" disabled hidden>Preferred pace</option>
+                    <option value="relaxed">Relaxed (more downtime)</option>
+                    <option value="balanced">Balanced (mix of sights & rest)</option>
+                    <option value="packed">See-it-all (full days)</option>
+                  </select>
+                  <select aria-label="Budget range" defaultValue="placeholder" required>
+                    <option value="placeholder" disabled hidden>Budget range</option>
+                    <option value="premium">Premium (top-tier)</option>
+                    <option value="mid">Mid-range</option>
+                    <option value="value">Value-focused</option>
+                  </select>
+                </div>
+                <div className="form-row">
+                  <input type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
+                  <select aria-label="Guiding language preference" defaultValue="placeholder">
+                    <option value="placeholder" disabled hidden>Guiding language (optional)</option>
+                    <option value="english">English</option>
+                    <option value="arabic">Arabic</option>
+                    <option value="french">French</option>
+                    <option value="spanish">Spanish</option>
+                    <option value="german">German</option>
+                    <option value="other">Other (share in notes)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <textarea placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
+                </div>
+                <button type="submit" className="btn btn-primary submit-button">Tailor my trip</button>
+              </form>
             </div>
           </div>
-
-          <form className="trip-tailor-form">
-            <div className="form-row">
-              <input type="text" placeholder="Full Name" aria-label="Full Name" required />
-              <input type="email" placeholder="Email Address" aria-label="Email Address" required />
-            </div>
-            <div className="form-row">
-              <input
-                type="text"
-                placeholder="Preferred travel dates or month (e.g., Oct 2026)"
-                aria-label="Preferred travel dates or month"
-                required
-              />
-              <input
-                type="number"
-                min="1"
-                max="50"
-                placeholder="Number of travelers"
-                aria-label="Number of travelers"
-                required
-              />
-            </div>
-            <div className="form-row">
-              <select
-                aria-label="Travel style"
-                defaultValue="placeholder"
-                required
-              >
-                <option value="placeholder" disabled hidden>Travel style</option>
-                <option value="luxury">Luxury & private</option>
-                <option value="cultural">Cultural immersion</option>
-                <option value="adventure">Adventure & outdoors</option>
-                <option value="family">Family friendly</option>
-              </select>
-              <select aria-label="Accommodation preference" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Accommodation preference</option>
-                <option value="boutique">Boutique & character stays</option>
-                <option value="luxury-hotels">Luxury hotels & resorts</option>
-                <option value="heritage">Heritage stays & eco-lodges</option>
-                <option value="budget">Comfort/budget friendly</option>
-              </select>
-            </div>
-            <div className="form-group checkbox-group">
-              <span className="field-label">Travel interests (select all that apply)</span>
-              <div className="options-grid">
-                <label className="checkbox-item"><input type="checkbox" aria-label="Ancient history and temples" /> Ancient history & temples</label>
-                <label className="checkbox-item"><input type="checkbox" aria-label="Nile cruise experiences" /> Nile cruise experiences</label>
-                <label className="checkbox-item"><input type="checkbox" aria-label="Red Sea beaches and diving" /> Red Sea beaches & diving</label>
-                <label className="checkbox-item"><input type="checkbox" aria-label="Food and culinary tours" /> Food & culinary tours</label>
-                <label className="checkbox-item"><input type="checkbox" aria-label="Desert adventures and oases" /> Desert adventures & oases</label>
-                <label className="checkbox-item"><input type="checkbox" aria-label="Family friendly activities" /> Family-friendly activities</label>
-              </div>
-            </div>
-            <div className="form-row">
-              <select aria-label="Preferred trip pace" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Preferred pace</option>
-                <option value="relaxed">Relaxed (more downtime)</option>
-                <option value="balanced">Balanced (mix of sights & rest)</option>
-                <option value="packed">See-it-all (full days)</option>
-              </select>
-              <select aria-label="Budget range" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Budget range</option>
-                <option value="premium">Premium (top-tier)</option>
-                <option value="mid">Mid-range</option>
-                <option value="value">Value-focused</option>
-              </select>
-            </div>
-            <div className="form-row">
-              <input type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
-              <select aria-label="Guiding language preference" defaultValue="placeholder">
-                <option value="placeholder" disabled hidden>Guiding language (optional)</option>
-                <option value="english">English</option>
-                <option value="arabic">Arabic</option>
-                <option value="french">French</option>
-                <option value="spanish">Spanish</option>
-                <option value="german">German</option>
-                <option value="other">Other (share in notes)</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <textarea placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
-            </div>
-            <button type="submit" className="btn btn-primary submit-button">Tailor my trip</button>
-          </form>
         </div>
-      </section>
+      )}
 
       {/* Mobile Trip Tailor Button - Fixed at Bottom */}
       <button 

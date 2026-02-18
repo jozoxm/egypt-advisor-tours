@@ -950,18 +950,34 @@ body {
 }
 
 /* Trip Tailor Section */
-.trip-tailor {
+.trip-tailor-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100;
+  padding: 20px;
+}
+
+.trip-tailor-modal-content {
   background: var(--primary-gradient);
   color: white;
-  padding: 80px 40px;
+  padding: 24px;
+  border-radius: 20px;
+  width: min(1100px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+  position: relative;
 }
 
 .trip-tailor-grid {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
-  gap: 30px;
-  max-width: 1400px;
-  margin: 0 auto;
+  gap: 24px;
   align-items: start;
 }
 
@@ -1476,8 +1492,8 @@ body {
   }
 
   /* Trip Tailor Section */
-  .trip-tailor {
-    padding: 60px 20px;
+  .trip-tailor-modal-content {
+    padding: 20px;
   }
 
   .trip-tailor-grid {
