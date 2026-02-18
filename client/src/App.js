@@ -381,19 +381,27 @@ function App() {
                 </div>
               </div>
 
-              <form className="trip-tailor-form">
+              <form
+                className="trip-tailor-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setShowTripTailor(false);
+                }}
+              >
                 <div className="form-row">
-                  <input type="text" placeholder="Full Name" aria-label="Full Name" required />
-                  <input type="email" placeholder="Email Address" aria-label="Email Address" required />
+                  <input name="fullName" type="text" placeholder="Full Name" aria-label="Full Name" required />
+                  <input name="email" type="email" placeholder="Email Address" aria-label="Email Address" required />
                 </div>
                 <div className="form-row">
                   <input
+                    name="travelDates"
                     type="text"
                     placeholder="Preferred travel dates or month (e.g., Oct 2026)"
                     aria-label="Preferred travel dates or month"
                     required
                   />
                   <input
+                    name="travelers"
                     type="number"
                     min="1"
                     max="50"
@@ -404,6 +412,7 @@ function App() {
                 </div>
                 <div className="form-row">
                   <select
+                    name="travelStyle"
                     aria-label="Travel style"
                     defaultValue="placeholder"
                     required
@@ -414,7 +423,7 @@ function App() {
                     <option value="adventure">Adventure & outdoors</option>
                     <option value="family">Family friendly</option>
                   </select>
-                  <select aria-label="Accommodation preference" defaultValue="placeholder" required>
+                  <select name="accommodation" aria-label="Accommodation preference" defaultValue="placeholder" required>
                     <option value="placeholder" disabled hidden>Accommodation preference</option>
                     <option value="boutique">Boutique & character stays</option>
                     <option value="luxury-hotels">Luxury hotels & resorts</option>
@@ -425,22 +434,22 @@ function App() {
                 <div className="form-group checkbox-group">
                   <span className="field-label">Travel interests (select all that apply)</span>
                   <div className="options-grid">
-                    <label className="checkbox-item"><input type="checkbox" aria-label="Ancient history and temples" /> Ancient history & temples</label>
-                    <label className="checkbox-item"><input type="checkbox" aria-label="Nile cruise experiences" /> Nile cruise experiences</label>
-                    <label className="checkbox-item"><input type="checkbox" aria-label="Red Sea beaches and diving" /> Red Sea beaches & diving</label>
-                    <label className="checkbox-item"><input type="checkbox" aria-label="Food and culinary tours" /> Food & culinary tours</label>
-                    <label className="checkbox-item"><input type="checkbox" aria-label="Desert adventures and oases" /> Desert adventures & oases</label>
-                    <label className="checkbox-item"><input type="checkbox" aria-label="Family friendly activities" /> Family-friendly activities</label>
+                    <label className="checkbox-item"><input name="interestHistory" type="checkbox" /> Ancient history & temples</label>
+                    <label className="checkbox-item"><input name="interestNile" type="checkbox" /> Nile cruise experiences</label>
+                    <label className="checkbox-item"><input name="interestRedSea" type="checkbox" /> Red Sea beaches & diving</label>
+                    <label className="checkbox-item"><input name="interestFood" type="checkbox" /> Food & culinary tours</label>
+                    <label className="checkbox-item"><input name="interestDesert" type="checkbox" /> Desert adventures & oases</label>
+                    <label className="checkbox-item"><input name="interestFamily" type="checkbox" /> Family-friendly activities</label>
                   </div>
                 </div>
                 <div className="form-row">
-                  <select aria-label="Preferred trip pace" defaultValue="placeholder" required>
+                  <select name="pace" aria-label="Preferred trip pace" defaultValue="placeholder" required>
                     <option value="placeholder" disabled hidden>Preferred pace</option>
                     <option value="relaxed">Relaxed (more downtime)</option>
                     <option value="balanced">Balanced (mix of sights & rest)</option>
                     <option value="packed">See-it-all (full days)</option>
                   </select>
-                  <select aria-label="Budget range" defaultValue="placeholder" required>
+                  <select name="budget" aria-label="Budget range" defaultValue="placeholder" required>
                     <option value="placeholder" disabled hidden>Budget range</option>
                     <option value="premium">Premium (top-tier)</option>
                     <option value="mid">Mid-range</option>
@@ -448,8 +457,8 @@ function App() {
                   </select>
                 </div>
                 <div className="form-row">
-                  <input type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
-                  <select aria-label="Guiding language preference" defaultValue="placeholder">
+                  <input name="mustSee" type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
+                  <select name="language" aria-label="Guiding language preference" defaultValue="placeholder">
                     <option value="placeholder" disabled hidden>Guiding language (optional)</option>
                     <option value="english">English</option>
                     <option value="arabic">Arabic</option>
@@ -460,7 +469,7 @@ function App() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <textarea placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
+                  <textarea name="notes" placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
                 </div>
                 <button type="submit" className="btn btn-primary submit-button">Tailor my trip</button>
               </form>
