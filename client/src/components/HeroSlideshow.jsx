@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Array of Egyptian landmark placeholders with gradient backgrounds
 // These can be replaced with actual image URLs: backgroundImage: 'url(actual-image.jpg)'
