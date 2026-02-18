@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import AdminPanel from './pages/AdminPanel';
+import BookingModal from './components/BookingModal';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 
@@ -9,6 +10,7 @@ const APP_VERSION = '1.0.2';
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
+  const [bookingTour, setBookingTour] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
 
@@ -133,7 +135,15 @@ function App() {
                 </div>
                 <div className="tour-footer">
                   <span className="price">{tour.price}</span>
-                  <button className="book-button">Book Now</button>
+                  <button 
+                    className="book-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBookingTour(tour);
+                    }}
+                  >
+                    Book Now
+                  </button>
                 </div>
               </div>
             </div>
@@ -166,9 +176,20 @@ function App() {
                 <span className="detail-value price-large">{selectedTour.price}</span>
               </div>
             </div>
-            <button className="btn btn-primary modal-button">Book This Tour</button>
+            <button className="btn btn-primary modal-button" onClick={() => {
+              setSelectedTour(null);
+              setBookingTour(selectedTour);
+            }}>Book This Tour</button>
           </div>
         </div>
+      )}
+
+      {/* Booking Modal */}
+      {bookingTour && (
+        <BookingModal 
+          tour={bookingTour} 
+          onClose={() => setBookingTour(null)} 
+        />
       )}
 
       <section id="about" className="about">

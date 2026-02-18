@@ -1,0 +1,52 @@
+// ============================================
+// BOOKINGS DATA FILE
+// ============================================
+// This file contains all booking records for the admin panel.
+
+export const bookings = [
+  {
+    "id": 1,
+    "tourId": 1,
+    "tourName": "Pyramids of Giza",
+    "customerName": "John Smith",
+    "customerEmail": "john.smith@email.com",
+    "customerPhone": "+1-555-0123",
+    "numberOfPeople": 4,
+    "bookingDate": "2026-03-15",
+    "bookingTime": "09:00 AM",
+    "status": "confirmed",
+    "totalPrice": "$900",
+    "specialRequests": "Vegetarian meals preferred",
+    "createdAt": "2026-02-15T10:30:00Z"
+  },
+  {
+    "id": 2,
+    "tourId": 4,
+    "tourName": "Nile River Cruise",
+    "customerName": "Maria Garcia",
+    "customerEmail": "maria.g@email.com",
+    "customerPhone": "+34-555-0456",
+    "numberOfPeople": 2,
+    "bookingDate": "2026-03-20",
+    "bookingTime": "06:00 PM",
+    "status": "pending",
+    "totalPrice": "$498",
+    "specialRequests": "Anniversary celebration",
+    "createdAt": "2026-02-16T14:20:00Z"
+  },
+  {
+    "id": 3,
+    "tourId": 3,
+    "tourName": "Valley of the Kings",
+    "customerName": "David Chen",
+    "customerEmail": "d.chen@email.com",
+    "customerPhone": "+86-555-0789",
+    "numberOfPeople": 3,
+    "bookingDate": "2026-03-18",
+    "bookingTime": "08:00 AM",
+    "status": "confirmed",
+    "totalPrice": "$537",
+    "specialRequests": "Photography equipment allowed?",
+    "createdAt": "2026-02-14T09:15:00Z"
+  }
+];

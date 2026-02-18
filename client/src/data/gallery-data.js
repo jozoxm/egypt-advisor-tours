@@ -1,0 +1,43 @@
+// ============================================
+// GALLERY DATA FILE
+// ============================================
+// This file contains all gallery images for the website.
+
+export const gallery = [
+  {
+    "id": 1,
+    "title": "Sunrise at Pyramids",
+    "description": "Golden hour at the Great Pyramid of Giza",
+    "imageUrl": "https://images.unsplash.com/photo-1553913861-c0fddf2619ee?w=800",
+    "category": "Pyramids",
+    "featured": true,
+    "uploadDate": "2026-02-15"
+  },
+  {
+    "id": 2,
+    "title": "Luxor Temple at Night",
+    "description": "Magnificent illuminated columns of Luxor Temple",
+    "imageUrl": "https://images.unsplash.com/photo-1572252009286-268acec5ca0a?w=800",
+    "category": "Temples",
+    "featured": true,
+    "uploadDate": "2026-02-14"
+  },
+  {
+    "id": 3,
+    "title": "Nile Sunset Cruise",
+    "description": "Traditional felucca sailing on the Nile River",
+    "imageUrl": "https://images.unsplash.com/photo-1539768942893-daf53e448371?w=800",
+    "category": "Nile River",
+    "featured": false,
+    "uploadDate": "2026-02-13"
+  },
+  {
+    "id": 4,
+    "title": "Valley of the Kings",
+    "description": "Ancient tombs carved into the desert mountains",
+    "imageUrl": "https://images.unsplash.com/photo-1568322445389-f64ac2515020?w=800",
+    "category": "Archaeological Sites",
+    "featured": false,
+    "uploadDate": "2026-02-12"
+  }
+];
