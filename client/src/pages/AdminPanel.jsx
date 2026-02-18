@@ -101,6 +101,20 @@ const AdminPanel = () => {
   };
 
   const cancelEditTour = () => {
+    // If this was a new tour that wasn't saved yet, remove it from tours array
+    if (editingTour && !tours.find(t => t.id === editingTour.id && JSON.stringify(t) === JSON.stringify(editingTour))) {
+      // This is a new tour that was just added but not saved
+      const wasSaved = tours.some(tour => 
+        tour.id === editingTour.id && 
+        (tour.name !== 'New Tour' || tour.description !== 'Enter tour description here...')
+      );
+      
+      if (!wasSaved) {
+        // Remove the unsaved new tour from state
+        setTours(tours.filter(tour => tour.id !== editingTour.id));
+      }
+    }
+    
     setEditingTourId(null);
     setEditingTour(null);
   };

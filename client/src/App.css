@@ -1012,6 +1012,12 @@ body {
     left: 0;
   }
 
+  /* Ensure hidden menu is not keyboard accessible */
+  .nav-menu[aria-hidden="true"] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .nav-menu li {
     width: 100%;
     text-align: center;

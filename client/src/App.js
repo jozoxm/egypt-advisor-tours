@@ -69,12 +69,17 @@ function App() {
             className="hamburger" 
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
+            aria-expanded={menuOpen}
           >
             <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
             <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
             <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
           </button>
-          <ul className={`nav-menu ${menuOpen ? 'mobile-open' : ''}`}>
+          <ul 
+            className={`nav-menu ${menuOpen ? 'mobile-open' : ''}`}
+            aria-hidden={!menuOpen}
+            inert={!menuOpen ? '' : undefined}
+          >
             <li><a href="#home" onClick={() => setMenuOpen(false)}>Home</a></li>
             <li><a href="#tours" onClick={() => setMenuOpen(false)}>Tours</a></li>
             <li><a href="#about" onClick={() => setMenuOpen(false)}>About</a></li>
