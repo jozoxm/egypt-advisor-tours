@@ -3,34 +3,40 @@ import React, { useState, useEffect } from 'react';
 const HeroSlideshow = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Array of Egyptian landmark images (using placeholder URLs)
-  const images = [
-    'https://images.unsplash.com/photo-1568322445389-f64ac2515020?w=1920&h=1080&fit=crop', // Pyramids of Giza
-    'https://images.unsplash.com/photo-1572252009286-268acec5ca0a?w=1920&h=1080&fit=crop', // Sphinx
-    'https://images.unsplash.com/photo-1539768942893-daf53e448371?w=1920&h=1080&fit=crop', // Nile River
-    'https://images.unsplash.com/photo-1553913861-c0fddf2619ee?w=1920&h=1080&fit=crop', // Luxor Temple
-    'https://images.unsplash.com/photo-1584467541268-b040f83be3fd?w=1920&h=1080&fit=crop', // Karnak Temple
-    'https://images.unsplash.com/photo-1572252009286-268acec5ca0a?w=1920&h=1080&fit=crop', // Valley of the Kings
-    'https://images.unsplash.com/photo-1553913861-c0fddf2619ee?w=1920&h=1080&fit=crop', // Abu Simbel
-    'https://images.unsplash.com/photo-1568322445389-f64ac2515020?w=1920&h=1080&fit=crop'  // Cairo Museum
+  // Array of Egyptian landmark placeholders with gradient backgrounds
+  // These can be replaced with actual image URLs: backgroundImage: 'url(actual-image.jpg)'
+  const slides = [
+    { name: 'Pyramids of Giza', gradient: 'linear-gradient(135deg, #8B6914 0%, #C9A961 50%, #D4AF37 100%)' },
+    { name: 'The Great Sphinx', gradient: 'linear-gradient(135deg, #9B7D1F 0%, #C9B037 50%, #E6C84E 100%)' },
+    { name: 'Nile River', gradient: 'linear-gradient(135deg, #7D6608 0%, #A88B2D 50%, #C9A961 100%)' },
+    { name: 'Luxor Temple', gradient: 'linear-gradient(135deg, #8A7210 0%, #B8964A 50%, #D4AF37 100%)' },
+    { name: 'Karnak Temple', gradient: 'linear-gradient(135deg, #937A18 0%, #C9A961 50%, #E6D69C 100%)' },
+    { name: 'Valley of the Kings', gradient: 'linear-gradient(135deg, #A88B2D 0%, #C9B037 50%, #F0E68C 100%)' },
+    { name: 'Abu Simbel', gradient: 'linear-gradient(135deg, #8B7D2D 0%, #B8964A 50%, #D4AF37 100%)' },
+    { name: 'Cairo Museum', gradient: 'linear-gradient(135deg, #9B8530 0%, #C9B037 50%, #E6C84E 100%)' }
   ];
 
   useEffect(() => {
     // Auto-rotate slides every 5 seconds
     const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % images.length);
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % slides.length);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [images.length]);
+  }, [slides.length]);
 
   return (
     <div className="hero-slideshow">
-      {images.map((image, index) => (
+      {slides.map((slide, index) => (
         <div
           key={index}
           className={`hero-slide ${index === currentIndex ? 'active' : ''}`}
-          style={{ backgroundImage: `url(${image})` }}
+          style={{ 
+            background: slide.gradient,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          }}
+          aria-label={slide.name}
         />
       ))}
     </div>
