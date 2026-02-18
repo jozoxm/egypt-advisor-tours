@@ -445,7 +445,7 @@ function App() {
                 </div>
                 <div className="form-group checkbox-group">
                   <span className="field-label">Travel interests (select all that apply)</span>
-                  <div className="options-grid">
+                  <div className="options-grid spacious-options">
                     <label className="checkbox-item"><input name="interestHistory" type="checkbox" /> Ancient history & temples</label>
                     <label className="checkbox-item"><input name="interestNile" type="checkbox" /> Nile cruise experiences</label>
                     <label className="checkbox-item"><input name="interestRedSea" type="checkbox" /> Red Sea beaches & diving</label>
