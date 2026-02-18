@@ -149,7 +149,7 @@ const AdminPanel = () => {
 
   const addNewTour = () => {
     const newTour = {
-      id: Math.max(...tours.map(t => t.id), 0) + 1,
+      id: Math.max(0, ...tours.map(t => t.id)) + 1,
       name: 'New Tour',
       price: '$199',
       duration: '4 hours',
@@ -603,7 +603,7 @@ const AdminPanel = () => {
                       <p className="tour-description">{tour.description}</p>
                       {tour.photoUrl && (
                         <div className="tour-photo-preview">
-                          <img src={tour.photoUrl} alt={tour.name} style={{maxWidth: '100%', borderRadius: '8px', marginTop: '10px'}} />
+                          <img src={tour.photoUrl} alt={tour.name} className="tour-photo-preview-image" />
                         </div>
                       )}
                       <div className="tour-actions">

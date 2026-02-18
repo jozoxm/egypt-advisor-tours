@@ -191,6 +191,12 @@
   width: auto;
 }
 
+.tour-photo-preview-image {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
 /* Edit Form */
 .tour-edit-form {
   padding: 20px;
