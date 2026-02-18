@@ -3,6 +3,7 @@ import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-r
 import './App.css';
 import AdminPanel from './pages/AdminPanel';
 import BookingModal from './components/BookingModal';
+import HeroSlideshow from './components/HeroSlideshow';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 import { blogs } from './data/blogs-data';
@@ -279,6 +280,7 @@ useEffect(() => {
           element={
             <>
               <section id="home" className="hero">
+                <HeroSlideshow />
                 <div className="hero-overlay"></div>
                 <div className="hero-content">
                   <span className="hero-tag">🌟 Premium Travel Experiences</span>
