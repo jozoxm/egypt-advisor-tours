@@ -1047,7 +1047,7 @@ body {
 
 .options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1510,6 +1510,10 @@ body {
 
   .trip-tailor-copy p {
     font-size: 1rem;
+  }
+
+  .options-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
   .form-row {
