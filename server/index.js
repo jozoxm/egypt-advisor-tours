@@ -14,6 +14,9 @@ app.use(express.json());
 // Paths to data files
 const TOURS_FILE = path.join(__dirname, '../client/src/data/tours-data.js');
 const CONTACT_FILE = path.join(__dirname, '../client/src/data/contact-info.js');
+const BLOGS_FILE = path.join(__dirname, '../client/src/data/blogs-data.js');
+const GALLERY_FILE = path.join(__dirname, '../client/src/data/gallery-data.js');
+const BOOKINGS_FILE = path.join(__dirname, '../client/src/data/bookings-data.js');
 
 app.get('/api', (req, res) => {
     res.json({
@@ -137,6 +140,135 @@ export const contactInfo = ${JSON.stringify(contactInfo, null, 2)};
     } catch (error) {
         console.error('Error saving contact info:', error);
         res.status(500).json({ error: 'Failed to save contact info' });
+    }
+});
+
+// ============================================
+// BLOGS API ENDPOINTS
+// ============================================
+
+// Get blogs data
+app.get('/api/blogs', (req, res) => {
+    try {
+        const fileContent = fs.readFileSync(BLOGS_FILE, 'utf8');
+        const blogsMatch = fileContent.match(/export const blogs = (\[[\s\S]*?\]);/);
+        
+        if (blogsMatch) {
+            const blogs = eval(blogsMatch[1]);
+            res.json({ blogs });
+        } else {
+            res.status(500).json({ error: 'Failed to parse blogs data' });
+        }
+    } catch (error) {
+        console.error('Error reading blogs:', error);
+        res.status(500).json({ error: 'Failed to read blogs data' });
+    }
+});
+
+// Save blogs data
+app.post('/api/blogs', (req, res) => {
+    try {
+        const { blogs } = req.body;
+        
+        const fileContent = `// ============================================
+// BLOGS DATA FILE
+// ============================================
+// This file contains all blog posts for the website.
+
+export const blogs = ${JSON.stringify(blogs, null, 2)};
+`;
+        
+        fs.writeFileSync(BLOGS_FILE, fileContent, 'utf8');
+        res.json({ success: true, message: 'Blogs saved successfully' });
+    } catch (error) {
+        console.error('Error saving blogs:', error);
+        res.status(500).json({ error: 'Failed to save blogs data' });
+    }
+});
+
+// ============================================
+// GALLERY API ENDPOINTS
+// ============================================
+
+// Get gallery data
+app.get('/api/gallery', (req, res) => {
+    try {
+        const fileContent = fs.readFileSync(GALLERY_FILE, 'utf8');
+        const galleryMatch = fileContent.match(/export const gallery = (\[[\s\S]*?\]);/);
+        
+        if (galleryMatch) {
+            const gallery = eval(galleryMatch[1]);
+            res.json({ gallery });
+        } else {
+            res.status(500).json({ error: 'Failed to parse gallery data' });
+        }
+    } catch (error) {
+        console.error('Error reading gallery:', error);
+        res.status(500).json({ error: 'Failed to read gallery data' });
+    }
+});
+
+// Save gallery data
+app.post('/api/gallery', (req, res) => {
+    try {
+        const { gallery } = req.body;
+        
+        const fileContent = `// ============================================
+// GALLERY DATA FILE
+// ============================================
+// This file contains all gallery images for the website.
+
+export const gallery = ${JSON.stringify(gallery, null, 2)};
+`;
+        
+        fs.writeFileSync(GALLERY_FILE, fileContent, 'utf8');
+        res.json({ success: true, message: 'Gallery saved successfully' });
+    } catch (error) {
+        console.error('Error saving gallery:', error);
+        res.status(500).json({ error: 'Failed to save gallery data' });
+    }
+});
+
+// ============================================
+// BOOKINGS API ENDPOINTS
+// ============================================
+
+// Get bookings data
+app.get('/api/bookings', (req, res) => {
+    try {
+        const fileContent = fs.readFileSync(BOOKINGS_FILE, 'utf8');
+        const bookingsMatch = fileContent.match(/export const bookings = (\[[\s\S]*?\]);/);
+        
+        if (bookingsMatch) {
+            const bookings = eval(bookingsMatch[1]);
+            res.json({ bookings });
+        } else {
+            res.status(500).json({ error: 'Failed to parse bookings data' });
+        }
+    } catch (error) {
+        console.error('Error reading bookings:', error);
+        res.status(500).json({ error: 'Failed to read bookings data' });
+    }
+});
+
+// Save bookings data
+app.post('/api/bookings', (req, res) => {
+    try {
+        const { bookings } = req.body;
+        
+        const fileContent = `// ============================================
+// BOOKINGS DATA FILE
+// ============================================
+// This file contains all booking records for the admin panel.
+
+export const bookings = ${JSON.stringify(bookings, null, 2)};
+`;
+        
+        fs.writeFileSync(BOOKINGS_FILE, fileContent, 'utf8');
+        res.json({ success: true, message: 'Bookings saved successfully' });
+    } catch (error) {
+        console.error('Error saving bookings:', error);
+        res.status(500).json({ error: 'Failed to save bookings data' });
     }
 });
 
