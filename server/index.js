@@ -272,6 +272,17 @@ export const bookings = ${JSON.stringify(bookings, null, 2)};
     }
 });
 
+// Serve the React static build when it exists (i.e. after running npm run build).
+// This catch-all is intentionally placed after all API routes so it only
+// matches non-API paths.
+const buildPath = path.join(__dirname, '../client/build');
+if (process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
+    app.use(express.static(buildPath));
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(buildPath, 'index.html'));
+    });
+}
+
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
