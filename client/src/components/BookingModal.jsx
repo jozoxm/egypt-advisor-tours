@@ -38,7 +38,12 @@ const BookingModal = ({ tour, onClose }) => {
     e.preventDefault();
     setSubmitting(true);
 
-    const basePrice = parseInt(tour.price.replace('$', ''));
+    const basePrice = parseInt(tour.price?.replace('$', '') || '0', 10);
+    if (Number.isNaN(basePrice)) {
+      setSubmitMessage('❌ Error calculating price. Please contact us directly to complete your booking.');
+      setSubmitting(false);
+      return;
+    }
     const totalPrice = `$${basePrice * formData.numberOfPeople}`;
 
     const templateParams = {
