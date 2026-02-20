@@ -11,11 +11,12 @@ Your website has **two parts**:
 | Part | What it does | Hosting needed |
 |---|---|---|
 | **Frontend** (React) | The pages visitors see — homepage, tours, contact | Any hosting plan |
-| **Backend** (Node.js server) | Admin panel saves, API for data management | **VPS or Cloud** plan only |
+| **Backend** (Node.js server) | Admin panel saves, API for data management | **VPS, Cloud, or free Node.js platform** (Railway, Render) |
 
 > **💡 Quick recommendation for beginners:**
 > - **Just want the website visible online?** → Use **Option A** (Shared Hosting). Simple 10-minute setup.
-> - **Want the Admin Panel to save changes?** → Use **Option B** (VPS Hosting). More steps, but full functionality.
+> - **Want the Admin Panel to save changes, for free?** → Use **Option C** (Railway — free). No VPS needed.
+> - **Want full control on Hostinger VPS?** → Use **Option B** (VPS Hosting). More steps, but you own the server.
 
 ---
 
@@ -170,6 +171,117 @@ If you want the booking and trip-tailor forms to send emails, you need to add yo
 - [ ] Clicking **"Tours"** in the navbar takes you to the tours page
 - [ ] The **Book Now** button opens the booking form
 - [ ] Page refresh on `/tours` doesn't show 404 (this is fixed by the `.htaccess` file)
+
+---
+
+## 🟡 OPTION C — Free Node.js Hosting with Railway (Full Functionality, No VPS Needed)
+
+> **Yes — you can get the full website with a working Admin Panel completely free, without buying a VPS.**
+> This option uses **Railway**, a free cloud platform that runs Node.js apps automatically from your GitHub repository.
+
+> **⚠️ Important limitation to read before starting:**
+> The Admin Panel saves changes to files on the server. These saved changes will be **lost on any redeployment** (triggered by code pushes, Railway configuration changes, or manual redeploys — because Railway redeploys from your GitHub code, resetting the files). For content you want to keep permanently (tours, blog posts, gallery photos), always edit the files in `client/src/data/` directly in your code editor and push to GitHub — don't rely solely on the Admin Panel to save them.
+
+**What you get:**
+- ✅ Full website visible to everyone online
+- ✅ Working Admin Panel that saves changes (between sessions)
+- ✅ Booking forms send emails (with EmailJS)
+- ✅ No server setup, no SSH, no Linux commands
+- ✅ Free tier — no credit card required to start
+
+Railway's free tier is generous enough for this project. Check [railway.app/pricing](https://railway.app/pricing) for the latest limits.
+
+---
+
+### Step 1 — Sign Up for Railway
+
+1. Go to **[railway.app](https://railway.app)**
+2. Click **"Start a New Project"** or **"Login"**
+3. Sign up using your **GitHub account** (click "Login with GitHub")
+4. Authorize Railway to access your GitHub account
+
+Railway gives you a free tier with no credit card required to start — see [railway.app/pricing](https://railway.app/pricing) for current limits.
+
+---
+
+### Step 2 — Deploy Your Backend (Node.js Server)
+
+1. In Railway, click **"New Project"**
+2. Click **"Deploy from GitHub repo"**
+3. Select your **`egypt-advisor-tours`** repository
+4. Railway will detect it's a Node.js project automatically
+5. Before it deploys, click **"Configure"** → set the **Root Directory** to `server`
+   - This tells Railway to run the server folder, not the whole project
+6. Click **"Deploy"**
+7. Wait 1–2 minutes — Railway will build and start your Node.js server
+8. When it says **"Active"**, click on your deployment to see its **public URL**
+   - It will look like: `https://your-project-name.up.railway.app` (Railway generates a unique URL)
+   - **Copy this URL** — you'll need it in Step 4
+
+---
+
+### Step 3 — Deploy Your Frontend (React Website)
+
+You have two choices for hosting the React frontend:
+
+**Choice A — Also on Railway (easiest)**
+
+1. In Railway, click **"New"** → **"GitHub Repo"** again
+2. Select the same `egypt-advisor-tours` repository
+3. Set **Root Directory** to `client`
+4. Under **Settings → Build Command**, set: `npm run build`
+5. Under **Settings → Start Command**, set: `npx serve -s build`
+6. Click **"Deploy"**
+
+**Choice B — On Vercel (recommended, also free)**
+
+Follow the Vercel steps from [GO-LIVE-GUIDE.md](./GO-LIVE-GUIDE.md) to deploy the frontend separately. Vercel is the fastest option for React apps.
+
+---
+
+### Step 4 — Connect Frontend to Backend
+
+Now tell the frontend where your backend API is running:
+
+1. Create (or update) `client/.env.production`:
+   ```
+   REACT_APP_API_URL=https://your-backend-url.up.railway.app
+   REACT_APP_EMAILJS_SERVICE_ID=your_service_id_here
+   REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=your_booking_template_id
+   REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=your_triptailor_template_id
+   REACT_APP_EMAILJS_PUBLIC_KEY=your_public_key_here
+   ```
+   *(Replace `https://your-backend-url.up.railway.app` with the actual public URL you copied in Step 2 — Railway generates a unique URL for each project)*
+
+2. Commit and push this file to GitHub:
+   ```
+   git add client/.env.production
+   git commit -m "Add Railway backend URL"
+   git push
+   ```
+
+3. Railway will automatically redeploy with the new settings
+
+---
+
+### Step 5 — Set Your Custom Domain (Optional)
+
+1. In Railway, go to your project → **Settings → Domains**
+2. Click **"Generate Domain"** for a free `*.up.railway.app` URL, or
+3. Click **"Custom Domain"** and enter your own domain (e.g. `egyptadvisortours.com`)
+4. Update your domain's DNS A record to point to Railway's IP (shown on screen)
+
+---
+
+### Step 6 — Test Everything 🎉
+
+Open your Railway URL (or custom domain) and check:
+
+- [ ] Homepage loads with the photo slideshow
+- [ ] Tours, Blogs, and Contact pages work
+- [ ] Scroll to footer → click **Admin Panel** → tours and blogs load
+- [ ] In Admin Panel, edit a tour name and click Save → refresh the page → the change appears
+- [ ] Book Now button → fill the form → you receive an email
 
 ---
 
@@ -573,7 +685,14 @@ npm run build
 
 ### ❌ Admin Panel won't save changes (Shared Hosting)
 
-Admin Panel saving requires the Node.js backend — this only works with **Option B (VPS)**. On shared hosting, the Admin Panel is read-only. To edit content on shared hosting, edit the data files directly in `client/src/data/` and rebuild.
+Admin Panel saving requires the Node.js backend — this only works with **Option B (VPS)** or **Option C (Railway)**. On shared hosting, the Admin Panel is read-only. To edit content on shared hosting, edit the data files directly in `client/src/data/` and rebuild.
+
+### ❌ Railway deployment fails or shows "Build failed"
+
+1. Go to **[railway.app](https://railway.app)** → your project → click the failed deployment
+2. Read the build logs — look for the error message in red
+3. Most common fix: make sure the **Root Directory** is set to `server` (not the root of the project)
+4. Check that `server/package.json` exists and has a `"start": "node index.js"` script
 
 ### ❌ PM2 shows server as "errored" (VPS)
 
