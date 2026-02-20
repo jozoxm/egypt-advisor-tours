@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import emailjs from '@emailjs/browser';
 import './App.css';
 import AdminPanel from './pages/AdminPanel';
 import BookingModal from './components/BookingModal';
@@ -12,6 +13,14 @@ import { blogs } from './data/blogs-data';
 const APP_VERSION = '1.0.2';
 const MAX_SCROLL_RETRY_ATTEMPTS = 10;
 const SCROLL_RETRY_DELAY_MS = 50;
+
+// ============================================================
+// EmailJS Configuration – Trip Tailor enquiries
+// Set these in Vercel project environment variables or .env.production
+// ============================================================
+const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID          || '';
+const EMAILJS_TRIPTAILOR_TEMPLATE = process.env.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID || '';
+const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY           || '';
 
 const ToursSection = ({
   filteredTours,
@@ -109,6 +118,8 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tourSearch, setTourSearch] = useState('');
   const [showTripTailor, setShowTripTailor] = useState(false);
+  const [tripTailorSubmitting, setTripTailorSubmitting] = useState(false);
+  const [tripTailorMessage, setTripTailorMessage] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
   const scrollTimeoutsRef = useRef([]);
@@ -167,6 +178,7 @@ useEffect(() => {
 
   const scrollToTripTailor = () => {
     setShowTripTailor(true);
+    setTripTailorMessage('');
     setMenuOpen(false);
   };
 
@@ -515,9 +527,52 @@ useEffect(() => {
 
               <form
                 className="trip-tailor-form"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
-                  setShowTripTailor(false);
+                  setTripTailorSubmitting(true);
+                  setTripTailorMessage('');
+
+                  const fd = new FormData(e.target);
+                  const interests = [
+                    fd.get('interestHistory') ? 'Ancient history & temples' : '',
+                    fd.get('interestNile') ? 'Nile cruise' : '',
+                    fd.get('interestRedSea') ? 'Red Sea beaches & diving' : '',
+                    fd.get('interestFood') ? 'Food & culinary' : '',
+                    fd.get('interestDesert') ? 'Desert adventures' : '',
+                    fd.get('interestFamily') ? 'Family-friendly' : '',
+                  ].filter(Boolean).join(', ') || 'Not specified';
+
+                  const templateParams = {
+                    full_name:      fd.get('fullName'),
+                    email:          fd.get('email'),
+                    phone:          fd.get('phone'),
+                    whatsapp:       fd.get('whatsapp') ? 'Yes' : 'No',
+                    travel_dates:   fd.get('travelDates'),
+                    travelers:      fd.get('travelers'),
+                    travel_style:   fd.get('travelStyle'),
+                    accommodation:  fd.get('accommodation'),
+                    interests,
+                    pace:           fd.get('pace'),
+                    budget:         fd.get('budget'),
+                    must_see:       fd.get('mustSee') || 'Not specified',
+                    language:       fd.get('language') || 'Not specified',
+                    notes:          fd.get('notes'),
+                  };
+
+                  if (!EMAILJS_SERVICE_ID || !EMAILJS_TRIPTAILOR_TEMPLATE || !EMAILJS_PUBLIC_KEY) {
+                    console.warn('EmailJS is not configured. Set REACT_APP_EMAILJS_SERVICE_ID, REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID, and REACT_APP_EMAILJS_PUBLIC_KEY.');
+                    console.info('Trip Tailor enquiry:', templateParams);
+                    setTripTailorMessage('error');
+                  } else {
+                    try {
+                      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TRIPTAILOR_TEMPLATE, templateParams, EMAILJS_PUBLIC_KEY);
+                      setTripTailorMessage('success');
+                    } catch (err) {
+                      console.error('EmailJS error:', err);
+                      setTripTailorMessage('error');
+                    }
+                  }
+                  setTripTailorSubmitting(false);
                 }}
               >
                 <div className="form-row">
@@ -615,7 +670,23 @@ useEffect(() => {
                 <div className="form-group">
                   <textarea name="notes" placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
                 </div>
-                <button type="submit" className="btn btn-primary submit-button">Tailor my trip</button>
+                {tripTailorMessage === 'success' && (
+                  <div className="trip-tailor-success" role="alert">
+                    ✓ Thank you! We've received your enquiry and will be in touch within 24 hours.
+                  </div>
+                )}
+                {tripTailorMessage === 'error' && (
+                  <div className="trip-tailor-error" role="alert">
+                    ❌ Something went wrong. Please email us directly at {contactInfo.emailPrimary}.
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary submit-button"
+                  disabled={tripTailorSubmitting || tripTailorMessage === 'success'}
+                >
+                  {tripTailorSubmitting ? 'Sending…' : tripTailorMessage === 'success' ? 'Sent ✓' : 'Tailor my trip'}
+                </button>
               </form>
             </div>
           </div>

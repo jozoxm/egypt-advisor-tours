@@ -1,5 +1,13 @@
 # Egypt Advisor Tours
 
+## 🟢 Ready to Go Live?
+
+**Follow this guide to launch your website in under 30 minutes:**
+
+👉 **[GO-LIVE-GUIDE.md](GO-LIVE-GUIDE.md)** — Step-by-step: update contact info, set up EmailJS, deploy to Vercel, test everything.
+
+---
+
 ## 🚨 WINDOWS BUILD ERROR?
 
 **Getting "'CI' is not recognized" error?** See **[BUILD-WINDOWS-FIX.md](BUILD-WINDOWS-FIX.md)**

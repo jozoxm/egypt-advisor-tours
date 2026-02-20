@@ -39,8 +39,8 @@ app.get('/api/tours', (req, res) => {
         const testimonialsMatch = fileContent.match(/export const testimonials = (\[[\s\S]*?\]);/);
         
         if (toursMatch && testimonialsMatch) {
-            const tours = eval(toursMatch[1]);
-            const testimonials = eval(testimonialsMatch[1]);
+            const tours = JSON.parse(toursMatch[1]);
+            const testimonials = JSON.parse(testimonialsMatch[1]);
             res.json({ tours, testimonials });
         } else {
             res.status(500).json({ error: 'Failed to parse tours data' });
@@ -105,7 +105,7 @@ app.get('/api/contact', (req, res) => {
         const match = fileContent.match(/export const contactInfo = ({[\s\S]*?});[\s\n]*$/);
         
         if (match) {
-            const contactInfo = eval('(' + match[1] + ')');
+            const contactInfo = JSON.parse(match[1]);
             res.json(contactInfo);
         } else {
             res.status(500).json({ error: 'Failed to parse contact info' });
@@ -154,7 +154,7 @@ app.get('/api/blogs', (req, res) => {
         const blogsMatch = fileContent.match(/export const blogs = (\[[\s\S]*?\]);/);
         
         if (blogsMatch) {
-            const blogs = eval(blogsMatch[1]);
+            const blogs = JSON.parse(blogsMatch[1]);
             res.json({ blogs });
         } else {
             res.status(500).json({ error: 'Failed to parse blogs data' });
@@ -197,7 +197,7 @@ app.get('/api/gallery', (req, res) => {
         const galleryMatch = fileContent.match(/export const gallery = (\[[\s\S]*?\]);/);
         
         if (galleryMatch) {
-            const gallery = eval(galleryMatch[1]);
+            const gallery = JSON.parse(galleryMatch[1]);
             res.json({ gallery });
         } else {
             res.status(500).json({ error: 'Failed to parse gallery data' });
@@ -240,7 +240,7 @@ app.get('/api/bookings', (req, res) => {
         const bookingsMatch = fileContent.match(/export const bookings = (\[[\s\S]*?\]);/);
         
         if (bookingsMatch) {
-            const bookings = eval(bookingsMatch[1]);
+            const bookings = JSON.parse(bookingsMatch[1]);
             res.json({ bookings });
         } else {
             res.status(500).json({ error: 'Failed to parse bookings data' });
