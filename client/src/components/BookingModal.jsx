@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
+import emailjs from '@emailjs/browser';
 import './BookingModal.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// ============================================================
+// EmailJS Configuration
+// Sign up at https://www.emailjs.com (free up to 200 emails/month)
+// Then set these environment variables in your Vercel project settings
+// or in a .env.production file (never commit secrets to git).
+// ============================================================
+const EMAILJS_SERVICE_ID  = process.env.REACT_APP_EMAILJS_SERVICE_ID  || '';
+const EMAILJS_TEMPLATE_ID = process.env.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID || '';
+const EMAILJS_PUBLIC_KEY  = process.env.REACT_APP_EMAILJS_PUBLIC_KEY  || '';
 
 const BookingModal = ({ tour, onClose }) => {
   const [formData, setFormData] = useState({
@@ -28,59 +37,40 @@ const BookingModal = ({ tour, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    
-    try {
-      // Calculate total price
-      const basePrice = parseInt(tour.price.replace('$', ''));
-      const totalPrice = `$${basePrice * formData.numberOfPeople}`;
-      
-      // Create booking object
-      const booking = {
-        id: newId,
-        tourId: tour.id,
-        tourName: tour.name,
-        ...formData,
-        totalPrice,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
 
-      // Fetch existing bookings
-      const response = await fetch(`${API_URL}/api/bookings`);
-      const data = await response.json();
-      const existingBookings = data.bookings || [];
+    const basePrice = parseInt(tour.price.replace('$', ''));
+    const totalPrice = `$${basePrice * formData.numberOfPeople}`;
 
-      // Generate unique ID based on existing bookings
-      const maxId = existingBookings.length > 0 
-        ? Math.max(...existingBookings.map(b => b.id)) 
-        : 0;
-      const newId = maxId + 1;
+    const templateParams = {
+      tour_name: tour.name,
+      customer_name: formData.customerName,
+      customer_email: formData.customerEmail,
+      customer_phone: formData.customerPhone,
+      number_of_people: formData.numberOfPeople,
+      booking_date: formData.bookingDate,
+      booking_time: formData.bookingTime,
+      special_requests: formData.specialRequests || 'None',
+      total_price: totalPrice,
+    };
 
-      // Add new booking
-      const updatedBookings = [...existingBookings, booking];
-
-      // Save to server
-      const saveResponse = await fetch(`${API_URL}/api/bookings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ bookings: updatedBookings }),
-      });
-
-      if (saveResponse.ok) {
-        setSubmitMessage('✓ Booking submitted successfully! We will contact you shortly.');
-        setTimeout(() => {
-          onClose();
-        }, 3000);
-      } else {
-        setSubmitMessage('❌ Failed to submit booking. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error submitting booking:', error);
-      setSubmitMessage('❌ Server error. Please try again later or contact us directly.');
+    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
+      // EmailJS not yet configured — direct the user to contact us by other means
+      console.warn('EmailJS is not configured. Set REACT_APP_EMAILJS_SERVICE_ID, REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID, and REACT_APP_EMAILJS_PUBLIC_KEY.');
+      console.info('Booking details:', templateParams);
+      setSubmitMessage(`❌ Online booking is temporarily unavailable. Please contact us directly at info@egyptadvisortours.com or call +20 (123) 456-7890 to complete your booking.`);
+      setSubmitting(false);
+      return;
     }
-    
+
+    try {
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY);
+      setSubmitMessage('✓ Booking submitted successfully! We will contact you shortly.');
+      setTimeout(() => onClose(), 3000);
+    } catch (error) {
+      console.error('Error sending booking email:', error);
+      setSubmitMessage('❌ Failed to submit booking. Please try again or contact us directly.');
+    }
+
     setSubmitting(false);
   };
 
