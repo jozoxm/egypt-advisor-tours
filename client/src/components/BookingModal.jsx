@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import emailjs from '@emailjs/browser';
+import { contactInfo } from '../data/contact-info';
 import './BookingModal.css';
 
 // ============================================================
@@ -62,7 +63,7 @@ const BookingModal = ({ tour, onClose }) => {
       // EmailJS not yet configured — direct the user to contact us by other means
       console.warn('EmailJS is not configured. Set REACT_APP_EMAILJS_SERVICE_ID, REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID, and REACT_APP_EMAILJS_PUBLIC_KEY.');
       console.info('Booking details:', templateParams);
-      setSubmitMessage(`❌ Online booking is temporarily unavailable. Please contact us directly at info@egyptadvisortours.com or call +20 (123) 456-7890 to complete your booking.`);
+      setSubmitMessage(`❌ Online booking is temporarily unavailable. Please contact us directly at ${contactInfo.emailPrimary} or call ${contactInfo.phone} to complete your booking.`);
       setSubmitting(false);
       return;
     }
