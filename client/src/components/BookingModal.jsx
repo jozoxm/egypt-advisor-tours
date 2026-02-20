@@ -94,7 +94,7 @@ const BookingModal = ({ tour, onClose }) => {
         </div>
 
         {submitMessage ? (
-          <div className={`submit-message ${submitMessage.includes('✓') ? 'success' : 'error'}`}>
+          <div className={`submit-message ${submitMessage.includes('✓') ? 'success' : 'error'}`} role="alert">
             {submitMessage}
           </div>
         ) : (

@@ -671,12 +671,12 @@ useEffect(() => {
                   <textarea name="notes" placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
                 </div>
                 {tripTailorMessage === 'success' && (
-                  <div className="trip-tailor-success">
+                  <div className="trip-tailor-success" role="alert">
                     ✓ Thank you! We've received your enquiry and will be in touch within 24 hours.
                   </div>
                 )}
                 {tripTailorMessage === 'error' && (
-                  <div className="trip-tailor-error">
+                  <div className="trip-tailor-error" role="alert">
                     ❌ Something went wrong. Please email us directly at {contactInfo.emailPrimary}.
                   </div>
                 )}
