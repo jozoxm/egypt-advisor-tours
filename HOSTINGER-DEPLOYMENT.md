@@ -184,31 +184,45 @@ When you first set up a Hostinger VPS you are shown a screen that says:
 
 > *"Choose OS, control panel, or application that you want to install. You can change this later through VPS dashboard."*
 
-You will see three tabs: **OS**, **Control Panel**, and **Application**. Follow these instructions:
+You will see three tabs: **OS**, **Control Panel**, and **Application**.
 
-**Which tab to click → "OS"**
+**➡️ Click the "OS" tab** (not "Control Panel" or "Application").
+
+You will then see this list of operating systems to choose from:
+
+| OS | Should you pick it? | Why |
+|---|---|---|
+| **Ubuntu** | ✅ **YES — pick this one** | Best for beginners. All commands in this guide are written for Ubuntu. Huge community and excellent Node.js support. |
+| AlmaLinux | ❌ No | Enterprise-focused. Fewer beginner guides available. |
+| Debian | ⚠️ Advanced | Similar to Ubuntu but fewer beginner resources. The commands in this guide will still work, but some steps may differ slightly. |
+| Rocky Linux | ❌ No | Enterprise-focused, minimal beginner support. |
+| Alpine Linux | ❌ No | Minimal/advanced OS, not beginner-friendly. Many standard tools are missing by default. |
+| Arch Linux | ❌ No | Requires advanced Linux knowledge to set up. |
+| CentOS | ❌ No | CentOS 7 reached end-of-life in 2024. CentOS Stream is a rolling preview, not a stable server OS. Either way, not recommended for beginners. |
+| CloudLinux | ❌ No | Designed for shared hosting companies, not for individual websites. |
+| Fedora Cloud | ❌ No | Short release cycle — needs frequent reinstalls. |
+| Kali Linux | ❌ No | A security/hacking research OS — not for hosting websites. |
+| openSUSE | ❌ No | Enterprise/advanced Linux. Not beginner-friendly. |
+
+**Exactly what to click:**
 
 1. In **[hPanel](https://hpanel.hostinger.com)**, go to **VPS** in the left sidebar and click your VPS plan
-2. Click **"Set Up"** or **"Operating System"** — you'll see the OS selection screen
-3. Click the **OS** tab (not "Control Panel" or "Application")
-4. Select **Ubuntu 22.04 LTS** (or the newest Ubuntu LTS version available)
+2. Click **"Set Up"** or **"Manage"** → then **"Operating System"**
+3. Click the **OS** tab
+4. Click **Ubuntu**
+5. From the version dropdown (if shown), select **Ubuntu 22.04 LTS**
+   - "LTS" means Long-Term Support — 5 years of security updates
+   - If 22.04 isn't listed, pick the newest version with "LTS" in the name
+6. Leave **Control Panel** as **"No control panel"** — you don't need one
+7. Click **"Set Up"** or **"Continue"** to confirm
 
-   > **Why Ubuntu?**
-   > Ubuntu 22.04 LTS is the best choice for beginners and for Node.js websites because:
-   > - It has the longest support life (5 years of security updates)
-   > - All the commands in this guide are written for Ubuntu
-   > - It has the largest community — if you search for help online, almost every answer is for Ubuntu
-   > - Node.js, Nginx, and Let's Encrypt all install easily on Ubuntu
+> **⚠️ Don't choose a control panel or application** (like cPanel, Plesk, or WordPress) — those are for different types of websites. This project runs on Node.js and doesn't need them. You can always change the OS later from the VPS dashboard if needed.
 
-5. Leave the **Control Panel** setting as **"No control panel"** — you don't need one for this project
-6. Click **"Set Up"** or **"Continue"** to confirm
+After confirming, Hostinger will take 1–5 minutes to create your VPS. You will receive an email containing:
+- Your VPS **IP address** (e.g. `123.45.67.89`)
+- Your **root password**
 
-   > **⚠️ Don't choose a control panel or application** (like cPanel, Plesk, or WordPress) — those are for different types of websites. This project runs on Node.js and doesn't need them.
-
-7. Hostinger will take 1–5 minutes to create your VPS. You'll receive an email with:
-   - Your VPS **IP address** (e.g. `123.45.67.89`)
-   - Your **root password**
-   - Keep these safe — you'll need them in the next step
+Keep these safe — you'll need them in the next step.
 
 ---
 
