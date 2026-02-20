@@ -178,7 +178,41 @@ If you want the booking and trip-tailor forms to send emails, you need to add yo
 > Use this if you have Hostinger's **VPS or Cloud** plan.
 > This gives you the full website including a working Admin Panel that saves changes.
 
-### Step 1 — Connect to Your VPS via SSH
+### Step 1 — Choose an Operating System for Your VPS
+
+When you first set up a Hostinger VPS you are shown a screen that says:
+
+> *"Choose OS, control panel, or application that you want to install. You can change this later through VPS dashboard."*
+
+You will see three tabs: **OS**, **Control Panel**, and **Application**. Follow these instructions:
+
+**Which tab to click → "OS"**
+
+1. In **[hPanel](https://hpanel.hostinger.com)**, go to **VPS** in the left sidebar and click your VPS plan
+2. Click **"Set Up"** or **"Operating System"** — you'll see the OS selection screen
+3. Click the **OS** tab (not "Control Panel" or "Application")
+4. Select **Ubuntu 22.04 LTS** (or the newest Ubuntu LTS version available)
+
+   > **Why Ubuntu?**
+   > Ubuntu 22.04 LTS is the best choice for beginners and for Node.js websites because:
+   > - It has the longest support life (5 years of security updates)
+   > - All the commands in this guide are written for Ubuntu
+   > - It has the largest community — if you search for help online, almost every answer is for Ubuntu
+   > - Node.js, Nginx, and Let's Encrypt all install easily on Ubuntu
+
+5. Leave the **Control Panel** setting as **"No control panel"** — you don't need one for this project
+6. Click **"Set Up"** or **"Continue"** to confirm
+
+   > **⚠️ Don't choose a control panel or application** (like cPanel, Plesk, or WordPress) — those are for different types of websites. This project runs on Node.js and doesn't need them.
+
+7. Hostinger will take 1–5 minutes to create your VPS. You'll receive an email with:
+   - Your VPS **IP address** (e.g. `123.45.67.89`)
+   - Your **root password**
+   - Keep these safe — you'll need them in the next step
+
+---
+
+### Step 2 — Connect to Your VPS via SSH
 
 1. In hPanel, find your **VPS details** — you'll need the IP address, username (`root`), and password
 2. **On Windows:** Download and install **PuTTY** (free): [putty.org](https://putty.org)
@@ -191,7 +225,7 @@ If you want the booking and trip-tailor forms to send emails, you need to add yo
 
 ---
 
-### Step 2 — Install Node.js on Your VPS
+### Step 3 — Install Node.js on Your VPS
 
 Once connected via SSH, run these commands one by one (copy and paste each line, then press Enter):
 
@@ -212,7 +246,7 @@ You should see version numbers printed — that means Node.js is installed! ✅
 
 ---
 
-### Step 3 — Install Git and Clone Your Website
+### Step 4 — Install Git and Clone Your Website
 
 ```bash
 # Install git
@@ -230,7 +264,7 @@ cd egypt-advisor-tours
 
 ---
 
-### Step 4 — Install Dependencies
+### Step 5 — Install Dependencies
 
 ```bash
 # Install all packages for the project
@@ -243,7 +277,7 @@ This downloads all the code libraries the website needs. It may take 2–3 minut
 
 ---
 
-### Step 5 — Set Up Environment Variables
+### Step 6 — Set Up Environment Variables
 
 ```bash
 # Create the production environment file for the React app
@@ -263,7 +297,7 @@ Press `Ctrl+O` then Enter to save, then `Ctrl+X` to exit.
 
 ---
 
-### Step 6 — Build the React Frontend
+### Step 7 — Build the React Frontend
 
 ```bash
 npm run build
@@ -273,7 +307,7 @@ Wait for **"Compiled successfully!"** — this creates the `client/build` folder
 
 ---
 
-### Step 7 — Install PM2 (Keeps Your Server Running 24/7)
+### Step 8 — Install PM2 (Keeps Your Server Running 24/7)
 
 ```bash
 # Install PM2 globally
@@ -296,7 +330,7 @@ You should see `egypt-advisor-tours` with status **online** ✅
 
 ---
 
-### Step 8 — Install and Configure Nginx (Web Server)
+### Step 9 — Install and Configure Nginx (Web Server)
 
 Nginx serves your website files and forwards API requests to your Node.js server.
 
@@ -352,7 +386,7 @@ systemctl enable nginx
 
 ---
 
-### Step 9 — Set Up SSL (HTTPS) — Free with Let's Encrypt
+### Step 10 — Set Up SSL (HTTPS) — Free with Let's Encrypt
 
 ```bash
 # Install Certbot
@@ -366,7 +400,7 @@ Follow the prompts — enter your email and agree to the terms. Certbot automati
 
 ---
 
-### Step 10 — Point Your Domain to Your VPS
+### Step 11 — Point Your Domain to Your VPS
 
 1. Log in to **hPanel → Domains**
 2. Find your domain → click **Manage**
@@ -378,7 +412,7 @@ Follow the prompts — enter your email and agree to the terms. Certbot automati
 
 ---
 
-### Step 11 — Test Your Full Website 🎉
+### Step 12 — Test Your Full Website 🎉
 
 Go to `https://yourdomain.com` in your browser and check:
 
