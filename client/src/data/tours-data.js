@@ -86,6 +86,72 @@ export const tours = [
     "rating": 4.85,
     "reviews": 189,
     "groupSize": "2-15 people"
+  },
+  {
+    "id": 7,
+    "name": "Aswan & Philae Temple",
+    "price": "$195",
+    "duration": "6 hours",
+    "description": "Cruise across the tranquil Nile to the stunning Philae Temple, dedicated to the goddess Isis, set on a lush island.",
+    "image": "⛵",
+    "rating": 4.8,
+    "reviews": 214,
+    "groupSize": "2-12 people"
+  },
+  {
+    "id": 8,
+    "name": "Saqqara & Memphis",
+    "price": "$135",
+    "duration": "5 hours",
+    "description": "Explore Egypt's oldest capital and the iconic Step Pyramid of Djoser – the world's first large-scale stone structure.",
+    "image": "🏜️",
+    "rating": 4.75,
+    "reviews": 163,
+    "groupSize": "2-10 people"
+  },
+  {
+    "id": 9,
+    "name": "Egyptian Cooking Class",
+    "price": "$79",
+    "duration": "3 hours",
+    "description": "Learn to prepare authentic Egyptian dishes like koshary, ful medames, and basbousa with a local chef in Cairo.",
+    "image": "🍲",
+    "rating": 4.9,
+    "reviews": 302,
+    "groupSize": "2-8 people"
+  },
+  {
+    "id": 10,
+    "name": "White Desert Safari",
+    "price": "$349",
+    "duration": "2 days",
+    "description": "Camp under the stars amidst the surreal white chalk rock formations of the Sahara in the Western Desert.",
+    "image": "🌵",
+    "rating": 4.95,
+    "reviews": 127,
+    "groupSize": "4-12 people"
+  },
+  {
+    "id": 11,
+    "name": "Alexandria Day Trip",
+    "price": "$149",
+    "duration": "Full day",
+    "description": "Discover Cleopatra's city – the Catacombs of Kom El Shoqafa, Pompey's Pillar, and the stunning Library of Alexandria.",
+    "image": "🏛️",
+    "rating": 4.7,
+    "reviews": 248,
+    "groupSize": "2-15 people"
+  },
+  {
+    "id": 12,
+    "name": "Hot Air Balloon – Luxor",
+    "price": "$189",
+    "duration": "1 hour",
+    "description": "Drift silently over the temples and tombs of ancient Thebes at sunrise for an unforgettable bird's-eye view of Luxor.",
+    "image": "🎈",
+    "rating": 4.95,
+    "reviews": 431,
+    "groupSize": "2-16 people"
   }
 ];
 
