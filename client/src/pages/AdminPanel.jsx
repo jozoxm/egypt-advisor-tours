@@ -3,8 +3,21 @@ import './AdminPanel.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
+const NAV_TABS = [
+  { id: 'dashboard',    icon: '📊', label: 'Dashboard' },
+  { id: 'slideshow',   icon: '🖼️', label: 'Slideshow' },
+  { id: 'tours',       icon: '🎫', label: 'Tours' },
+  { id: 'blogs',       icon: '📝', label: 'Blogs' },
+  { id: 'gallery',     icon: '🗃️', label: 'Gallery' },
+  { id: 'bookings',    icon: '📅', label: 'Bookings' },
+  { id: 'testimonials',icon: '💬', label: 'Testimonials' },
+  { id: 'settings',    icon: '⚙️', label: 'Site Settings' },
+  { id: 'contact',     icon: '📞', label: 'Contact Info' },
+  { id: 'instructions',icon: '📚', label: 'Help' },
+];
+
 const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState('tours');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [tours, setTours] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
   const [contactInfo, setContactInfo] = useState({});
@@ -20,6 +33,14 @@ const AdminPanel = () => {
   const [slides, setSlides] = useState([]);
   const [editingSlideshowId, setEditingSlideshowId] = useState(null);
   const [editingSlide, setEditingSlide] = useState(null);
+  // Testimonials editing
+  const [editingTestimonialIndex, setEditingTestimonialIndex] = useState(null);
+  const [editingTestimonial, setEditingTestimonial] = useState(null);
+  // Site settings
+  const [siteSettings, setSiteSettings] = useState({
+    hero: { badge: '', title: '', subtitle: '', primaryButtonText: '', secondaryButtonText: '' },
+    stats: []
+  });
   const [saveMessage, setSaveMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,13 +55,14 @@ const AdminPanel = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes, slideshowRes] = await Promise.all([
+      const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes, slideshowRes, settingsRes] = await Promise.all([
         fetch(`${API_URL}/api/tours`),
         fetch(`${API_URL}/api/contact`),
         fetch(`${API_URL}/api/blogs`),
         fetch(`${API_URL}/api/gallery`),
         fetch(`${API_URL}/api/bookings`),
-        fetch(`${API_URL}/api/slideshow`)
+        fetch(`${API_URL}/api/slideshow`),
+        fetch(`${API_URL}/api/settings`)
       ]);
       
       if (toursRes.ok && contactRes.ok) {
@@ -70,6 +92,11 @@ const AdminPanel = () => {
           const slideshowData = await slideshowRes.json();
           setSlides(slideshowData.slides || []);
         }
+
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          setSiteSettings(settingsData);
+        }
         
         showSaveMessage('Data loaded successfully!', 'success');
       } else {
@@ -86,6 +113,7 @@ const AdminPanel = () => {
         const { gallery: localGallery } = await import('../data/gallery-data');
         const { bookings: localBookings } = await import('../data/bookings-data');
         const { slides: localSlides } = await import('../data/slideshow-data');
+        const { siteSettings: localSettings } = await import('../data/site-settings');
         setTours(localTours);
         setTestimonials(localTestimonials || []);
         setContactInfo(localContactInfo);
@@ -93,6 +121,7 @@ const AdminPanel = () => {
         setGallery(localGallery || []);
         setBookings(localBookings || []);
         setSlides(localSlides || []);
+        setSiteSettings(localSettings || {});
       } catch (importError) {
         showSaveMessage('Failed to load data', 'error');
       }
@@ -562,11 +591,132 @@ const AdminPanel = () => {
     setSaving(false);
   };
 
+  // ============================================
+  // TESTIMONIALS MANAGEMENT FUNCTIONS
+  // ============================================
+
+  const startEditTestimonial = (index) => {
+    setEditingTestimonialIndex(index);
+    setEditingTestimonial({ ...testimonials[index] });
+  };
+
+  const cancelEditTestimonial = () => {
+    // Remove the testimonial if it was newly added and not yet saved
+    if (editingTestimonial && editingTestimonial._isNew) {
+      setTestimonials(testimonials.filter((_, i) => i !== editingTestimonialIndex));
+    }
+    setEditingTestimonialIndex(null);
+    setEditingTestimonial(null);
+  };
+
+  const saveTestimonial = async () => {
+    // Strip internal tracking flag before saving
+    const { _isNew: _removed, ...cleanTestimonial } = editingTestimonial;
+    const updatedTestimonials = testimonials.map((t, i) =>
+      i === editingTestimonialIndex ? cleanTestimonial : t
+    );
+    setTestimonials(updatedTestimonials);
+    setEditingTestimonialIndex(null);
+    setEditingTestimonial(null);
+    await saveTestimonialsToServer(updatedTestimonials);
+  };
+
+  const addNewTestimonial = () => {
+    const newTestimonial = {
+      _isNew: true,
+      name: 'Customer Name',
+      country: 'Country',
+      text: 'Enter review text here...'
+    };
+    const newIndex = testimonials.length;
+    setTestimonials([...testimonials, newTestimonial]);
+    setEditingTestimonialIndex(newIndex);
+    setEditingTestimonial(newTestimonial);
+  };
+
+  const deleteTestimonial = async (index) => {
+    if (window.confirm('Delete this testimonial?')) {
+      const updatedTestimonials = testimonials.filter((_, i) => i !== index);
+      setTestimonials(updatedTestimonials);
+      await saveTestimonialsToServer(updatedTestimonials);
+    }
+  };
+
+  const updateEditingTestimonial = (field, value) => {
+    setEditingTestimonial({ ...editingTestimonial, [field]: value });
+  };
+
+  const saveTestimonialsToServer = async (testimonialsData) => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/tours`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tours, testimonials: testimonialsData }),
+      });
+      if (response.ok) {
+        showSaveMessage('✓ Testimonials saved successfully!', 'success');
+      } else {
+        showSaveMessage('Failed to save testimonials to server', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving testimonials:', error);
+      showSaveMessage('Failed to connect to server.', 'error');
+    }
+    setSaving(false);
+  };
+
+  // ============================================
+  // SITE SETTINGS FUNCTIONS
+  // ============================================
+
+  const updateSiteSettingsHero = (field, value) => {
+    setSiteSettings(prev => ({ ...prev, hero: { ...prev.hero, [field]: value } }));
+  };
+
+  const updateSiteSettingsStat = (index, field, value) => {
+    const updatedStats = siteSettings.stats.map((stat, i) =>
+      i === index ? { ...stat, [field]: value } : stat
+    );
+    setSiteSettings(prev => ({ ...prev, stats: updatedStats }));
+  };
+
+  const saveSiteSettingsToServer = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(siteSettings),
+      });
+      if (response.ok) {
+        showSaveMessage('✓ Site settings saved! Refresh the website to see your changes.', 'success');
+      } else {
+        showSaveMessage('Failed to save site settings', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving site settings:', error);
+      showSaveMessage('Failed to connect to server.', 'error');
+    }
+    setSaving(false);
+  };
+
   if (loading) {
     return (
       <div className="admin-panel">
-        <div className="admin-header">
-          <h1>🎨 Admin Panel - Loading...</h1>
+        <aside className="admin-sidebar">
+          <div className="admin-brand">
+            <span className="admin-brand-icon">🎨</span>
+            <div>
+              <h2>Admin Panel</h2>
+              <p>Egypt Advisor Tours</p>
+            </div>
+          </div>
+        </aside>
+        <div className="admin-main">
+          <div className="admin-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p>Loading data...</p>
+          </div>
         </div>
       </div>
     );
@@ -574,174 +724,238 @@ const AdminPanel = () => {
 
   return (
     <div className="admin-panel">
-      <div className="admin-header">
-        <h1>🎨 Full Control Admin Panel</h1>
-        <p>Edit your website content with automatic saving - no coding required!</p>
-        {saving && <p className="saving-indicator">💾 Saving...</p>}
-      </div>
 
-      {saveMessage && (
-        <div className={`save-message ${saveMessage.type}`}>
-          {saveMessage.text}
+      {/* SIDEBAR */}
+      <aside className="admin-sidebar">
+        <div className="admin-brand">
+          <span className="admin-brand-icon">🎨</span>
+          <div>
+            <h2>Admin Panel</h2>
+            <p>Egypt Advisor Tours</p>
+          </div>
         </div>
-      )}
 
-      <div className="admin-tabs">
-        <button 
-          className={activeTab === 'slideshow' ? 'active' : ''} 
-          onClick={() => setActiveTab('slideshow')}
-        >
-          🖼️ Slideshow
-        </button>
-        <button 
-          className={activeTab === 'tours' ? 'active' : ''} 
-          onClick={() => setActiveTab('tours')}
-        >
-          🎫 Edit Tours
-        </button>
-        <button 
-          className={activeTab === 'blogs' ? 'active' : ''} 
-          onClick={() => setActiveTab('blogs')}
-        >
-          📝 Edit Blogs
-        </button>
-        <button 
-          className={activeTab === 'gallery' ? 'active' : ''} 
-          onClick={() => setActiveTab('gallery')}
-        >
-          🖼️ Gallery
-        </button>
-        <button 
-          className={activeTab === 'bookings' ? 'active' : ''} 
-          onClick={() => setActiveTab('bookings')}
-        >
-          📅 Bookings
-        </button>
-        <button 
-          className={activeTab === 'contact' ? 'active' : ''} 
-          onClick={() => setActiveTab('contact')}
-        >
-          📞 Edit Contact Info
-        </button>
-        <button 
-          className={activeTab === 'instructions' ? 'active' : ''} 
-          onClick={() => setActiveTab('instructions')}
-        >
-          📚 How It Works
-        </button>
-      </div>
+        <nav className="admin-nav">
+          {NAV_TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`admin-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="nav-icon">{tab.icon}</span>
+              <span className="nav-label">{tab.label}</span>
+            </button>
+          ))}
+        </nav>
 
-      <div className="admin-content">
-        {/* SLIDESHOW TAB */}
-        {activeTab === 'slideshow' && (
-          <div className="tours-section">
-            <div className="section-header-with-action">
-              <h2>Manage Home Page Slideshow</h2>
-              <button className="btn-add" onClick={addNewSlide}>
-                ➕ Add New Slide
-              </button>
-            </div>
-            <p className="section-description">
-              Upload photos or paste image URLs to change the home page hero slideshow.
-              Drag to reorder (tip: delete and re-add to reorder).
-            </p>
+        <div className="admin-sidebar-footer">
+          {saving && <div className="saving-indicator">💾 Saving...</div>}
+        </div>
+      </aside>
 
-            <div className="tours-list">
-              {slides.map(slide => (
-                <div key={slide.id} className="tour-admin-card">
-                  {editingSlideshowId === slide.id ? (
-                    // EDIT MODE
-                    <div className="tour-edit-form">
-                      <h3>Editing Slide: {slide.name}</h3>
-
-                      <div className="form-row">
-                        <label>Slide Name / Caption:</label>
-                        <input
-                          type="text"
-                          value={editingSlide.name}
-                          onChange={(e) => updateEditingSlide('name', e.target.value)}
-                          placeholder="e.g., Pyramids of Giza"
-                        />
-                      </div>
-
-                      <div className="form-row">
-                        <label>Image URL (Optional):</label>
-                        <input
-                          type="url"
-                          value={editingSlide.image && !editingSlide.image.startsWith('data:') ? editingSlide.image : ''}
-                          onChange={(e) => updateEditingSlide('image', e.target.value)}
-                          placeholder="https://images.unsplash.com/photo-..."
-                        />
-                        <small>Paste an image URL or upload a file below. Leave blank to show gradient only.</small>
-                      </div>
-
-                      <div className="form-row">
-                        <label>Or Upload Photo:</label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleSlidePhotoUpload}
-                          className="file-input"
-                        />
-                        <small>Upload an image file (max 5MB). Supported: JPG, PNG, WebP</small>
-                        {editingSlide.image && (
-                          <div className="photo-preview-container">
-                            <img
-                              src={editingSlide.image}
-                              alt="Slide preview"
-                              className="photo-preview"
-                            />
-                            <button
-                              type="button"
-                              className="btn-remove-photo"
-                              onClick={() => updateEditingSlide('image', '')}
-                            >
-                              ✕ Remove Photo
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="form-actions">
-                        <button className="btn-save" onClick={saveSlide}>Save Slide</button>
-                        <button className="btn-cancel" onClick={cancelEditSlide}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    // VIEW MODE
-                    <div className="tour-view">
-                      <div className="tour-header">
-                        <h3>{slide.name}</h3>
-                      </div>
-                      {slide.image ? (
-                        <div className="tour-photo-preview">
-                          <img src={slide.image} alt={slide.name} className="tour-photo-preview-image" />
-                        </div>
-                      ) : (
-                        <div
-                          style={{
-                            height: '80px',
-                            borderRadius: '8px',
-                            background: slide.gradient,
-                            marginBottom: '10px'
-                          }}
-                        />
-                      )}
-                      <div className="tour-actions">
-                        <button className="btn-edit" onClick={() => startEditSlide(slide)}>
-                          ✏️ Edit
-                        </button>
-                        <button className="btn-delete" onClick={() => deleteSlide(slide.id)}>
-                          🗑️ Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+      {/* MAIN CONTENT */}
+      <div className="admin-main">
+        {saveMessage && (
+          <div className={`save-message save-message-topbar ${saveMessage.type}`}>
+            {saveMessage.text}
           </div>
         )}
+
+        <div className="admin-content">
+          <h1 className="admin-page-title">
+            {NAV_TABS.find(t => t.id === activeTab)?.icon}{' '}
+            {NAV_TABS.find(t => t.id === activeTab)?.label}
+          </h1>
+
+          {/* DASHBOARD TAB */}
+          {activeTab === 'dashboard' && (
+            <div className="dashboard">
+              <p className="dashboard-subtitle">Here's an overview of your Egypt Advisor Tours website.</p>
+
+              <div className="dashboard-stats">
+                <div className="dash-stat-card">
+                  <div className="dash-stat-icon">🎫</div>
+                  <div className="dash-stat-value">{tours.length}</div>
+                  <div className="dash-stat-label">Total Tours</div>
+                </div>
+                <div className="dash-stat-card accent-green">
+                  <div className="dash-stat-icon">✅</div>
+                  <div className="dash-stat-value">{bookings.filter(b => b.status === 'confirmed').length}</div>
+                  <div className="dash-stat-label">Confirmed Bookings</div>
+                </div>
+                <div className="dash-stat-card accent-yellow">
+                  <div className="dash-stat-icon">⏳</div>
+                  <div className="dash-stat-value">{bookings.filter(b => b.status === 'pending').length}</div>
+                  <div className="dash-stat-label">Pending Bookings</div>
+                </div>
+                <div className="dash-stat-card">
+                  <div className="dash-stat-icon">📅</div>
+                  <div className="dash-stat-value">{bookings.length}</div>
+                  <div className="dash-stat-label">Total Bookings</div>
+                </div>
+                <div className="dash-stat-card">
+                  <div className="dash-stat-icon">📝</div>
+                  <div className="dash-stat-value">{blogs.length}</div>
+                  <div className="dash-stat-label">Blog Posts</div>
+                </div>
+                <div className="dash-stat-card">
+                  <div className="dash-stat-icon">💬</div>
+                  <div className="dash-stat-value">{testimonials.length}</div>
+                  <div className="dash-stat-label">Testimonials</div>
+                </div>
+              </div>
+
+              <div className="dashboard-grid">
+                <div className="dashboard-section">
+                  <h3>⚡ Quick Actions</h3>
+                  <div className="quick-actions">
+                    <button className="quick-action-btn" onClick={() => { setActiveTab('tours'); addNewTour(); }}>
+                      ➕ Add New Tour
+                    </button>
+                    <button className="quick-action-btn" onClick={() => { setActiveTab('blogs'); addNewBlog(); }}>
+                      📝 Add New Blog Post
+                    </button>
+                    <button className="quick-action-btn" onClick={() => { setActiveTab('slideshow'); addNewSlide(); }}>
+                      🖼️ Add Slideshow Image
+                    </button>
+                    <button className="quick-action-btn" onClick={() => { setActiveTab('testimonials'); addNewTestimonial(); }}>
+                      💬 Add Testimonial
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dashboard-section">
+                  <h3>📅 Recent Bookings</h3>
+                  {bookings.length === 0 ? (
+                    <p style={{ color: '#999', fontStyle: 'italic' }}>No bookings yet.</p>
+                  ) : (
+                    bookings.slice(0, 6).map(booking => (
+                      <div key={booking.id} className="recent-booking-row">
+                        <span className="rb-name">{booking.customerName}</span>
+                        <span className="rb-tour">{booking.tourName}</span>
+                        <span className={`status-badge ${booking.status}`}>{booking.status}</span>
+                      </div>
+                    ))
+                  )}
+                  {bookings.length > 6 && (
+                    <button className="view-all-btn" onClick={() => setActiveTab('bookings')}>
+                      View all {bookings.length} bookings →
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SLIDESHOW TAB */}
+          {activeTab === 'slideshow' && (
+            <div className="tours-section">
+              <div className="section-header-with-action">
+                <div>
+                  <h2>Manage Home Page Slideshow</h2>
+                  <p className="section-description">Upload photos or paste image URLs to change the hero slideshow.</p>
+                </div>
+                <button className="btn-add" onClick={addNewSlide}>
+                  ➕ Add New Slide
+                </button>
+              </div>
+
+              <div className="tours-list">
+                {slides.map(slide => (
+                  <div key={slide.id} className="tour-admin-card">
+                    {editingSlideshowId === slide.id ? (
+                      // EDIT MODE
+                      <div className="tour-edit-form">
+                        <h3>Editing Slide: {slide.name}</h3>
+
+                        <div className="form-row">
+                          <label>Slide Name / Caption:</label>
+                          <input
+                            type="text"
+                            value={editingSlide.name}
+                            onChange={(e) => updateEditingSlide('name', e.target.value)}
+                            placeholder="e.g., Pyramids of Giza"
+                          />
+                        </div>
+
+                        <div className="form-row">
+                          <label>Image URL (Optional):</label>
+                          <input
+                            type="url"
+                            value={editingSlide.image && !editingSlide.image.startsWith('data:') ? editingSlide.image : ''}
+                            onChange={(e) => updateEditingSlide('image', e.target.value)}
+                            placeholder="https://images.unsplash.com/photo-..."
+                          />
+                          <small>Paste an image URL or upload a file below. Leave blank to show gradient only.</small>
+                        </div>
+
+                        <div className="form-row">
+                          <label>Or Upload Photo:</label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleSlidePhotoUpload}
+                            className="file-input"
+                          />
+                          <small>Upload an image file (max 5MB). Supported: JPG, PNG, WebP</small>
+                          {editingSlide.image && (
+                            <div className="photo-preview-container">
+                              <img
+                                src={editingSlide.image}
+                                alt="Slide preview"
+                                className="photo-preview"
+                              />
+                              <button
+                                type="button"
+                                className="btn-remove-photo"
+                                onClick={() => updateEditingSlide('image', '')}
+                              >
+                                ✕ Remove Photo
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="form-actions">
+                          <button className="btn-save" onClick={saveSlide}>Save Slide</button>
+                          <button className="btn-cancel" onClick={cancelEditSlide}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      // VIEW MODE
+                      <div className="tour-view">
+                        <div className="tour-header">
+                          <h3>{slide.name}</h3>
+                        </div>
+                        {slide.image ? (
+                          <div className="tour-photo-preview">
+                            <img src={slide.image} alt={slide.name} className="tour-photo-preview-image" />
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              height: '80px',
+                              borderRadius: '8px',
+                              background: slide.gradient,
+                              marginBottom: '10px'
+                            }}
+                          />
+                        )}
+                        <div className="tour-actions">
+                          <button className="btn-edit" onClick={() => startEditSlide(slide)}>
+                            ✏️ Edit
+                          </button>
+                          <button className="btn-delete" onClick={() => deleteSlide(slide.id)}>
+                            🗑️ Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         {/* TOURS TAB */}
         {activeTab === 'tours' && (
@@ -1467,6 +1681,175 @@ const AdminPanel = () => {
             </div>
           </div>
         )}
+
+        {/* TESTIMONIALS TAB */}
+        {activeTab === 'testimonials' && (
+          <div className="testimonials-admin-section">
+            <div className="section-header-with-action">
+              <div>
+                <h2>Manage Customer Testimonials</h2>
+                <p className="section-description">Add, edit, and remove customer reviews shown on the homepage.</p>
+              </div>
+              <button className="btn-add" onClick={addNewTestimonial}>
+                ➕ Add Testimonial
+              </button>
+            </div>
+
+            <div className="tours-list">
+              {testimonials.map((testimonial, index) => (
+                <div key={index} className="tour-admin-card">
+                  {editingTestimonialIndex === index ? (
+                    // EDIT MODE
+                    <div className="tour-edit-form">
+                      <h3>Editing Testimonial</h3>
+                      <div className="form-row">
+                        <label>Customer Name:</label>
+                        <input
+                          type="text"
+                          value={editingTestimonial.name}
+                          onChange={(e) => updateEditingTestimonial('name', e.target.value)}
+                        />
+                      </div>
+                      <div className="form-row">
+                        <label>Country / Location:</label>
+                        <input
+                          type="text"
+                          value={editingTestimonial.country}
+                          onChange={(e) => updateEditingTestimonial('country', e.target.value)}
+                          placeholder="e.g., USA, UK, Germany"
+                        />
+                      </div>
+                      <div className="form-row">
+                        <label>Review Text:</label>
+                        <textarea
+                          value={editingTestimonial.text}
+                          onChange={(e) => updateEditingTestimonial('text', e.target.value)}
+                          rows="4"
+                          placeholder="Enter the customer's review..."
+                        />
+                      </div>
+                      <div className="form-actions">
+                        <button className="btn-save" onClick={saveTestimonial}>Save</button>
+                        <button className="btn-cancel" onClick={cancelEditTestimonial}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    // VIEW MODE
+                    <div className="testimonial-view">
+                      <div className="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                      <p className="testimonial-quote">"{testimonial.text}"</p>
+                      <div className="testimonial-author">
+                        <strong>{testimonial.name}</strong>
+                        <span>{testimonial.country}</span>
+                      </div>
+                      <div className="tour-actions">
+                        <button className="btn-edit" onClick={() => startEditTestimonial(index)}>
+                          ✏️ Edit
+                        </button>
+                        <button className="btn-delete" onClick={() => deleteTestimonial(index)}>
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SITE SETTINGS TAB */}
+        {activeTab === 'settings' && (
+          <div className="settings-section">
+            <p className="section-description">
+              Edit the main text and numbers shown on your homepage. Click Save Settings when done.
+            </p>
+
+            <div className="form-group">
+              <h3>🦸 Hero Section</h3>
+              <div className="form-row">
+                <label>Badge / Tag Text:</label>
+                <input
+                  type="text"
+                  value={siteSettings.hero?.badge || ''}
+                  onChange={(e) => updateSiteSettingsHero('badge', e.target.value)}
+                  placeholder="e.g., 🌟 Premium Travel Experiences"
+                />
+              </div>
+              <div className="form-row">
+                <label>Main Headline:</label>
+                <input
+                  type="text"
+                  value={siteSettings.hero?.title || ''}
+                  onChange={(e) => updateSiteSettingsHero('title', e.target.value)}
+                  placeholder="e.g., Discover the Wonders of Ancient Egypt"
+                />
+              </div>
+              <div className="form-row">
+                <label>Subtitle / Description:</label>
+                <textarea
+                  rows="3"
+                  value={siteSettings.hero?.subtitle || ''}
+                  onChange={(e) => updateSiteSettingsHero('subtitle', e.target.value)}
+                  placeholder="Enter the hero section subtitle..."
+                />
+              </div>
+              <div className="form-row">
+                <label>Primary Button Text:</label>
+                <input
+                  type="text"
+                  value={siteSettings.hero?.primaryButtonText || ''}
+                  onChange={(e) => updateSiteSettingsHero('primaryButtonText', e.target.value)}
+                  placeholder="e.g., Explore Tours"
+                />
+              </div>
+              <div className="form-row">
+                <label>Secondary Button Text:</label>
+                <input
+                  type="text"
+                  value={siteSettings.hero?.secondaryButtonText || ''}
+                  onChange={(e) => updateSiteSettingsHero('secondaryButtonText', e.target.value)}
+                  placeholder="e.g., Plan My Trip"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <h3>📊 Stats Section</h3>
+              <p style={{ color: '#666', marginTop: 0, marginBottom: '20px' }}>
+                These appear as the 4 highlight numbers below the hero section.
+              </p>
+              {(siteSettings.stats || []).map((stat, index) => (
+                <div key={index} className="stat-edit-row">
+                  <div className="form-row">
+                    <label>Stat {index + 1} — Value:</label>
+                    <input
+                      type="text"
+                      value={stat.value}
+                      onChange={(e) => updateSiteSettingsStat(index, 'value', e.target.value)}
+                      placeholder="e.g., 5000+"
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label>Stat {index + 1} — Label:</label>
+                    <input
+                      type="text"
+                      value={stat.label}
+                      onChange={(e) => updateSiteSettingsStat(index, 'label', e.target.value)}
+                      placeholder="e.g., Happy Travelers"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button className="btn-save" style={{ minWidth: '180px' }} onClick={saveSiteSettingsToServer}>
+              💾 Save Settings
+            </button>
+          </div>
+        )}
+
+        </div>
       </div>
     </div>
   );

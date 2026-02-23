@@ -8,6 +8,7 @@ import HeroSlideshow from './components/HeroSlideshow';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 import { blogs } from './data/blogs-data';
+import { siteSettings } from './data/site-settings';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.2';
@@ -360,37 +361,27 @@ useEffect(() => {
                 <HeroSlideshow />
                 <div className="hero-overlay"></div>
                 <div className="hero-content">
-                  <span className="hero-tag">🌟 Premium Travel Experiences</span>
-                  <h1>Discover the Wonders of Ancient Egypt</h1>
-                  <p>Embark on an unforgettable journey through millennia of history, culture, and breathtaking landscapes with expert local guides</p>
+                  <span className="hero-tag">{siteSettings.hero.badge}</span>
+                  <h1>{siteSettings.hero.title}</h1>
+                  <p>{siteSettings.hero.subtitle}</p>
                   <div className="hero-buttons">
                     <button className="btn btn-primary" onClick={() => goToSection('tours')}>
-                      Explore Tours
+                      {siteSettings.hero.primaryButtonText}
                     </button>
                   <button className="btn btn-secondary" onClick={scrollToTripTailor}>
-                    Plan My Trip
+                    {siteSettings.hero.secondaryButtonText}
                   </button>
                   </div>
                 </div>
               </section>
 
               <section className="stats">
-                <div className="stat-item">
-                  <h3>5000+</h3>
-                  <p>Happy Travelers</p>
-                </div>
-                <div className="stat-item">
-                  <h3>25+</h3>
-                  <p>Unique Tours</p>
-                </div>
-                <div className="stat-item">
-                  <h3>15+</h3>
-                  <p>Years Experience</p>
-                </div>
-                <div className="stat-item">
-                  <h3>4.9★</h3>
-                  <p>Average Rating</p>
-                </div>
+                {siteSettings.stats.map((stat, i) => (
+                  <div key={i} className="stat-item">
+                    <h3>{stat.value}</h3>
+                    <p>{stat.label}</p>
+                  </div>
+                ))}
               </section>
 
               <ToursSection

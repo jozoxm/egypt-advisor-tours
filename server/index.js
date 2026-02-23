@@ -18,6 +18,7 @@ const BLOGS_FILE = path.join(__dirname, '../client/src/data/blogs-data.js');
 const GALLERY_FILE = path.join(__dirname, '../client/src/data/gallery-data.js');
 const BOOKINGS_FILE = path.join(__dirname, '../client/src/data/bookings-data.js');
 const SLIDESHOW_FILE = path.join(__dirname, '../client/src/data/slideshow-data.js');
+const SETTINGS_FILE = path.join(__dirname, '../client/src/data/site-settings.js');
 
 app.get('/api', (req, res) => {
     res.json({
@@ -315,6 +316,55 @@ export const slides = ${JSON.stringify(slides, null, 2)};
     } catch (error) {
         console.error('Error saving slideshow:', error);
         res.status(500).json({ error: 'Failed to save slideshow data' });
+    }
+});
+
+// ============================================
+// SITE SETTINGS API ENDPOINTS
+// ============================================
+
+// Get site settings
+app.get('/api/settings', (req, res) => {
+    try {
+        const fileContent = fs.readFileSync(SETTINGS_FILE, 'utf8');
+        const match = fileContent.match(/export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
+
+        if (match) {
+            try {
+                const settings = JSON.parse(match[1]);
+                res.json(settings);
+            } catch (parseError) {
+                console.error('Error parsing site settings JSON:', parseError.message);
+                res.status(500).json({ error: `Failed to parse site settings: ${parseError.message}` });
+            }
+        } else {
+            res.status(500).json({ error: 'Failed to parse site settings' });
+        }
+    } catch (error) {
+        console.error('Error reading site settings:', error);
+        res.status(500).json({ error: 'Failed to read site settings' });
+    }
+});
+
+// Save site settings
+app.post('/api/settings', (req, res) => {
+    try {
+        const settings = req.body;
+
+        const fileContent = `// ============================================
+// SITE SETTINGS FILE
+// ============================================
+// This file controls the main content shown on your homepage.
+// Edit these values from the Admin Panel → Site Settings tab.
+
+export const siteSettings = ${JSON.stringify(settings, null, 2)};
+`;
+
+        fs.writeFileSync(SETTINGS_FILE, fileContent, 'utf8');
+        res.json({ success: true, message: 'Site settings saved successfully' });
+    } catch (error) {
+        console.error('Error saving site settings:', error);
+        res.status(500).json({ error: 'Failed to save site settings' });
     }
 });
 
