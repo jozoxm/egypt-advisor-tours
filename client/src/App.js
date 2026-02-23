@@ -3,6 +3,8 @@ import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-r
 import emailjs from '@emailjs/browser';
 import './App.css';
 import AdminPanel from './pages/AdminPanel';
+import About from './pages/About';
+import BlogsPage from './pages/BlogsPage';
 import BookingModal from './components/BookingModal';
 import HeroSlideshow from './components/HeroSlideshow';
 import { tours, testimonials } from './data/tours-data';
@@ -340,8 +342,8 @@ useEffect(() => {
                 Tours
               </Link>
             </li>
-            <li><a href="#blogs" onClick={(e) => { e.preventDefault(); goToSection('blogs'); }}>Blogs</a></li>
-            <li><a href="#about" onClick={(e) => { e.preventDefault(); goToSection('about'); }}>About</a></li>
+            <li><Link to="/blogs" onClick={() => { setMenuOpen(false); }}>Blogs</Link></li>
+            <li><Link to="/about" onClick={() => { setMenuOpen(false); }}>About</Link></li>
           </ul>
             <button 
               className="contact-btn"
@@ -517,6 +519,10 @@ useEffect(() => {
             </>
           }
         />
+
+        <Route path="/blogs" element={<BlogsPage onTailorTrip={scrollToTripTailor} />} />
+
+        <Route path="/about" element={<About />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -800,8 +806,8 @@ useEffect(() => {
                   Tours
                 </Link>
               </li>
-              <li><a href="#blogs" onClick={(e) => { e.preventDefault(); goToSection('blogs'); }}>Blogs</a></li>
-              <li><a href="#about" onClick={(e) => { e.preventDefault(); goToSection('about'); }}>About Us</a></li>
+              <li><Link to="/blogs">Blogs</Link></li>
+              <li><Link to="/about">About Us</Link></li>
               <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
             </ul>
           </div>
