@@ -1,80 +1,45 @@
 import React from 'react';
 
-const About = () => {
-  return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
-      <h1>About Egypt Advisor Tours</h1>
-      <p style={{ fontSize: '18px' }}>Your trusted companion for authentic Egyptian experiences</p>
+const About = () => (
+  <section id="about" className="about">
+    <div className="about-content">
+      <h2>Why Egypt Advisor?</h2>
+      <p className="about-intro">We're not just a tour company – we're your gateway to authentic Egyptian experiences</p>
 
-      <section style={{ marginTop: '40px' }}>
-        <h2>Our Mission</h2>
-        <p>
-          To provide travelers with authentic, memorable, and enriching experiences in Egypt 
-          while supporting local communities and preserving ancient heritage for future generations.
-        </p>
-      </section>
-
-      <section style={{ marginTop: '40px' }}>
-        <h2>Why Choose Us?</h2>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-          gap: '20px'
-        }}>
-          <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '5px' }}>
-            <h3>Local Expertise</h3>
-            <p>Our team consists of native Egyptians who deeply understand the culture and history</p>
-          </div>
-          <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '5px' }}>
-            <h3>Personalized Service</h3>
-            <p>We customize every tour to match your interests and travel style</p>
-          </div>
-          <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '5px' }}>
-            <h3>Safety First</h3>
-            <p>Your safety and comfort are our top priorities on every trip</p>
-          </div>
-          <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '5px' }}>
-            <h3>Competitive Pricing</h3>
-            <p>We offer excellent value without compromising on quality</p>
-          </div>
-          <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '5px' }}>
-            <h3>24/7 Support</h3>
-            <p>Our team is always available to assist you during your travels</p>
-          </div>
-          <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '5px' }}>
-            <h3>Sustainable Tourism</h3>
-            <p>We practice responsible tourism that benefits local communities</p>
-          </div>
+      <div className="features-grid">
+        <div className="feature-card">
+          <div className="feature-icon">🎓</div>
+          <h3>Expert Guides</h3>
+          <p>Certified Egyptologists with decades of combined experience sharing their passion for ancient history</p>
         </div>
-      </section>
-
-      <section style={{ marginTop: '40px' }}>
-        <h2>Our Values</h2>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: '20px'
-        }}>
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <h3>🌟 Excellence</h3>
-            <p>We strive for excellence in every aspect of our service</p>
-          </div>
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <h3>🤝 Integrity</h3>
-            <p>We conduct our business with honesty and transparency</p>
-          </div>
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <h3>❤️ Passion</h3>
-            <p>We are passionate about Egypt and sharing it with travelers</p>
-          </div>
-          <div style={{ textAlign: 'center', padding: '20px' }}>
-            <h3>🌍 Responsibility</h3>
-            <p>We care for the environment and support local communities</p>
-          </div>
+        <div className="feature-card">
+          <div className="feature-icon">🛡️</div>
+          <h3>Safety &amp; Comfort</h3>
+          <p>Your safety is paramount. Climate-controlled vehicles and premium accommodations included</p>
         </div>
-      </section>
+        <div className="feature-card">
+          <div className="feature-icon">💎</div>
+          <h3>Exclusive Access</h3>
+          <p>Private viewings and special permits to explore off-the-beaten-path archaeological sites</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon">🌍</div>
+          <h3>Personalized Service</h3>
+          <p>Custom itineraries tailored to your interests, pace, and travel style</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon">⭐</div>
+          <h3>Best Value</h3>
+          <p>Transparent pricing with no hidden fees. Premium experiences at competitive rates</p>
+        </div>
+        <div className="feature-card">
+          <div className="feature-icon">🤝</div>
+          <h3>24/7 Support</h3>
+          <p>Round-the-clock customer support before, during, and after your journey</p>
+        </div>
+      </div>
     </div>
-  );
-};
+  </section>
+);
 
 export default About;
