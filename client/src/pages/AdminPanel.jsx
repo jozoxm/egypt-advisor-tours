@@ -136,8 +136,14 @@ const AdminPanel = () => {
 
   // Handle tour editing
   const startEditTour = (tour) => {
+    const tourToEdit = { ...tour };
+    // Migrate legacy single-price tours to the prices object format
+    if (!tourToEdit.prices && tourToEdit.price) {
+      tourToEdit.prices = { individual: tourToEdit.price, group: '', sharing: '' };
+      delete tourToEdit.price;
+    }
     setEditingTourId(tour.id);
-    setEditingTour({ ...tour });
+    setEditingTour(tourToEdit);
   };
 
   const cancelEditTour = () => {
@@ -201,6 +207,13 @@ const AdminPanel = () => {
     setEditingTour({ ...editingTour, [field]: value });
   };
 
+  const updateEditingTourPrice = (category, value) => {
+    setEditingTour({
+      ...editingTour,
+      prices: { ...(editingTour.prices || {}), [category]: value }
+    });
+  };
+
   const handleTourPhotoUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -233,7 +246,11 @@ const AdminPanel = () => {
     const newTour = {
       id: Math.max(0, ...tours.map(t => t.id)) + 1,
       name: 'New Tour',
-      price: '$199',
+      prices: {
+        individual: '$199',
+        group: '$159',
+        sharing: '$89'
+      },
       duration: '4 hours',
       description: 'Enter tour description here...',
       image: '🏛️',
@@ -986,12 +1003,32 @@ const AdminPanel = () => {
                       </div>
 
                       <div className="form-row">
-                        <label>Price:</label>
+                        <label>Price – Individual:</label>
                         <input 
                           type="text" 
-                          value={editingTour.price}
-                          onChange={(e) => updateEditingTour('price', e.target.value)}
+                          value={(editingTour.prices && editingTour.prices.individual) || ''}
+                          onChange={(e) => updateEditingTourPrice('individual', e.target.value)}
                           placeholder="e.g., $199"
+                        />
+                      </div>
+
+                      <div className="form-row">
+                        <label>Price – Group:</label>
+                        <input 
+                          type="text" 
+                          value={(editingTour.prices && editingTour.prices.group) || ''}
+                          onChange={(e) => updateEditingTourPrice('group', e.target.value)}
+                          placeholder="e.g., $159"
+                        />
+                      </div>
+
+                      <div className="form-row">
+                        <label>Price – Sharing:</label>
+                        <input 
+                          type="text" 
+                          value={(editingTour.prices && editingTour.prices.sharing) || ''}
+                          onChange={(e) => updateEditingTourPrice('sharing', e.target.value)}
+                          placeholder="e.g., $89"
                         />
                       </div>
 
@@ -1105,7 +1142,13 @@ const AdminPanel = () => {
                       <div className="tour-header">
                         <span className="tour-icon">{tour.image}</span>
                         <h3>{tour.name}</h3>
-                        <span className="tour-price">{tour.price}</span>
+                        {tour.prices ? (
+                          <span className="tour-price">
+                            👤 {tour.prices.individual} | 👥 {tour.prices.group} | 🚌 {tour.prices.sharing}
+                          </span>
+                        ) : (
+                          <span className="tour-price">{tour.price}</span>
+                        )}
                       </div>
                       <p className="tour-details">
                         ⏱️ {tour.duration} | 👥 {tour.groupSize} | ⭐ {tour.rating} ({tour.reviews} reviews)

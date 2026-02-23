@@ -23,9 +23,19 @@ const BookingModal = ({ tour, onClose }) => {
     bookingTime: '09:00 AM',
     specialRequests: ''
   });
+  const [priceCategory, setPriceCategory] = useState('individual');
   
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
+
+  // Get price string for the selected category (supports both old and new format)
+  const getSelectedPrice = () => {
+    if (tour.prices) return tour.prices[priceCategory] || tour.prices.individual || '';
+    return tour.price || '';
+  };
+
+  const selectedPrice = getSelectedPrice();
+  const priceNum = parseInt(selectedPrice.replace(/[^0-9]/g, '') || '0', 10);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -39,13 +49,16 @@ const BookingModal = ({ tour, onClose }) => {
     e.preventDefault();
     setSubmitting(true);
 
-    const basePrice = parseInt(tour.price?.replace('$', '') || '0', 10);
-    if (Number.isNaN(basePrice)) {
+    if (Number.isNaN(priceNum)) {
       setSubmitMessage('❌ Error calculating price. Please contact us directly to complete your booking.');
       setSubmitting(false);
       return;
     }
-    const totalPrice = `$${basePrice * formData.numberOfPeople}`;
+    const totalPrice = `$${priceNum * formData.numberOfPeople}`;
+
+    const categoryLabel = tour.prices
+      ? { individual: 'Individual', group: 'Group', sharing: 'Sharing' }[priceCategory]
+      : 'Standard';
 
     const templateParams = {
       tour_name: tour.name,
@@ -56,6 +69,7 @@ const BookingModal = ({ tour, onClose }) => {
       booking_date: formData.bookingDate,
       booking_time: formData.bookingTime,
       special_requests: formData.specialRequests || 'None',
+      price_category: categoryLabel,
       total_price: totalPrice,
     };
 
@@ -89,7 +103,7 @@ const BookingModal = ({ tour, onClose }) => {
           <span className="tour-icon-large">{tour.image}</span>
           <div>
             <h2>Book: {tour.name}</h2>
-            <p className="tour-price-large">{tour.price} per person</p>
+            <p className="tour-price-large">{selectedPrice} per person</p>
           </div>
         </div>
 
@@ -144,6 +158,23 @@ const BookingModal = ({ tour, onClose }) => {
 
             <div className="form-section">
               <h3>Booking Details</h3>
+
+              {tour.prices && (
+                <div className="booking-form-group">
+                  <label htmlFor="priceCategory">Price Category *</label>
+                  <select
+                    id="priceCategory"
+                    name="priceCategory"
+                    value={priceCategory}
+                    onChange={(e) => setPriceCategory(e.target.value)}
+                    required
+                  >
+                    <option value="individual">👤 Individual — {tour.prices.individual} per person</option>
+                    <option value="group">👥 Group — {tour.prices.group} per person</option>
+                    <option value="sharing">🚌 Sharing — {tour.prices.sharing} per person</option>
+                  </select>
+                </div>
+              )}
               
               <div className="booking-form-group">
                 <label htmlFor="numberOfPeople">Number of People *</label>
@@ -211,12 +242,12 @@ const BookingModal = ({ tour, onClose }) => {
             <div className="booking-summary">
               <div className="summary-row">
                 <span>Tour Price:</span>
-                <span>{tour.price} × {formData.numberOfPeople}</span>
+                <span>{selectedPrice} × {formData.numberOfPeople}</span>
               </div>
               <div className="summary-row total">
                 <span>Total Price:</span>
                 <span className="total-price">
-                  ${parseInt(tour.price.replace('$', '')) * formData.numberOfPeople}
+                  ${priceNum * formData.numberOfPeople}
                 </span>
               </div>
             </div>

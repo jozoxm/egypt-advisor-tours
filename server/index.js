@@ -68,12 +68,13 @@ app.post('/api/tours', (req, res) => {
 // 1. To change existing tour details, simply edit the values below
 // 2. To add a new tour, copy an existing tour object and paste it at the end
 // 3. Make sure to give it a unique 'id' number
-// 4. Change the details (name, price, duration, description, etc.)
+// 4. Change the details (name, prices, duration, description, etc.)
 // 
 // TOUR OBJECT STRUCTURE:
 // - id: Unique number for the tour (1, 2, 3, etc.)
 // - name: Tour name/title
-// - price: Price with $ symbol (e.g., '$199')
+// - prices: Price categories object with keys: individual, group, sharing
+//   e.g., { "individual": "$199", "group": "$159", "sharing": "$89" }
 // - duration: How long the tour takes (e.g., '4 hours')
 // - description: Detailed description of the tour
 // - image: Emoji icon (copy from emojipedia.org)

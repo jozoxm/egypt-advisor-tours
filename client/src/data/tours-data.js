@@ -7,12 +7,13 @@
 // 1. To change existing tour details, simply edit the values below
 // 2. To add a new tour, copy an existing tour object and paste it at the end
 // 3. Make sure to give it a unique 'id' number
-// 4. Change the details (name, price, duration, description, etc.)
+// 4. Change the details (name, prices, duration, description, etc.)
 // 
 // TOUR OBJECT STRUCTURE:
 // - id: Unique number for the tour (1, 2, 3, etc.)
 // - name: Tour name/title
-// - price: Price with $ symbol (e.g., '$199')
+// - prices: Price categories object with keys: individual, group, sharing
+//   e.g., { "individual": "$225", "group": "$175", "sharing": "$99" }
 // - duration: How long the tour takes (e.g., '4 hours')
 // - description: Detailed description of the tour
 // - image: Emoji icon (copy from emojipedia.org)
@@ -24,7 +25,11 @@ export const tours = [
   {
     "id": 1,
     "name": "Pyramids of Giza",
-    "price": "$225",
+    "prices": {
+      "individual": "$225",
+      "group": "$175",
+      "sharing": "$99"
+    },
     "duration": "4 hours",
     "description": "Stand in awe of the world's last remaining wonder. Explore the Great Pyramid, Khafre's Pyramid, and the enigmatic Sphinx.",
     "image": "🏛️",
@@ -36,7 +41,11 @@ export const tours = [
   {
     "id": 2,
     "name": "Luxor Temple",
-    "price": "$159",
+    "prices": {
+      "individual": "$159",
+      "group": "$125",
+      "sharing": "$69"
+    },
     "duration": "3 hours",
     "description": "Discover the magnificent Luxor Temple on the banks of the Nile River with stunning hieroglyphic carvings.",
     "image": "🕌",
@@ -48,7 +57,11 @@ export const tours = [
   {
     "id": 3,
     "name": "Valley of the Kings",
-    "price": "$179",
+    "prices": {
+      "individual": "$179",
+      "group": "$139",
+      "sharing": "$79"
+    },
     "duration": "5 hours",
     "description": "Explore the royal tombs of ancient pharaohs in the mystical Valley of the Kings with expert Egyptologist guides.",
     "image": "⚱️",
@@ -60,7 +73,11 @@ export const tours = [
   {
     "id": 4,
     "name": "Nile River Cruise",
-    "price": "$249",
+    "prices": {
+      "individual": "$249",
+      "group": "$199",
+      "sharing": "$99"
+    },
     "duration": "3-7 hours",
     "description": "Experience a luxurious sunset or evening cruise along the iconic Nile River with traditional music and cuisine.",
     "image": "🚤",
@@ -72,7 +89,11 @@ export const tours = [
   {
     "id": 5,
     "name": "Cairo Museum",
-    "price": "$89",
+    "prices": {
+      "individual": "$89",
+      "group": "$69",
+      "sharing": "$39"
+    },
     "duration": "3 hours",
     "description": "Immerse yourself in Egyptian history at the world-renowned Cairo Museum housing treasures of Tutankhamun.",
     "image": "🏺",
@@ -84,7 +105,11 @@ export const tours = [
   {
     "id": 6,
     "name": "Abu Simbel Temples",
-    "price": "$299",
+    "prices": {
+      "individual": "$299",
+      "group": "$239",
+      "sharing": "$129"
+    },
     "duration": "8-10 hours",
     "description": "Visit the spectacular Abu Simbel temples carved into the mountainside with breathtaking colossal statues.",
     "image": "🗿",
@@ -96,7 +121,11 @@ export const tours = [
   {
     "id": 7,
     "name": "Aswan & Philae Temple",
-    "price": "$195",
+    "prices": {
+      "individual": "$195",
+      "group": "$155",
+      "sharing": "$85"
+    },
     "duration": "6 hours",
     "description": "Cruise across the tranquil Nile to the stunning Philae Temple, dedicated to the goddess Isis, set on a lush island.",
     "image": "⛵",
@@ -108,7 +137,11 @@ export const tours = [
   {
     "id": 8,
     "name": "Saqqara & Memphis",
-    "price": "$135",
+    "prices": {
+      "individual": "$135",
+      "group": "$105",
+      "sharing": "$59"
+    },
     "duration": "5 hours",
     "description": "Explore Egypt's oldest capital and the iconic Step Pyramid of Djoser – the world's first large-scale stone structure.",
     "image": "🏜️",
@@ -120,7 +153,11 @@ export const tours = [
   {
     "id": 9,
     "name": "Egyptian Cooking Class",
-    "price": "$79",
+    "prices": {
+      "individual": "$79",
+      "group": "$59",
+      "sharing": "$35"
+    },
     "duration": "3 hours",
     "description": "Learn to prepare authentic Egyptian dishes like koshary, ful medames, and basbousa with a local chef in Cairo.",
     "image": "🍲",
@@ -132,7 +169,11 @@ export const tours = [
   {
     "id": 10,
     "name": "White Desert Safari",
-    "price": "$349",
+    "prices": {
+      "individual": "$349",
+      "group": "$279",
+      "sharing": "$149"
+    },
     "duration": "2 days",
     "description": "Camp under the stars amidst the surreal white chalk rock formations of the Sahara in the Western Desert.",
     "image": "🌵",
@@ -144,7 +185,11 @@ export const tours = [
   {
     "id": 11,
     "name": "Alexandria Day Trip",
-    "price": "$149",
+    "prices": {
+      "individual": "$149",
+      "group": "$119",
+      "sharing": "$65"
+    },
     "duration": "Full day",
     "description": "Discover Cleopatra's city – the Catacombs of Kom El Shoqafa, Pompey's Pillar, and the stunning Library of Alexandria.",
     "image": "🏛️",
@@ -156,7 +201,11 @@ export const tours = [
   {
     "id": 12,
     "name": "Hot Air Balloon – Luxor",
-    "price": "$189",
+    "prices": {
+      "individual": "$189",
+      "group": "$159",
+      "sharing": "$89"
+    },
     "duration": "1 hour",
     "description": "Drift silently over the temples and tombs of ancient Thebes at sunrise for an unforgettable bird's-eye view of Luxor.",
     "image": "🎈",

@@ -116,7 +116,7 @@ const ToursSection = ({
                 <span className="detail">👥 {tour.groupSize}</span>
               </div>
               <div className="tour-footer">
-                <span className="price">{tour.price}</span>
+                <span className="price">From {tour.prices ? tour.prices.sharing : tour.price}</span>
                 <button 
                   className="book-button"
                   onClick={(e) => {
@@ -545,10 +545,27 @@ useEffect(() => {
                 <span className="detail-label">Group Size</span>
                 <span className="detail-value">👥 {selectedTour.groupSize}</span>
               </div>
-              <div className="detail-item">
-                <span className="detail-label">Price</span>
-                <span className="detail-value price-large">{selectedTour.price}</span>
-              </div>
+              {selectedTour.prices ? (
+                <>
+                  <div className="detail-item">
+                    <span className="detail-label">👤 Individual</span>
+                    <span className="detail-value price-large">{selectedTour.prices.individual}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">👥 Group</span>
+                    <span className="detail-value price-large">{selectedTour.prices.group}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">🚌 Sharing</span>
+                    <span className="detail-value price-large">{selectedTour.prices.sharing}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="detail-item">
+                  <span className="detail-label">Price</span>
+                  <span className="detail-value price-large">{selectedTour.price}</span>
+                </div>
+              )}
             </div>
             <button className="btn btn-primary modal-button" onClick={() => {
               setSelectedTour(null);
