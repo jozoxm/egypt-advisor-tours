@@ -22,6 +22,8 @@ const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID     
 const EMAILJS_TRIPTAILOR_TEMPLATE = process.env.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID || '';
 const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY           || '';
 
+const TOURS_PER_PAGE = 6;
+
 const ToursSection = ({
   filteredTours,
   tourSearch,
@@ -31,7 +33,25 @@ const ToursSection = ({
   totalTours,
   heading = 'Signature Experiences',
   subheading = "Carefully curated tours designed to showcase Egypt's most breathtaking destinations"
-}) => (
+}) => {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset to page 1 whenever the filtered list changes (e.g. after a search)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filteredTours]);
+
+  const totalPages = Math.ceil(filteredTours.length / TOURS_PER_PAGE);
+  const startIndex = (currentPage - 1) * TOURS_PER_PAGE;
+  const paginatedTours = filteredTours.slice(startIndex, startIndex + TOURS_PER_PAGE);
+
+  // Build a compact list of page numbers to show (always show first, last, current ±1)
+  const getPageNumbers = () => {
+    const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+    return [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+  };
+
+  return (
   <section id="tours" className="tours">
     <div className="section-header">
       <h2>{heading}</h2>
@@ -54,7 +74,7 @@ const ToursSection = ({
         )}
       </div>
       <div className="tours-count">
-        Showing {filteredTours.length} of {totalTours} tours
+        Showing {startIndex + 1}–{Math.min(startIndex + TOURS_PER_PAGE, filteredTours.length)} of {filteredTours.length} tours
       </div>
     </div>
     
@@ -66,8 +86,9 @@ const ToursSection = ({
         </button>
       </div>
     ) : (
+      <>
       <div className="tours-grid">
-        {filteredTours.map(tour => (
+        {paginatedTours.map(tour => (
           <div 
             key={tour.id} 
             className="tour-card"
@@ -106,9 +127,50 @@ const ToursSection = ({
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button
+            className="pagination-btn pagination-prev"
+            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+            disabled={currentPage === 1}
+            aria-label="Previous page"
+          >
+            ← Prev
+          </button>
+
+          <div className="pagination-pages">
+            {getPageNumbers().map((page, idx, arr) => (
+              <React.Fragment key={page}>
+                {idx > 0 && arr[idx - 1] !== page - 1 && (
+                  <span className="pagination-ellipsis">…</span>
+                )}
+                <button
+                  className={`pagination-btn${currentPage === page ? ' active' : ''}`}
+                  onClick={() => setCurrentPage(page)}
+                  aria-current={currentPage === page ? 'page' : undefined}
+                >
+                  {page}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+
+          <button
+            className="pagination-btn pagination-next"
+            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            aria-label="Next page"
+          >
+            Next →
+          </button>
+        </div>
+      )}
+      </>
     )}
   </section>
-);
+  );
+};
 
 function App() {
   const [selectedTour, setSelectedTour] = useState(null);
