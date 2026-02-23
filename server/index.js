@@ -17,6 +17,7 @@ const CONTACT_FILE = path.join(__dirname, '../client/src/data/contact-info.js');
 const BLOGS_FILE = path.join(__dirname, '../client/src/data/blogs-data.js');
 const GALLERY_FILE = path.join(__dirname, '../client/src/data/gallery-data.js');
 const BOOKINGS_FILE = path.join(__dirname, '../client/src/data/bookings-data.js');
+const SLIDESHOW_FILE = path.join(__dirname, '../client/src/data/slideshow-data.js');
 
 app.get('/api', (req, res) => {
     res.json({
@@ -269,6 +270,51 @@ export const bookings = ${JSON.stringify(bookings, null, 2)};
     } catch (error) {
         console.error('Error saving bookings:', error);
         res.status(500).json({ error: 'Failed to save bookings data' });
+    }
+});
+
+// ============================================
+// SLIDESHOW API ENDPOINTS
+// ============================================
+
+// Get slideshow data
+app.get('/api/slideshow', (req, res) => {
+    try {
+        const fileContent = fs.readFileSync(SLIDESHOW_FILE, 'utf8');
+        const slidesMatch = fileContent.match(/export const slides = (\[[\s\S]*?\]);?/);
+
+        if (slidesMatch) {
+            const slides = JSON.parse(slidesMatch[1]);
+            res.json({ slides });
+        } else {
+            res.status(500).json({ error: 'Failed to parse slideshow data' });
+        }
+    } catch (error) {
+        console.error('Error reading slideshow:', error);
+        res.status(500).json({ error: 'Failed to read slideshow data' });
+    }
+});
+
+// Save slideshow data
+app.post('/api/slideshow', (req, res) => {
+    try {
+        const { slides } = req.body;
+
+        const fileContent = `// ============================================
+// SLIDESHOW DATA FILE
+// ============================================
+// This file controls the home page hero slideshow images.
+// Each slide has a name, an image URL, and a gradient fallback color.
+// You can manage these slides from the Admin Panel → Slideshow tab.
+
+export const slides = ${JSON.stringify(slides, null, 2)};
+`;
+
+        fs.writeFileSync(SLIDESHOW_FILE, fileContent, 'utf8');
+        res.json({ success: true, message: 'Slideshow saved successfully' });
+    } catch (error) {
+        console.error('Error saving slideshow:', error);
+        res.status(500).json({ error: 'Failed to save slideshow data' });
     }
 });
 

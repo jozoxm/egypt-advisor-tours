@@ -94,8 +94,11 @@ const ToursSection = ({
             className="tour-card"
             onClick={() => setSelectedTour(tour)}
           >
-            <div className="tour-image-wrapper">
-              <div className="tour-icon">{tour.image}</div>
+            <div
+              className="tour-image-wrapper"
+              style={tour.photoUrl ? { backgroundImage: `url("${tour.photoUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+            >
+              {!tour.photoUrl && <div className="tour-icon">{tour.image}</div>}
               <div className="tour-overlay">
                 <button className="explore-btn">Explore</button>
               </div>
@@ -531,7 +534,11 @@ useEffect(() => {
         <div className="modal-overlay" onClick={() => setSelectedTour(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-button" onClick={() => setSelectedTour(null)}>✕</button>
-            <div className="modal-icon">{selectedTour.image}</div>
+            {selectedTour.photoUrl ? (
+              <div className="modal-photo" style={{ backgroundImage: `url("${selectedTour.photoUrl}")` }} aria-label={selectedTour.name} />
+            ) : (
+              <div className="modal-icon">{selectedTour.image}</div>
+            )}
             <h2>{selectedTour.name}</h2>
             <div className="modal-rating">
               <span className="stars">{'⭐'.repeat(Math.floor(selectedTour.rating))}</span>

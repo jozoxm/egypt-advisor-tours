@@ -17,6 +17,9 @@ const AdminPanel = () => {
   const [editingBlog, setEditingBlog] = useState(null);
   const [editingGalleryId, setEditingGalleryId] = useState(null);
   const [editingGalleryItem, setEditingGalleryItem] = useState(null);
+  const [slides, setSlides] = useState([]);
+  const [editingSlideshowId, setEditingSlideshowId] = useState(null);
+  const [editingSlide, setEditingSlide] = useState(null);
   const [saveMessage, setSaveMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,12 +34,13 @@ const AdminPanel = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes] = await Promise.all([
+      const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes, slideshowRes] = await Promise.all([
         fetch(`${API_URL}/api/tours`),
         fetch(`${API_URL}/api/contact`),
         fetch(`${API_URL}/api/blogs`),
         fetch(`${API_URL}/api/gallery`),
-        fetch(`${API_URL}/api/bookings`)
+        fetch(`${API_URL}/api/bookings`),
+        fetch(`${API_URL}/api/slideshow`)
       ]);
       
       if (toursRes.ok && contactRes.ok) {
@@ -61,6 +65,11 @@ const AdminPanel = () => {
           const bookingsData = await bookingsRes.json();
           setBookings(bookingsData.bookings || []);
         }
+
+        if (slideshowRes.ok) {
+          const slideshowData = await slideshowRes.json();
+          setSlides(slideshowData.slides || []);
+        }
         
         showSaveMessage('Data loaded successfully!', 'success');
       } else {
@@ -76,12 +85,14 @@ const AdminPanel = () => {
         const { blogs: localBlogs } = await import('../data/blogs-data');
         const { gallery: localGallery } = await import('../data/gallery-data');
         const { bookings: localBookings } = await import('../data/bookings-data');
+        const { slides: localSlides } = await import('../data/slideshow-data');
         setTours(localTours);
         setTestimonials(localTestimonials || []);
         setContactInfo(localContactInfo);
         setBlogs(localBlogs || []);
         setGallery(localGallery || []);
         setBookings(localBookings || []);
+        setSlides(localSlides || []);
       } catch (importError) {
         showSaveMessage('Failed to load data', 'error');
       }
@@ -452,6 +463,105 @@ const AdminPanel = () => {
     setSaving(false);
   };
 
+  // ============================================
+  // SLIDESHOW MANAGEMENT FUNCTIONS
+  // ============================================
+
+  const startEditSlide = (slide) => {
+    setEditingSlideshowId(slide.id);
+    setEditingSlide({ ...slide });
+  };
+
+  const cancelEditSlide = () => {
+    // Remove the slide if it was a newly added (unsaved) slide
+    if (editingSlide) {
+      const originalSlide = slides.find(s => s.id === editingSlide.id);
+      if (originalSlide && originalSlide.name === 'New Slide' && originalSlide.image === '') {
+        setSlides(slides.filter(s => s.id !== editingSlide.id));
+      }
+    }
+    setEditingSlideshowId(null);
+    setEditingSlide(null);
+  };
+
+  const saveSlide = async () => {
+    const updatedSlides = slides.map(s => s.id === editingSlide.id ? editingSlide : s);
+    setSlides(updatedSlides);
+    setEditingSlideshowId(null);
+    setEditingSlide(null);
+    await saveSlideshowToServer(updatedSlides);
+  };
+
+  const addNewSlide = () => {
+    const newSlide = {
+      id: Math.max(0, ...slides.map(s => s.id || 0)) + 1,
+      name: 'New Slide',
+      image: '',
+      gradient: 'linear-gradient(135deg, #8B6914 0%, #C9A961 50%, #D4AF37 100%)'
+    };
+    setEditingSlide(newSlide);
+    setEditingSlideshowId(newSlide.id);
+    setSlides([...slides, newSlide]);
+  };
+
+  const deleteSlide = async (slideId) => {
+    if (window.confirm('Are you sure you want to delete this slide?')) {
+      const updatedSlides = slides.filter(s => s.id !== slideId);
+      setSlides(updatedSlides);
+      await saveSlideshowToServer(updatedSlides);
+    }
+  };
+
+  const updateEditingSlide = (field, value) => {
+    setEditingSlide({ ...editingSlide, [field]: value });
+  };
+
+  const handleSlidePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showSaveMessage('Image file too large. Please use a file smaller than 5MB.', 'error');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showSaveMessage('Please upload an image file.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      updateEditingSlide('image', reader.result);
+      showSaveMessage('Image uploaded successfully!', 'success');
+    };
+    reader.onerror = () => {
+      showSaveMessage('Failed to upload image. Please try again.', 'error');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveSlideshowToServer = async (slidesData) => {
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/slideshow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slides: slidesData }),
+      });
+
+      if (response.ok) {
+        showSaveMessage('✓ Slideshow saved successfully!', 'success');
+      } else {
+        showSaveMessage('Failed to save slideshow to server', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving slideshow:', error);
+      showSaveMessage('Failed to connect to server.', 'error');
+    }
+    setSaving(false);
+  };
+
   if (loading) {
     return (
       <div className="admin-panel">
@@ -477,6 +587,12 @@ const AdminPanel = () => {
       )}
 
       <div className="admin-tabs">
+        <button 
+          className={activeTab === 'slideshow' ? 'active' : ''} 
+          onClick={() => setActiveTab('slideshow')}
+        >
+          🖼️ Slideshow
+        </button>
         <button 
           className={activeTab === 'tours' ? 'active' : ''} 
           onClick={() => setActiveTab('tours')}
@@ -516,6 +632,117 @@ const AdminPanel = () => {
       </div>
 
       <div className="admin-content">
+        {/* SLIDESHOW TAB */}
+        {activeTab === 'slideshow' && (
+          <div className="tours-section">
+            <div className="section-header-with-action">
+              <h2>Manage Home Page Slideshow</h2>
+              <button className="btn-add" onClick={addNewSlide}>
+                ➕ Add New Slide
+              </button>
+            </div>
+            <p className="section-description">
+              Upload photos or paste image URLs to change the home page hero slideshow.
+              Drag to reorder (tip: delete and re-add to reorder).
+            </p>
+
+            <div className="tours-list">
+              {slides.map(slide => (
+                <div key={slide.id} className="tour-admin-card">
+                  {editingSlideshowId === slide.id ? (
+                    // EDIT MODE
+                    <div className="tour-edit-form">
+                      <h3>Editing Slide: {slide.name}</h3>
+
+                      <div className="form-row">
+                        <label>Slide Name / Caption:</label>
+                        <input
+                          type="text"
+                          value={editingSlide.name}
+                          onChange={(e) => updateEditingSlide('name', e.target.value)}
+                          placeholder="e.g., Pyramids of Giza"
+                        />
+                      </div>
+
+                      <div className="form-row">
+                        <label>Image URL (Optional):</label>
+                        <input
+                          type="url"
+                          value={editingSlide.image && !editingSlide.image.startsWith('data:') ? editingSlide.image : ''}
+                          onChange={(e) => updateEditingSlide('image', e.target.value)}
+                          placeholder="https://images.unsplash.com/photo-..."
+                        />
+                        <small>Paste an image URL or upload a file below. Leave blank to show gradient only.</small>
+                      </div>
+
+                      <div className="form-row">
+                        <label>Or Upload Photo:</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSlidePhotoUpload}
+                          className="file-input"
+                        />
+                        <small>Upload an image file (max 5MB). Supported: JPG, PNG, WebP</small>
+                        {editingSlide.image && (
+                          <div className="photo-preview-container">
+                            <img
+                              src={editingSlide.image}
+                              alt="Slide preview"
+                              className="photo-preview"
+                            />
+                            <button
+                              type="button"
+                              className="btn-remove-photo"
+                              onClick={() => updateEditingSlide('image', '')}
+                            >
+                              ✕ Remove Photo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-actions">
+                        <button className="btn-save" onClick={saveSlide}>Save Slide</button>
+                        <button className="btn-cancel" onClick={cancelEditSlide}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    // VIEW MODE
+                    <div className="tour-view">
+                      <div className="tour-header">
+                        <h3>{slide.name}</h3>
+                      </div>
+                      {slide.image ? (
+                        <div className="tour-photo-preview">
+                          <img src={slide.image} alt={slide.name} className="tour-photo-preview-image" />
+                        </div>
+                      ) : (
+                        <div
+                          style={{
+                            height: '80px',
+                            borderRadius: '8px',
+                            background: slide.gradient,
+                            marginBottom: '10px'
+                          }}
+                        />
+                      )}
+                      <div className="tour-actions">
+                        <button className="btn-edit" onClick={() => startEditSlide(slide)}>
+                          ✏️ Edit
+                        </button>
+                        <button className="btn-delete" onClick={() => deleteSlide(slide.id)}>
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* TOURS TAB */}
         {activeTab === 'tours' && (
           <div className="tours-section">
