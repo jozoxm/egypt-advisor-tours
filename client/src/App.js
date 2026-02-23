@@ -8,6 +8,7 @@ import HeroSlideshow from './components/HeroSlideshow';
 import { tours, testimonials } from './data/tours-data';
 import { contactInfo } from './data/contact-info';
 import { blogs } from './data/blogs-data';
+import { siteSettings } from './data/site-settings';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.2';
@@ -94,8 +95,11 @@ const ToursSection = ({
             className="tour-card"
             onClick={() => setSelectedTour(tour)}
           >
-            <div className="tour-image-wrapper">
-              <div className="tour-icon">{tour.image}</div>
+            <div
+              className="tour-image-wrapper"
+              style={tour.photoUrl ? { backgroundImage: `url("${tour.photoUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+            >
+              {!tour.photoUrl && <div className="tour-icon">{tour.image}</div>}
               <div className="tour-overlay">
                 <button className="explore-btn">Explore</button>
               </div>
@@ -357,37 +361,27 @@ useEffect(() => {
                 <HeroSlideshow />
                 <div className="hero-overlay"></div>
                 <div className="hero-content">
-                  <span className="hero-tag">🌟 Premium Travel Experiences</span>
-                  <h1>Discover the Wonders of Ancient Egypt</h1>
-                  <p>Embark on an unforgettable journey through millennia of history, culture, and breathtaking landscapes with expert local guides</p>
+                  <span className="hero-tag">{siteSettings.hero.badge}</span>
+                  <h1>{siteSettings.hero.title}</h1>
+                  <p>{siteSettings.hero.subtitle}</p>
                   <div className="hero-buttons">
                     <button className="btn btn-primary" onClick={() => goToSection('tours')}>
-                      Explore Tours
+                      {siteSettings.hero.primaryButtonText}
                     </button>
                   <button className="btn btn-secondary" onClick={scrollToTripTailor}>
-                    Plan My Trip
+                    {siteSettings.hero.secondaryButtonText}
                   </button>
                   </div>
                 </div>
               </section>
 
               <section className="stats">
-                <div className="stat-item">
-                  <h3>5000+</h3>
-                  <p>Happy Travelers</p>
-                </div>
-                <div className="stat-item">
-                  <h3>25+</h3>
-                  <p>Unique Tours</p>
-                </div>
-                <div className="stat-item">
-                  <h3>15+</h3>
-                  <p>Years Experience</p>
-                </div>
-                <div className="stat-item">
-                  <h3>4.9★</h3>
-                  <p>Average Rating</p>
-                </div>
+                {siteSettings.stats.map((stat, i) => (
+                  <div key={i} className="stat-item">
+                    <h3>{stat.value}</h3>
+                    <p>{stat.label}</p>
+                  </div>
+                ))}
               </section>
 
               <ToursSection
@@ -531,7 +525,11 @@ useEffect(() => {
         <div className="modal-overlay" onClick={() => setSelectedTour(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-button" onClick={() => setSelectedTour(null)}>✕</button>
-            <div className="modal-icon">{selectedTour.image}</div>
+            {selectedTour.photoUrl ? (
+              <div className="modal-photo" style={{ backgroundImage: `url("${selectedTour.photoUrl}")` }} aria-label={selectedTour.name} />
+            ) : (
+              <div className="modal-icon">{selectedTour.image}</div>
+            )}
             <h2>{selectedTour.name}</h2>
             <div className="modal-rating">
               <span className="stars">{'⭐'.repeat(Math.floor(selectedTour.rating))}</span>
