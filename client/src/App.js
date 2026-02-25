@@ -241,28 +241,44 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  let isMounted = true;
+
   fetch(`${API_URL}/api/tours`)
-    .then((res) => res.ok ? res.json() : null)
+    .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
-      if (data && data.tours) setTours(data.tours);
-      if (data && data.testimonials) setTestimonials(data.testimonials);
+      if (!isMounted || !data) return;
+      if (data.tours) setTours(data.tours);
+      if (data.testimonials) setTestimonials(data.testimonials);
     })
     .catch(() => {});
 
   fetch(`${API_URL}/api/contact`)
-    .then((res) => res.ok ? res.json() : null)
-    .then((data) => { if (data) setContactInfo(data); })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!isMounted || !data) return;
+      setContactInfo(data);
+    })
     .catch(() => {});
 
   fetch(`${API_URL}/api/blogs`)
-    .then((res) => res.ok ? res.json() : null)
-    .then((data) => { if (data && data.blogs) setBlogs(data.blogs); })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!isMounted || !data || !data.blogs) return;
+      setBlogs(data.blogs);
+    })
     .catch(() => {});
 
   fetch(`${API_URL}/api/settings`)
-    .then((res) => res.ok ? res.json() : null)
-    .then((data) => { if (data && data.hero) setSiteSettings(data); })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!isMounted || !data || !data.hero) return;
+      setSiteSettings(data);
+    })
     .catch(() => {});
+
+  return () => {
+    isMounted = false;
+  };
 }, []);
 
   // Data is loaded from the API on mount and falls back to static imports.
