@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -11,6 +12,15 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Rate-limit write (POST) endpoints to prevent abuse
+const writeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+
 // Paths to data files
 const TOURS_FILE = path.join(__dirname, '../client/src/data/tours-data.js');
 const CONTACT_FILE = path.join(__dirname, '../client/src/data/contact-info.js');
@@ -19,6 +29,14 @@ const GALLERY_FILE = path.join(__dirname, '../client/src/data/gallery-data.js');
 const BOOKINGS_FILE = path.join(__dirname, '../client/src/data/bookings-data.js');
 const SLIDESHOW_FILE = path.join(__dirname, '../client/src/data/slideshow-data.js');
 const SETTINGS_FILE = path.join(__dirname, '../client/src/data/site-settings.js');
+
+// In-memory data store — used as a writable cache so that admin edits survive
+// even when the filesystem is read-only (e.g. Vercel serverless).  Changes
+// written here are reflected immediately within the function instance's lifetime.
+// On persistent servers the store is also seeded from files on first read, and
+// file writes keep both in sync.  Note: a new deployment or function cold-start
+// resets the store and reloads from the bundled source files.
+const store = {};
 
 app.get('/api', (req, res) => {
     res.json({
@@ -34,6 +52,7 @@ app.get('/health', (req, res) => {
 
 // Get tours data
 app.get('/api/tours', (req, res) => {
+    if (store.tours) return res.json(store.tours);
     try {
         const fileContent = fs.readFileSync(TOURS_FILE, 'utf8');
         // Extract tours array from the file
@@ -43,7 +62,8 @@ app.get('/api/tours', (req, res) => {
         if (toursMatch && testimonialsMatch) {
             const tours = JSON.parse(toursMatch[1]);
             const testimonials = JSON.parse(testimonialsMatch[1]);
-            res.json({ tours, testimonials });
+            store.tours = { tours, testimonials };
+            res.json(store.tours);
         } else {
             res.status(500).json({ error: 'Failed to parse tours data' });
         }
@@ -54,7 +74,7 @@ app.get('/api/tours', (req, res) => {
 });
 
 // Save tours data
-app.post('/api/tours', (req, res) => {
+app.post('/api/tours', writeLimiter, (req, res) => {
     try {
         const { tours, testimonials } = req.body;
         
@@ -92,7 +112,14 @@ export const tours = ${JSON.stringify(tours, null, 2)};
 export const testimonials = ${JSON.stringify(testimonials || [], null, 2)};
 `;
         
-        fs.writeFileSync(TOURS_FILE, fileContent, 'utf8');
+        // Update store unconditionally so subsequent GETs see the new data
+        // even if the file write below fails (e.g. read-only FS on Vercel).
+        store.tours = { tours, testimonials };
+        try {
+            fs.writeFileSync(TOURS_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist tours to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Tours saved successfully' });
     } catch (error) {
         console.error('Error saving tours:', error);
@@ -102,6 +129,7 @@ export const testimonials = ${JSON.stringify(testimonials || [], null, 2)};
 
 // Get contact info
 app.get('/api/contact', (req, res) => {
+    if (store.contact) return res.json(store.contact);
     try {
         const fileContent = fs.readFileSync(CONTACT_FILE, 'utf8');
         // Extract contactInfo object from the file
@@ -109,7 +137,8 @@ app.get('/api/contact', (req, res) => {
         
         if (match) {
             const contactInfo = JSON.parse(match[1]);
-            res.json(contactInfo);
+            store.contact = contactInfo;
+            res.json(store.contact);
         } else {
             res.status(500).json({ error: 'Failed to parse contact info' });
         }
@@ -120,7 +149,7 @@ app.get('/api/contact', (req, res) => {
 });
 
 // Save contact info
-app.post('/api/contact', (req, res) => {
+app.post('/api/contact', writeLimiter, (req, res) => {
     try {
         const contactInfo = req.body;
         
@@ -138,7 +167,12 @@ app.post('/api/contact', (req, res) => {
 export const contactInfo = ${JSON.stringify(contactInfo, null, 2)};
 `;
         
-        fs.writeFileSync(CONTACT_FILE, fileContent, 'utf8');
+        store.contact = contactInfo;
+        try {
+            fs.writeFileSync(CONTACT_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist contact info to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Contact info saved successfully' });
     } catch (error) {
         console.error('Error saving contact info:', error);
@@ -152,13 +186,15 @@ export const contactInfo = ${JSON.stringify(contactInfo, null, 2)};
 
 // Get blogs data
 app.get('/api/blogs', (req, res) => {
+    if (store.blogs) return res.json(store.blogs);
     try {
         const fileContent = fs.readFileSync(BLOGS_FILE, 'utf8');
         const blogsMatch = fileContent.match(/export const blogs = (\[[\s\S]*?\]);/);
         
         if (blogsMatch) {
             const blogs = JSON.parse(blogsMatch[1]);
-            res.json({ blogs });
+            store.blogs = { blogs };
+            res.json(store.blogs);
         } else {
             res.status(500).json({ error: 'Failed to parse blogs data' });
         }
@@ -169,7 +205,7 @@ app.get('/api/blogs', (req, res) => {
 });
 
 // Save blogs data
-app.post('/api/blogs', (req, res) => {
+app.post('/api/blogs', writeLimiter, (req, res) => {
     try {
         const { blogs } = req.body;
         
@@ -181,7 +217,12 @@ app.post('/api/blogs', (req, res) => {
 export const blogs = ${JSON.stringify(blogs, null, 2)};
 `;
         
-        fs.writeFileSync(BLOGS_FILE, fileContent, 'utf8');
+        store.blogs = { blogs };
+        try {
+            fs.writeFileSync(BLOGS_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist blogs to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Blogs saved successfully' });
     } catch (error) {
         console.error('Error saving blogs:', error);
@@ -195,13 +236,15 @@ export const blogs = ${JSON.stringify(blogs, null, 2)};
 
 // Get gallery data
 app.get('/api/gallery', (req, res) => {
+    if (store.gallery) return res.json(store.gallery);
     try {
         const fileContent = fs.readFileSync(GALLERY_FILE, 'utf8');
         const galleryMatch = fileContent.match(/export const gallery = (\[[\s\S]*?\]);/);
         
         if (galleryMatch) {
             const gallery = JSON.parse(galleryMatch[1]);
-            res.json({ gallery });
+            store.gallery = { gallery };
+            res.json(store.gallery);
         } else {
             res.status(500).json({ error: 'Failed to parse gallery data' });
         }
@@ -212,7 +255,7 @@ app.get('/api/gallery', (req, res) => {
 });
 
 // Save gallery data
-app.post('/api/gallery', (req, res) => {
+app.post('/api/gallery', writeLimiter, (req, res) => {
     try {
         const { gallery } = req.body;
         
@@ -224,7 +267,12 @@ app.post('/api/gallery', (req, res) => {
 export const gallery = ${JSON.stringify(gallery, null, 2)};
 `;
         
-        fs.writeFileSync(GALLERY_FILE, fileContent, 'utf8');
+        store.gallery = { gallery };
+        try {
+            fs.writeFileSync(GALLERY_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist gallery to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Gallery saved successfully' });
     } catch (error) {
         console.error('Error saving gallery:', error);
@@ -238,13 +286,15 @@ export const gallery = ${JSON.stringify(gallery, null, 2)};
 
 // Get bookings data
 app.get('/api/bookings', (req, res) => {
+    if (store.bookings) return res.json(store.bookings);
     try {
         const fileContent = fs.readFileSync(BOOKINGS_FILE, 'utf8');
         const bookingsMatch = fileContent.match(/export const bookings = (\[[\s\S]*?\]);/);
         
         if (bookingsMatch) {
             const bookings = JSON.parse(bookingsMatch[1]);
-            res.json({ bookings });
+            store.bookings = { bookings };
+            res.json(store.bookings);
         } else {
             res.status(500).json({ error: 'Failed to parse bookings data' });
         }
@@ -255,7 +305,7 @@ app.get('/api/bookings', (req, res) => {
 });
 
 // Save bookings data
-app.post('/api/bookings', (req, res) => {
+app.post('/api/bookings', writeLimiter, (req, res) => {
     try {
         const { bookings } = req.body;
         
@@ -267,7 +317,12 @@ app.post('/api/bookings', (req, res) => {
 export const bookings = ${JSON.stringify(bookings, null, 2)};
 `;
         
-        fs.writeFileSync(BOOKINGS_FILE, fileContent, 'utf8');
+        store.bookings = { bookings };
+        try {
+            fs.writeFileSync(BOOKINGS_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist bookings to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Bookings saved successfully' });
     } catch (error) {
         console.error('Error saving bookings:', error);
@@ -281,13 +336,15 @@ export const bookings = ${JSON.stringify(bookings, null, 2)};
 
 // Get slideshow data
 app.get('/api/slideshow', (req, res) => {
+    if (store.slideshow) return res.json(store.slideshow);
     try {
         const fileContent = fs.readFileSync(SLIDESHOW_FILE, 'utf8');
         const slidesMatch = fileContent.match(/export const slides = (\[[\s\S]*?\]);?/);
 
         if (slidesMatch) {
             const slides = JSON.parse(slidesMatch[1]);
-            res.json({ slides });
+            store.slideshow = { slides };
+            res.json(store.slideshow);
         } else {
             res.status(500).json({ error: 'Failed to parse slideshow data' });
         }
@@ -298,7 +355,7 @@ app.get('/api/slideshow', (req, res) => {
 });
 
 // Save slideshow data
-app.post('/api/slideshow', (req, res) => {
+app.post('/api/slideshow', writeLimiter, (req, res) => {
     try {
         const { slides } = req.body;
 
@@ -312,7 +369,12 @@ app.post('/api/slideshow', (req, res) => {
 export const slides = ${JSON.stringify(slides, null, 2)};
 `;
 
-        fs.writeFileSync(SLIDESHOW_FILE, fileContent, 'utf8');
+        store.slideshow = { slides };
+        try {
+            fs.writeFileSync(SLIDESHOW_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist slideshow to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Slideshow saved successfully' });
     } catch (error) {
         console.error('Error saving slideshow:', error);
@@ -326,6 +388,7 @@ export const slides = ${JSON.stringify(slides, null, 2)};
 
 // Get site settings
 app.get('/api/settings', (req, res) => {
+    if (store.settings) return res.json(store.settings);
     try {
         const fileContent = fs.readFileSync(SETTINGS_FILE, 'utf8');
         const match = fileContent.match(/export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
@@ -333,7 +396,8 @@ app.get('/api/settings', (req, res) => {
         if (match) {
             try {
                 const settings = JSON.parse(match[1]);
-                res.json(settings);
+                store.settings = settings;
+                res.json(store.settings);
             } catch (parseError) {
                 console.error('Error parsing site settings JSON:', parseError.message);
                 res.status(500).json({ error: `Failed to parse site settings: ${parseError.message}` });
@@ -348,7 +412,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 // Save site settings
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', writeLimiter, (req, res) => {
     try {
         const settings = req.body;
 
@@ -361,7 +425,12 @@ app.post('/api/settings', (req, res) => {
 export const siteSettings = ${JSON.stringify(settings, null, 2)};
 `;
 
-        fs.writeFileSync(SETTINGS_FILE, fileContent, 'utf8');
+        store.settings = settings;
+        try {
+            fs.writeFileSync(SETTINGS_FILE, fileContent, 'utf8');
+        } catch (writeErr) {
+            console.warn('Could not persist site settings to file (read-only filesystem):', writeErr.message);
+        }
         res.json({ success: true, message: 'Site settings saved successfully' });
     } catch (error) {
         console.error('Error saving site settings:', error);
@@ -380,8 +449,10 @@ if (process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     });
 }
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}
 
 module.exports = app;
