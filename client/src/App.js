@@ -7,10 +7,12 @@ import About from './pages/About';
 import BlogsPage from './pages/BlogsPage';
 import BookingModal from './components/BookingModal';
 import HeroSlideshow from './components/HeroSlideshow';
-import { tours, testimonials } from './data/tours-data';
-import { contactInfo } from './data/contact-info';
-import { blogs } from './data/blogs-data';
-import { siteSettings } from './data/site-settings';
+import { tours as defaultTours, testimonials as defaultTestimonials } from './data/tours-data';
+import { contactInfo as defaultContactInfo } from './data/contact-info';
+import { blogs as defaultBlogs } from './data/blogs-data';
+import { siteSettings as defaultSiteSettings } from './data/site-settings';
+
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.2';
@@ -188,6 +190,11 @@ function App() {
   const [showTripTailor, setShowTripTailor] = useState(false);
   const [tripTailorSubmitting, setTripTailorSubmitting] = useState(false);
   const [tripTailorMessage, setTripTailorMessage] = useState('');
+  const [tours, setTours] = useState(defaultTours);
+  const [testimonials, setTestimonials] = useState(defaultTestimonials);
+  const [contactInfo, setContactInfo] = useState(defaultContactInfo);
+  const [blogs, setBlogs] = useState(defaultBlogs);
+  const [siteSettings, setSiteSettings] = useState(defaultSiteSettings);
   const navigate = useNavigate();
   const location = useLocation();
   const scrollTimeoutsRef = useRef([]);
@@ -233,9 +240,33 @@ useEffect(() => {
   };
 }, []);
 
-  // Tours and testimonials are now imported from data files
-  // To edit tours, go to: client/src/data/tours-data.js
-  // To edit contact info, go to: client/src/data/contact-info.js
+useEffect(() => {
+  fetch(`${API_URL}/api/tours`)
+    .then((res) => res.ok ? res.json() : null)
+    .then((data) => {
+      if (data && data.tours) setTours(data.tours);
+      if (data && data.testimonials) setTestimonials(data.testimonials);
+    })
+    .catch(() => {});
+
+  fetch(`${API_URL}/api/contact`)
+    .then((res) => res.ok ? res.json() : null)
+    .then((data) => { if (data) setContactInfo(data); })
+    .catch(() => {});
+
+  fetch(`${API_URL}/api/blogs`)
+    .then((res) => res.ok ? res.json() : null)
+    .then((data) => { if (data && data.blogs) setBlogs(data.blogs); })
+    .catch(() => {});
+
+  fetch(`${API_URL}/api/settings`)
+    .then((res) => res.ok ? res.json() : null)
+    .then((data) => { if (data && data.hero) setSiteSettings(data); })
+    .catch(() => {});
+}, []);
+
+  // Data is loaded from the API on mount and falls back to static imports.
+  // Admin panel changes are reflected immediately without a rebuild.
 
   const normalizedSearch = tourSearch.trim().toLowerCase();
   const filteredTours = tours.filter((tour) => {
@@ -520,7 +551,7 @@ useEffect(() => {
           }
         />
 
-        <Route path="/blogs" element={<BlogsPage onTailorTrip={scrollToTripTailor} />} />
+        <Route path="/blogs" element={<BlogsPage onTailorTrip={scrollToTripTailor} blogs={blogs} />} />
 
         <Route path="/about" element={<About />} />
 

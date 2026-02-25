@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { slides as defaultSlides } from '../data/slideshow-data';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const HeroSlideshow = () => {
   const [currentIndex, setCurrentIndex] = useState(0);

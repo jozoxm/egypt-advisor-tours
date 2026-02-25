@@ -1,5 +1,5 @@
 import React from 'react';
-import { blogs } from '../data/blogs-data';
+import { blogs as defaultBlogs } from '../data/blogs-data';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -11,7 +11,7 @@ const formatBlogDate = (dateString) => {
   });
 };
 
-const BlogsPage = ({ onTailorTrip }) => (
+const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => (
   <section className="blogs">
     <div className="section-header">
       <h2>Travel Insights &amp; Blogs</h2>
