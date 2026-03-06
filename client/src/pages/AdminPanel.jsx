@@ -192,7 +192,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        showSaveMessage('✓ Tours saved successfully! Changes are now permanent.', 'success');
+        showSaveMessage('✓ Tours saved successfully!', 'success');
       } else {
         showSaveMessage('Failed to save tours to server', 'error');
       }

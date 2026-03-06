@@ -8,6 +8,11 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust Vercel's (and other reverse-proxy's) X-Forwarded-For header so that
+// req.ip reflects the real client IP.  This is required for the rate-limiter
+// to work correctly behind Vercel's infrastructure.
+app.set('trust proxy', 1);
+
 // Enable CORS
 app.use(cors());
 app.use(express.json());
@@ -440,9 +445,11 @@ export const siteSettings = ${JSON.stringify(settings, null, 2)};
 
 // Serve the React static build when it exists (i.e. after running npm run build).
 // This catch-all is intentionally placed after all API routes so it only
-// matches non-API paths.
+// matches non-API paths.  On Vercel, static files are served by the CDN from
+// the outputDirectory — the Lambda bundle does not contain client/build — so
+// this block is intentionally skipped there.
 const buildPath = path.join(__dirname, '../client/build');
-if (process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
     app.get('*', (req, res) => {
         res.sendFile(path.join(buildPath, 'index.html'));
