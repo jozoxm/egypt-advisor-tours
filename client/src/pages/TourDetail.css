@@ -105,7 +105,9 @@
 }
 
 /* Left column */
-.tour-detail-main {}
+.tour-detail-main {
+  min-width: 0;
+}
 
 .tour-detail-section {
   background: white;
@@ -166,7 +168,9 @@
 }
 
 /* Right column – booking sidebar */
-.tour-detail-sidebar {}
+.tour-detail-sidebar {
+  min-width: 0;
+}
 
 .tour-pricing-card {
   background: white;
