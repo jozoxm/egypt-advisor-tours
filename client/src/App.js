@@ -371,7 +371,7 @@ useEffect(() => {
             aria-hidden={!menuOpen}
             inert={!menuOpen ? '' : undefined}
           >
-            <li><NavLink to="/" end onClick={() => { setMenuOpen(false); }}>Home</NavLink></li>
+            <li><Link to="/" onClick={() => { setMenuOpen(false); }}>Home</Link></li>
             <li>
               <NavLink
                 to="/tours"
