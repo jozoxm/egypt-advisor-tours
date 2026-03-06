@@ -51,7 +51,10 @@ const AdminPanel = () => {
     setTimeout(() => setSaveMessage(''), 5000);
   }, []);
 
-  // Load data from server
+  // Load data from server – each endpoint is handled independently so that a
+  // single failing API call does not prevent the rest of the panel from loading.
+  // If an API endpoint returns a non-OK response the panel falls back to the
+  // locally-bundled data file for that section.
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -64,48 +67,77 @@ const AdminPanel = () => {
         fetch(`${API_URL}/api/slideshow`),
         fetch(`${API_URL}/api/settings`)
       ]);
-      
-      if (toursRes.ok && contactRes.ok) {
+
+      // Tours & testimonials
+      if (toursRes.ok) {
         const toursData = await toursRes.json();
-        const contactData = await contactRes.json();
-        
         setTours(toursData.tours || []);
         setTestimonials(toursData.testimonials || []);
-        setContactInfo(contactData);
-        
-        if (blogsRes.ok) {
-          const blogsData = await blogsRes.json();
-          setBlogs(blogsData.blogs || []);
-        }
-        
-        if (galleryRes.ok) {
-          const galleryData = await galleryRes.json();
-          setGallery(galleryData.gallery || []);
-        }
-        
-        if (bookingsRes.ok) {
-          const bookingsData = await bookingsRes.json();
-          setBookings(bookingsData.bookings || []);
-        }
-
-        if (slideshowRes.ok) {
-          const slideshowData = await slideshowRes.json();
-          setSlides(slideshowData.slides || []);
-        }
-
-        if (settingsRes.ok) {
-          const settingsData = await settingsRes.json();
-          setSiteSettings(settingsData);
-        }
-        
-        showSaveMessage('Data loaded successfully!', 'success');
       } else {
-        showSaveMessage('Failed to load data from server', 'error');
+        const { tours: localTours, testimonials: localTestimonials } = await import('../data/tours-data');
+        setTours(localTours);
+        setTestimonials(localTestimonials || []);
       }
+
+      // Contact info
+      if (contactRes.ok) {
+        const contactData = await contactRes.json();
+        setContactInfo(contactData);
+      } else {
+        const { contactInfo: localContactInfo } = await import('../data/contact-info');
+        setContactInfo(localContactInfo);
+      }
+
+      // Blogs
+      if (blogsRes.ok) {
+        const blogsData = await blogsRes.json();
+        setBlogs(blogsData.blogs || []);
+      } else {
+        const { blogs: localBlogs } = await import('../data/blogs-data');
+        setBlogs(localBlogs || []);
+      }
+
+      // Gallery
+      if (galleryRes.ok) {
+        const galleryData = await galleryRes.json();
+        setGallery(galleryData.gallery || []);
+      } else {
+        const { gallery: localGallery } = await import('../data/gallery-data');
+        setGallery(localGallery || []);
+      }
+
+      // Bookings
+      if (bookingsRes.ok) {
+        const bookingsData = await bookingsRes.json();
+        setBookings(bookingsData.bookings || []);
+      } else {
+        const { bookings: localBookings } = await import('../data/bookings-data');
+        setBookings(localBookings || []);
+      }
+
+      // Slideshow
+      if (slideshowRes.ok) {
+        const slideshowData = await slideshowRes.json();
+        setSlides(slideshowData.slides || []);
+      } else {
+        const { slides: localSlides } = await import('../data/slideshow-data');
+        setSlides(localSlides || []);
+      }
+
+      // Site settings
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        setSiteSettings(settingsData);
+      } else {
+        const { siteSettings: localSettings } = await import('../data/site-settings');
+        setSiteSettings(localSettings || {});
+      }
+
+      showSaveMessage('Data loaded successfully!', 'success');
     } catch (error) {
       console.error('Error loading data:', error);
       showSaveMessage('Server not running. Using local data.', 'warning');
-      // Fallback to local imports if server is not running
+      // Network-level failure – fall back to all local imports
       try {
         const { tours: localTours, testimonials: localTestimonials } = await import('../data/tours-data');
         const { contactInfo: localContactInfo } = await import('../data/contact-info');
