@@ -23,7 +23,7 @@
     "express-rate-limit": "^8.2.1"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   },
   "author": "jozoxm",
   "license": "ISC",
