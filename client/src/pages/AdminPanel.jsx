@@ -16,6 +16,9 @@ const NAV_TABS = [
   { id: 'instructions',icon: '📚', label: 'Help' },
 ];
 
+// Tabs that have server-persisted data and show the "Save & Update" button.
+const SAVEABLE_TABS = new Set(['slideshow', 'tours', 'blogs', 'gallery', 'testimonials', 'settings', 'contact']);
+
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tours, setTours] = useState([]);
@@ -51,7 +54,10 @@ const AdminPanel = () => {
     setTimeout(() => setSaveMessage(''), 5000);
   }, []);
 
-  // Load data from server
+  // Load data from server – each endpoint is handled independently so that a
+  // single failing API call does not prevent the rest of the panel from loading.
+  // If an API endpoint returns a non-OK response the panel falls back to the
+  // locally-bundled data file for that section.
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -64,48 +70,77 @@ const AdminPanel = () => {
         fetch(`${API_URL}/api/slideshow`),
         fetch(`${API_URL}/api/settings`)
       ]);
-      
-      if (toursRes.ok && contactRes.ok) {
+
+      // Tours & testimonials
+      if (toursRes.ok) {
         const toursData = await toursRes.json();
-        const contactData = await contactRes.json();
-        
         setTours(toursData.tours || []);
         setTestimonials(toursData.testimonials || []);
-        setContactInfo(contactData);
-        
-        if (blogsRes.ok) {
-          const blogsData = await blogsRes.json();
-          setBlogs(blogsData.blogs || []);
-        }
-        
-        if (galleryRes.ok) {
-          const galleryData = await galleryRes.json();
-          setGallery(galleryData.gallery || []);
-        }
-        
-        if (bookingsRes.ok) {
-          const bookingsData = await bookingsRes.json();
-          setBookings(bookingsData.bookings || []);
-        }
-
-        if (slideshowRes.ok) {
-          const slideshowData = await slideshowRes.json();
-          setSlides(slideshowData.slides || []);
-        }
-
-        if (settingsRes.ok) {
-          const settingsData = await settingsRes.json();
-          setSiteSettings(settingsData);
-        }
-        
-        showSaveMessage('Data loaded successfully!', 'success');
       } else {
-        showSaveMessage('Failed to load data from server', 'error');
+        const { tours: localTours, testimonials: localTestimonials } = await import('../data/tours-data');
+        setTours(localTours);
+        setTestimonials(localTestimonials || []);
       }
+
+      // Contact info
+      if (contactRes.ok) {
+        const contactData = await contactRes.json();
+        setContactInfo(contactData);
+      } else {
+        const { contactInfo: localContactInfo } = await import('../data/contact-info');
+        setContactInfo(localContactInfo);
+      }
+
+      // Blogs
+      if (blogsRes.ok) {
+        const blogsData = await blogsRes.json();
+        setBlogs(blogsData.blogs || []);
+      } else {
+        const { blogs: localBlogs } = await import('../data/blogs-data');
+        setBlogs(localBlogs || []);
+      }
+
+      // Gallery
+      if (galleryRes.ok) {
+        const galleryData = await galleryRes.json();
+        setGallery(galleryData.gallery || []);
+      } else {
+        const { gallery: localGallery } = await import('../data/gallery-data');
+        setGallery(localGallery || []);
+      }
+
+      // Bookings
+      if (bookingsRes.ok) {
+        const bookingsData = await bookingsRes.json();
+        setBookings(bookingsData.bookings || []);
+      } else {
+        const { bookings: localBookings } = await import('../data/bookings-data');
+        setBookings(localBookings || []);
+      }
+
+      // Slideshow
+      if (slideshowRes.ok) {
+        const slideshowData = await slideshowRes.json();
+        setSlides(slideshowData.slides || []);
+      } else {
+        const { slides: localSlides } = await import('../data/slideshow-data');
+        setSlides(localSlides || []);
+      }
+
+      // Site settings
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        setSiteSettings(settingsData);
+      } else {
+        const { siteSettings: localSettings } = await import('../data/site-settings');
+        setSiteSettings(localSettings || {});
+      }
+
+      showSaveMessage('Data loaded successfully!', 'success');
     } catch (error) {
       console.error('Error loading data:', error);
       showSaveMessage('Server not running. Using local data.', 'warning');
-      // Fallback to local imports if server is not running
+      // Network-level failure – fall back to all local imports
       try {
         const { tours: localTours, testimonials: localTestimonials } = await import('../data/tours-data');
         const { contactInfo: localContactInfo } = await import('../data/contact-info');
@@ -142,6 +177,11 @@ const AdminPanel = () => {
       tourToEdit.prices = { individual: tourToEdit.price, group: '', sharing: '' };
       delete tourToEdit.price;
     }
+    // Stamp stable _key on each itinerary step (also handles missing itinerary)
+    tourToEdit.itinerary = (tourToEdit.itinerary || []).map((step, i) => ({
+      ...step,
+      _key: step._key ?? Date.now() + i
+    }));
     setEditingTourId(tour.id);
     setEditingTour(tourToEdit);
   };
@@ -166,13 +206,18 @@ const AdminPanel = () => {
   };
 
   const saveTour = async () => {
-    const updatedTours = tours.map(tour => 
-      tour.id === editingTour.id ? editingTour : tour
+    // Strip temporary _key fields from itinerary steps before saving
+    const cleanTour = {
+      ...editingTour,
+      itinerary: (editingTour.itinerary || []).map(({ _key: _omitted, ...step }) => step)
+    };
+    const updatedTours = tours.map(tour =>
+      tour.id === cleanTour.id ? cleanTour : tour
     );
     setTours(updatedTours);
     setEditingTourId(null);
     setEditingTour(null);
-    
+
     // Save to server
     await saveToursToServer(updatedTours);
   };
@@ -212,6 +257,34 @@ const AdminPanel = () => {
       ...editingTour,
       prices: { ...(editingTour.prices || {}), [category]: value }
     });
+  };
+
+  // ---- Itinerary helpers ----
+  const addItineraryStep = () => {
+    const steps = editingTour.itinerary || [];
+    const dayValues = steps.map(s => s.day || 1);
+    const lastDay = dayValues.length > 0 ? Math.max(...dayValues) : 1;
+    setEditingTour({
+      ...editingTour,
+      itinerary: [
+        ...steps,
+        { _key: Date.now(), day: lastDay, time: '', title: '', description: '' }
+      ]
+    });
+  };
+
+  const removeItineraryStep = (key) => {
+    const updated = (editingTour.itinerary || []).filter(s => s._key !== key);
+    setEditingTour({ ...editingTour, itinerary: updated });
+  };
+
+  const updateItineraryStep = (key, field, value) => {
+    const updated = (editingTour.itinerary || []).map(step =>
+      step._key === key
+        ? { ...step, [field]: field === 'day' ? (parseInt(value, 10) || 1) : value }
+        : step
+    );
+    setEditingTour({ ...editingTour, itinerary: updated });
   };
 
   const handleTourPhotoUpload = (e) => {
@@ -257,7 +330,10 @@ const AdminPanel = () => {
       photoUrl: '',
       rating: 4.5,
       reviews: 0,
-      groupSize: '2-10 people'
+      groupSize: '2-10 people',
+      itinerary: [
+        { _key: Date.now(), day: 1, time: '9:00 AM', title: 'Hotel Pickup', description: 'Your guide will meet you at your hotel lobby.' }
+      ]
     };
     setEditingTour(newTour);
     setEditingTourId(newTour.id);
@@ -718,6 +794,103 @@ const AdminPanel = () => {
     setSaving(false);
   };
 
+  // ============================================
+  // GLOBAL SAVE & TAB-SWITCH HELPERS
+  // ============================================
+
+  // Commit helpers — merge the in-progress edit into the data array and clear
+  // editing state, returning the updated array ready to POST to the server.
+  // Returns null if there is no active edit for that section.
+  const commitSlideshowEdit = () => {
+    if (!editingSlideshowId || !editingSlide) return null;
+    const updated = slides.map(s => s.id === editingSlide.id ? editingSlide : s);
+    setSlides(updated);
+    setEditingSlideshowId(null);
+    setEditingSlide(null);
+    return updated;
+  };
+
+  const commitTourEdit = () => {
+    if (!editingTourId || !editingTour) return null;
+    const cleanTour = {
+      ...editingTour,
+      itinerary: (editingTour.itinerary || []).map(({ _key: _omitted, ...step }) => step)
+    };
+    const updated = tours.map(t => t.id === cleanTour.id ? cleanTour : t);
+    setTours(updated);
+    setEditingTourId(null);
+    setEditingTour(null);
+    return updated;
+  };
+
+  const commitBlogEdit = () => {
+    if (!editingBlogId || !editingBlog) return null;
+    const updated = blogs.map(b => b.id === editingBlog.id ? editingBlog : b);
+    setBlogs(updated);
+    setEditingBlogId(null);
+    setEditingBlog(null);
+    return updated;
+  };
+
+  const commitGalleryEdit = () => {
+    if (!editingGalleryId || !editingGalleryItem) return null;
+    const updated = gallery.map(g => g.id === editingGalleryItem.id ? editingGalleryItem : g);
+    setGallery(updated);
+    setEditingGalleryId(null);
+    setEditingGalleryItem(null);
+    return updated;
+  };
+
+  // Save whatever section is currently active. Also commits any open inline
+  // edit form before sending to the server so no in-progress data is lost.
+  const handleSaveCurrentTab = async () => {
+    switch (activeTab) {
+      case 'slideshow':
+        await saveSlideshowToServer(commitSlideshowEdit() ?? slides);
+        break;
+      case 'tours':
+        await saveToursToServer(commitTourEdit() ?? tours);
+        break;
+      case 'blogs':
+        await saveBlogsToServer(commitBlogEdit() ?? blogs);
+        break;
+      case 'gallery':
+        await saveGalleryToServer(commitGalleryEdit() ?? gallery);
+        break;
+      case 'testimonials':
+        await saveTestimonialsToServer(testimonials);
+        break;
+      case 'settings':
+        await saveSiteSettingsToServer();
+        break;
+      case 'contact':
+        await saveContactInfoToServer(contactInfo);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Intercept tab navigation: auto-commit + save any open inline edit so that
+  // data is never silently lost when the user clicks a different sidebar tab.
+  const handleTabSwitch = async (tabId) => {
+    if (tabId === activeTab) return;
+
+    const updatedSlides = commitSlideshowEdit();
+    if (updatedSlides) await saveSlideshowToServer(updatedSlides);
+
+    const updatedTours = commitTourEdit();
+    if (updatedTours) await saveToursToServer(updatedTours);
+
+    const updatedBlogs = commitBlogEdit();
+    if (updatedBlogs) await saveBlogsToServer(updatedBlogs);
+
+    const updatedGallery = commitGalleryEdit();
+    if (updatedGallery) await saveGalleryToServer(updatedGallery);
+
+    setActiveTab(tabId);
+  };
+
   if (loading) {
     return (
       <div className="admin-panel">
@@ -757,7 +930,7 @@ const AdminPanel = () => {
             <button
               key={tab.id}
               className={`admin-nav-item ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabSwitch(tab.id)}
             >
               <span className="nav-icon">{tab.icon}</span>
               <span className="nav-label">{tab.label}</span>
@@ -767,6 +940,15 @@ const AdminPanel = () => {
 
         <div className="admin-sidebar-footer">
           {saving && <div className="saving-indicator">💾 Saving...</div>}
+          {SAVEABLE_TABS.has(activeTab) && (
+            <button
+              className="btn-save-all"
+              onClick={handleSaveCurrentTab}
+              disabled={saving}
+            >
+              {saving ? '💾 Saving…' : '💾 Save & Update'}
+            </button>
+          )}
         </div>
       </aside>
 
@@ -872,9 +1054,14 @@ const AdminPanel = () => {
                   <h2>Manage Home Page Slideshow</h2>
                   <p className="section-description">Upload photos or paste image URLs to change the hero slideshow.</p>
                 </div>
-                <button className="btn-add" onClick={addNewSlide}>
-                  ➕ Add New Slide
-                </button>
+                <div className="section-header-buttons">
+                  <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                    💾 Save & Update
+                  </button>
+                  <button className="btn-add" onClick={addNewSlide}>
+                    ➕ Add New Slide
+                  </button>
+                </div>
               </div>
 
               <div className="tours-list">
@@ -979,9 +1166,14 @@ const AdminPanel = () => {
           <div className="tours-section">
             <div className="section-header-with-action">
               <h2>Manage Tours</h2>
-              <button className="btn-add" onClick={addNewTour}>
-                ➕ Add New Tour
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewTour}>
+                  ➕ Add New Tour
+                </button>
+              </div>
             </div>
             <p className="section-description">Create, edit, and manage tour packages</p>
             
@@ -1131,6 +1323,78 @@ const AdminPanel = () => {
                         />
                       </div>
 
+                      {/* ITINERARY EDITOR */}
+                      <div className="form-row">
+                        <label>Itinerary:</label>
+                        <p style={{ margin: '4px 0 12px', fontSize: '0.85rem', color: '#888' }}>
+                          Add step-by-step schedule. Use <strong>Day</strong> numbers to group steps (Day 1, Day 2, …) — useful for multi-day tours.
+                        </p>
+                        <div className="itinerary-editor">
+                          {(editingTour.itinerary || []).map((step, idx) => (
+                            <div key={step._key} className="itinerary-step-editor">
+                              <div className="itinerary-step-editor-header">
+                                <span className="itinerary-step-num">Step {idx + 1}</span>
+                                <button
+                                  type="button"
+                                  className="btn-remove-step"
+                                  onClick={() => removeItineraryStep(step._key)}
+                                  title="Remove this step"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="itinerary-step-editor-fields">
+                                <div className="itinerary-field-row">
+                                  <div className="itinerary-field itinerary-field-day">
+                                    <label>Day</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={step.day || 1}
+                                      onChange={(e) => updateItineraryStep(step._key, 'day', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="itinerary-field itinerary-field-time">
+                                    <label>Time</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 9:00 AM"
+                                      value={step.time || ''}
+                                      onChange={(e) => updateItineraryStep(step._key, 'time', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="itinerary-field itinerary-field-title">
+                                    <label>Title</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Hotel Pickup"
+                                      value={step.title || ''}
+                                      onChange={(e) => updateItineraryStep(step._key, 'title', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="itinerary-field">
+                                  <label>Description</label>
+                                  <textarea
+                                    rows="2"
+                                    placeholder="Brief description of what happens during this step…"
+                                    value={step.description || ''}
+                                    onChange={(e) => updateItineraryStep(step._key, 'description', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            className="btn-add-step"
+                            onClick={addItineraryStep}
+                          >
+                            ➕ Add Step
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="form-actions">
                         <button className="btn-save" onClick={saveTour}>Save Changes</button>
                         <button className="btn-cancel" onClick={cancelEditTour}>Cancel</button>
@@ -1180,9 +1444,14 @@ const AdminPanel = () => {
           <div className="blogs-section">
             <div className="section-header-with-action">
               <h2>Manage Blogs</h2>
-              <button className="btn-add" onClick={addNewBlog}>
-                ➕ Add New Blog
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewBlog}>
+                  ➕ Add New Blog
+                </button>
+              </div>
             </div>
             <p className="section-description">Create and edit blog posts</p>
             
@@ -1310,9 +1579,14 @@ const AdminPanel = () => {
           <div className="gallery-section">
             <div className="section-header-with-action">
               <h2>Manage Gallery</h2>
-              <button className="btn-add" onClick={addNewGalleryItem}>
-                ➕ Add New Image
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewGalleryItem}>
+                  ➕ Add New Image
+                </button>
+              </div>
             </div>
             <p className="section-description">Upload and manage gallery images</p>
             
@@ -1733,9 +2007,14 @@ const AdminPanel = () => {
                 <h2>Manage Customer Testimonials</h2>
                 <p className="section-description">Add, edit, and remove customer reviews shown on the homepage.</p>
               </div>
-              <button className="btn-add" onClick={addNewTestimonial}>
-                ➕ Add Testimonial
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewTestimonial}>
+                  ➕ Add Testimonial
+                </button>
+              </div>
             </div>
 
             <div className="tours-list">

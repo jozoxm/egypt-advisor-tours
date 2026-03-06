@@ -1073,3 +1073,212 @@
 
   .bookings-stats { grid-template-columns: 1fr; }
 }
+
+/* ============================================
+   ITINERARY EDITOR
+   ============================================ */
+.itinerary-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.itinerary-step-editor {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.itinerary-step-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: #eef0f3;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.itinerary-step-num {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-remove-step {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1;
+}
+
+.btn-remove-step:hover {
+  background: #ffe5e5;
+  color: #c0392b;
+}
+
+.itinerary-step-editor-fields {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.itinerary-field-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.itinerary-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.itinerary-field label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+
+.itinerary-field input,
+.itinerary-field textarea {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+  transition: border-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.itinerary-field input:focus,
+.itinerary-field textarea:focus {
+  outline: none;
+  border-color: #C9B037;
+  box-shadow: 0 0 0 2px rgba(201, 176, 55, 0.15);
+}
+
+.itinerary-field-day {
+  flex: 0 0 70px;
+  min-width: 70px;
+}
+
+.itinerary-field-time {
+  flex: 0 0 120px;
+  min-width: 100px;
+}
+
+.itinerary-field-title {
+  flex: 1;
+}
+
+.btn-add-step {
+  background: #f0f9f0;
+  border: 2px dashed #a8d5a2;
+  border-radius: 10px;
+  padding: 11px;
+  color: #2e7d32;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: center;
+}
+
+.btn-add-step:hover {
+  background: #e6f4e6;
+  border-color: #43a047;
+}
+
+/* ============================================
+   SAVE & UPDATE BUTTON (sidebar + section headers)
+   ============================================ */
+.btn-save-all {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #C9B037 0%, #8B7525 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.btn-save-all:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 125, 45, 0.4);
+}
+
+.btn-save-all:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Section header: group the Add + Save buttons side-by-side */
+.section-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-save-section {
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #C9B037 0%, #8B7525 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-save-section:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(139, 125, 45, 0.4);
+}
+
+.btn-save-section:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .section-header-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+  .btn-save-section {
+    width: 100%;
+    text-align: center;
+  }
+}

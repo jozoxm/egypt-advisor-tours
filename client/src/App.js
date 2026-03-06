@@ -5,7 +5,7 @@ import './App.css';
 import AdminPanel from './pages/AdminPanel';
 import About from './pages/About';
 import BlogsPage from './pages/BlogsPage';
-import BookingModal from './components/BookingModal';
+import TourDetail from './pages/TourDetail';
 import HeroSlideshow from './components/HeroSlideshow';
 import { tours as defaultTours, testimonials as defaultTestimonials } from './data/tours-data';
 import { contactInfo as defaultContactInfo } from './data/contact-info';
@@ -33,13 +33,12 @@ const ToursSection = ({
   filteredTours,
   tourSearch,
   setTourSearch,
-  setSelectedTour,
-  setBookingTour,
   totalTours,
   heading = 'Signature Experiences',
   subheading = "Carefully curated tours designed to showcase Egypt's most breathtaking destinations"
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const navigate = useNavigate();
 
   // Reset to page 1 whenever the filtered list changes (e.g. after a search)
   useEffect(() => {
@@ -97,7 +96,7 @@ const ToursSection = ({
           <div 
             key={tour.id} 
             className="tour-card"
-            onClick={() => setSelectedTour(tour)}
+            onClick={() => navigate(`/tours/${tour.id}`)}
           >
             <div
               className="tour-image-wrapper"
@@ -105,7 +104,7 @@ const ToursSection = ({
             >
               {!tour.photoUrl && <div className="tour-icon">{tour.image}</div>}
               <div className="tour-overlay">
-                <button className="explore-btn">Explore</button>
+                <button className="explore-btn">View Details</button>
               </div>
             </div>
             <div className="tour-content">
@@ -125,7 +124,7 @@ const ToursSection = ({
                   className="book-button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setBookingTour(tour);
+                    navigate(`/tours/${tour.id}`);
                   }}
                 >
                   Book Now
@@ -181,8 +180,6 @@ const ToursSection = ({
 };
 
 function App() {
-  const [selectedTour, setSelectedTour] = useState(null);
-  const [bookingTour, setBookingTour] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -437,8 +434,6 @@ useEffect(() => {
                 filteredTours={filteredTours}
                 tourSearch={tourSearch}
                 setTourSearch={setTourSearch}
-                setSelectedTour={setSelectedTour}
-                setBookingTour={setBookingTour}
                 totalTours={tours.length}
               />
 
@@ -557,8 +552,6 @@ useEffect(() => {
                 filteredTours={filteredTours}
                 tourSearch={tourSearch}
                 setTourSearch={setTourSearch}
-                setSelectedTour={setSelectedTour}
-                setBookingTour={setBookingTour}
                 totalTours={tours.length}
                 heading="All Egypt Tours"
                 subheading="Browse every signature experience and choose the adventure that fits you best."
@@ -571,70 +564,10 @@ useEffect(() => {
 
         <Route path="/about" element={<About />} />
 
+        <Route path="/tours/:id" element={<TourDetail />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-
-      {selectedTour && (
-        <div className="modal-overlay" onClick={() => setSelectedTour(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-button" onClick={() => setSelectedTour(null)}>✕</button>
-            {selectedTour.photoUrl ? (
-              <div className="modal-photo" style={{ backgroundImage: `url("${selectedTour.photoUrl}")` }} aria-label={selectedTour.name} />
-            ) : (
-              <div className="modal-icon">{selectedTour.image}</div>
-            )}
-            <h2>{selectedTour.name}</h2>
-            <div className="modal-rating">
-              <span className="stars">{'⭐'.repeat(Math.floor(selectedTour.rating))}</span>
-              <span>({selectedTour.reviews} reviews)</span>
-            </div>
-            <p className="modal-description">{selectedTour.description}</p>
-            <div className="modal-details">
-              <div className="detail-item">
-                <span className="detail-label">Duration</span>
-                <span className="detail-value">⏱️ {selectedTour.duration}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Group Size</span>
-                <span className="detail-value">👥 {selectedTour.groupSize}</span>
-              </div>
-              {selectedTour.prices ? (
-                <>
-                  <div className="detail-item">
-                    <span className="detail-label">👤 Individual</span>
-                    <span className="detail-value price-large">{selectedTour.prices.individual}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">👥 Group</span>
-                    <span className="detail-value price-large">{selectedTour.prices.group}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">🚌 Sharing</span>
-                    <span className="detail-value price-large">{selectedTour.prices.sharing}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="detail-item">
-                  <span className="detail-label">Price</span>
-                  <span className="detail-value price-large">{selectedTour.price}</span>
-                </div>
-              )}
-            </div>
-            <button className="btn btn-primary modal-button" onClick={() => {
-              setSelectedTour(null);
-              setBookingTour(selectedTour);
-            }}>Book This Tour</button>
-          </div>
-        </div>
-      )}
-
-      {/* Booking Modal */}
-      {bookingTour && (
-        <BookingModal 
-          tour={bookingTour} 
-          onClose={() => setBookingTour(null)} 
-        />
-      )}
 
       {showTripTailor && (
         <div className="trip-tailor-modal" role="dialog" aria-modal="true" aria-label="Tailor your Egypt trip" onClick={() => setShowTripTailor(false)}>
