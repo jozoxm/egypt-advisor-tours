@@ -77,6 +77,51 @@ const TourDetail = () => {
             <p className="tour-detail-description">{tour.description}</p>
           </div>
 
+          {/* Itinerary */}
+          {tour.itinerary && tour.itinerary.length > 0 && (() => {
+            // Group steps by day number
+            const days = tour.itinerary.reduce((acc, step) => {
+              const d = step.day || 1;
+              if (!acc[d]) acc[d] = [];
+              acc[d].push(step);
+              return acc;
+            }, {});
+            const dayKeys = Object.keys(days).map(Number).sort((a, b) => a - b);
+            const isMultiDay = dayKeys.length > 1;
+            return (
+              <div className="tour-detail-section">
+                <h2>Tour Itinerary</h2>
+                {dayKeys.map((day) => (
+                  <div key={day} className="itinerary-day">
+                    {isMultiDay && (
+                      <div className="itinerary-day-header">
+                        <span className="itinerary-day-badge">Day {day}</span>
+                      </div>
+                    )}
+                    <ol className="itinerary-steps">
+                      {days[day].map((step, idx) => (
+                        <li key={`${day}-${idx}`} className="itinerary-step">
+                          <div className="itinerary-step-marker" aria-hidden="true" />
+                          <div className="itinerary-step-body">
+                            <div className="itinerary-step-header">
+                              {step.time && (
+                                <span className="itinerary-step-time">{step.time}</span>
+                              )}
+                              <span className="itinerary-step-title">{step.title}</span>
+                            </div>
+                            {step.description && (
+                              <p className="itinerary-step-description">{step.description}</p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* Quick Facts */}
           <div className="tour-detail-section">
             <h2>Tour Details</h2>

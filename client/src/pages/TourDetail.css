@@ -271,6 +271,124 @@
   line-height: 1.5;
 }
 
+/* Itinerary timeline */
+.itinerary-day {
+  margin-bottom: 28px;
+}
+
+.itinerary-day:last-child {
+  margin-bottom: 0;
+}
+
+.itinerary-day-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.itinerary-day-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e5e5e5;
+}
+
+.itinerary-day-badge {
+  display: inline-block;
+  background: var(--primary-gradient);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.itinerary-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+}
+
+/* Vertical connecting line */
+.itinerary-steps::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--accent-color), #e5e5e5);
+  border-radius: 2px;
+}
+
+.itinerary-step {
+  display: flex;
+  gap: 20px;
+  padding-bottom: 28px;
+  position: relative;
+}
+
+.itinerary-step:last-child {
+  padding-bottom: 0;
+}
+
+.itinerary-step-marker {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid var(--accent-color);
+  margin-top: 2px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+}
+
+.itinerary-step-body {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.itinerary-step-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.itinerary-step-time {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  background: rgba(212, 175, 55, 0.1);
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.itinerary-step-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1.4;
+}
+
+.itinerary-step-description {
+  font-size: 0.92rem;
+  color: var(--text-light);
+  line-height: 1.65;
+  margin: 0;
+}
+
 /* Tour not found */
 .tour-not-found {
   text-align: center;

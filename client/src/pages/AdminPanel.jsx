@@ -174,6 +174,11 @@ const AdminPanel = () => {
       tourToEdit.prices = { individual: tourToEdit.price, group: '', sharing: '' };
       delete tourToEdit.price;
     }
+    // Stamp stable _key on each itinerary step (also handles missing itinerary)
+    tourToEdit.itinerary = (tourToEdit.itinerary || []).map((step, i) => ({
+      ...step,
+      _key: step._key ?? Date.now() + i
+    }));
     setEditingTourId(tour.id);
     setEditingTour(tourToEdit);
   };
@@ -198,13 +203,18 @@ const AdminPanel = () => {
   };
 
   const saveTour = async () => {
-    const updatedTours = tours.map(tour => 
-      tour.id === editingTour.id ? editingTour : tour
+    // Strip temporary _key fields from itinerary steps before saving
+    const cleanTour = {
+      ...editingTour,
+      itinerary: (editingTour.itinerary || []).map(({ _key: _removed, ...step }) => step)
+    };
+    const updatedTours = tours.map(tour =>
+      tour.id === cleanTour.id ? cleanTour : tour
     );
     setTours(updatedTours);
     setEditingTourId(null);
     setEditingTour(null);
-    
+
     // Save to server
     await saveToursToServer(updatedTours);
   };
@@ -244,6 +254,34 @@ const AdminPanel = () => {
       ...editingTour,
       prices: { ...(editingTour.prices || {}), [category]: value }
     });
+  };
+
+  // ---- Itinerary helpers ----
+  const addItineraryStep = () => {
+    const steps = editingTour.itinerary || [];
+    const dayValues = steps.map(s => s.day || 1);
+    const lastDay = dayValues.length > 0 ? Math.max(...dayValues) : 1;
+    setEditingTour({
+      ...editingTour,
+      itinerary: [
+        ...steps,
+        { _key: Date.now(), day: lastDay, time: '', title: '', description: '' }
+      ]
+    });
+  };
+
+  const removeItineraryStep = (key) => {
+    const updated = (editingTour.itinerary || []).filter(s => s._key !== key);
+    setEditingTour({ ...editingTour, itinerary: updated });
+  };
+
+  const updateItineraryStep = (key, field, value) => {
+    const updated = (editingTour.itinerary || []).map(step =>
+      step._key === key
+        ? { ...step, [field]: field === 'day' ? (parseInt(value, 10) || 1) : value }
+        : step
+    );
+    setEditingTour({ ...editingTour, itinerary: updated });
   };
 
   const handleTourPhotoUpload = (e) => {
@@ -289,7 +327,10 @@ const AdminPanel = () => {
       photoUrl: '',
       rating: 4.5,
       reviews: 0,
-      groupSize: '2-10 people'
+      groupSize: '2-10 people',
+      itinerary: [
+        { _key: Date.now(), day: 1, time: '9:00 AM', title: 'Hotel Pickup', description: 'Your guide will meet you at your hotel lobby.' }
+      ]
     };
     setEditingTour(newTour);
     setEditingTourId(newTour.id);
@@ -1161,6 +1202,78 @@ const AdminPanel = () => {
                           onChange={(e) => updateEditingTour('description', e.target.value)}
                           rows="4"
                         />
+                      </div>
+
+                      {/* ITINERARY EDITOR */}
+                      <div className="form-row">
+                        <label>Itinerary:</label>
+                        <p style={{ margin: '4px 0 12px', fontSize: '0.85rem', color: '#888' }}>
+                          Add step-by-step schedule. Use <strong>Day</strong> numbers to group steps (Day 1, Day 2, …) — useful for multi-day tours.
+                        </p>
+                        <div className="itinerary-editor">
+                          {(editingTour.itinerary || []).map((step, idx) => (
+                            <div key={step._key} className="itinerary-step-editor">
+                              <div className="itinerary-step-editor-header">
+                                <span className="itinerary-step-num">Step {idx + 1}</span>
+                                <button
+                                  type="button"
+                                  className="btn-remove-step"
+                                  onClick={() => removeItineraryStep(step._key)}
+                                  title="Remove this step"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="itinerary-step-editor-fields">
+                                <div className="itinerary-field-row">
+                                  <div className="itinerary-field itinerary-field-day">
+                                    <label>Day</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={step.day || 1}
+                                      onChange={(e) => updateItineraryStep(step._key, 'day', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="itinerary-field itinerary-field-time">
+                                    <label>Time</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 9:00 AM"
+                                      value={step.time || ''}
+                                      onChange={(e) => updateItineraryStep(step._key, 'time', e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="itinerary-field itinerary-field-title">
+                                    <label>Title</label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. Hotel Pickup"
+                                      value={step.title || ''}
+                                      onChange={(e) => updateItineraryStep(step._key, 'title', e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="itinerary-field">
+                                  <label>Description</label>
+                                  <textarea
+                                    rows="2"
+                                    placeholder="Brief description of what happens during this step…"
+                                    value={step.description || ''}
+                                    onChange={(e) => updateItineraryStep(step._key, 'description', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            className="btn-add-step"
+                            onClick={addItineraryStep}
+                          >
+                            ➕ Add Step
+                          </button>
+                        </div>
                       </div>
 
                       <div className="form-actions">
