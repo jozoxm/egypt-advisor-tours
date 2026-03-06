@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, Link, useNavigate, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, NavLink, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import emailjs from '@emailjs/browser';
 import './App.css';
 import AdminPanel from './pages/AdminPanel';
@@ -371,9 +371,9 @@ useEffect(() => {
             aria-hidden={!menuOpen}
             inert={!menuOpen ? '' : undefined}
           >
-            <li><Link to="/" onClick={() => { setMenuOpen(false); }}>Home</Link></li>
+            <li><NavLink to="/" end onClick={() => { setMenuOpen(false); }}>Home</NavLink></li>
             <li>
-              <Link
+              <NavLink
                 to="/tours"
                 onClick={(e) => {
                   if (location.pathname === '/tours') {
@@ -384,10 +384,10 @@ useEffect(() => {
                 }}
               >
                 Tours
-              </Link>
+              </NavLink>
             </li>
-            <li><Link to="/blogs" onClick={() => { setMenuOpen(false); }}>Blogs</Link></li>
-            <li><Link to="/about" onClick={() => { setMenuOpen(false); }}>About</Link></li>
+            <li><NavLink to="/blogs" onClick={() => { setMenuOpen(false); }}>Blogs</NavLink></li>
+            <li><NavLink to="/about" onClick={() => { setMenuOpen(false); }}>About</NavLink></li>
           </ul>
             <button 
               className="contact-btn"

@@ -166,6 +166,15 @@ body {
   width: 100%;
 }
 
+.nav-menu a.active {
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.nav-menu a.active::after {
+  width: 100%;
+}
+
 .contact-btn {
   background: var(--primary-gradient);
   color: white;

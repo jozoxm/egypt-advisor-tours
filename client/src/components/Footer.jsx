@@ -1,42 +1,40 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
   return (
-    <footer>
-      <div className="company-info">
-        <h3>Company Name</h3>
-        <p>About the company and its mission statement.</p>
+    <footer className="footer">
+      <div className="footer-content">
+        <div className="footer-section">
+          <h4>Egypt Advisor Tours</h4>
+          <p>Your trusted partner in discovering the wonders of Ancient Egypt</p>
+        </div>
+        <div className="footer-section">
+          <h4>Quick Links</h4>
+          <ul>
+            <li><Link to="/">Home</Link></li>
+            <li><Link to="/tours">Tours</Link></li>
+            <li><Link to="/blogs">Blogs</Link></li>
+            <li><Link to="/about">About Us</Link></li>
+          </ul>
+        </div>
+        <div className="footer-section">
+          <h4>Contact Us</h4>
+          <p>📧 info@egyptadvisortours.com</p>
+          <p>📞 +20 (123) 456-7890</p>
+          <p>📍 Cairo, Egypt</p>
+        </div>
+        <div className="footer-section">
+          <h4>Follow Us</h4>
+          <div className="social-links">
+            <a href="#">Facebook</a>
+            <a href="#">Instagram</a>
+            <a href="#">Twitter</a>
+          </div>
+        </div>
       </div>
-      <div className="quick-links">
-        <h3>Quick Links</h3>
-        <ul>
-          <li><a href="#">Home</a></li>
-          <li><a href="#">About Us</a></li>
-          <li><a href="#">Services</a></li>
-          <li><a href="#">Contact</a></li>
-        </ul>
-      </div>
-      <div className="contact-details">
-        <h3>Contact Us</h3>
-        <p>Email: info@company.com</p>
-        <p>Phone: (123) 456-7890</p>
-        <p>Address: 1234 Street Name, City, State, Zip</p>
-      </div>
-      <div className="social-media">
-        <h3>Follow Us</h3>
-        <a href="#">Facebook</a> |
-        <a href="#">Twitter</a> |
-        <a href="#">Instagram</a>
-      </div>
-      <div className="newsletter-signup">
-        <h3>Subscribe to Our Newsletter</h3>
-        <form>
-          <input type="email" placeholder="Enter your email" required />
-          <button type="submit">Subscribe</button>
-        </form>
-      </div>
-      <div className="copyright">
-        <p>&copy; 2026 Company Name. All rights reserved.</p>
+      <div className="footer-bottom">
+        <p>&copy; {new Date().getFullYear()} Egypt Advisor Tours. All rights reserved.</p>
       </div>
     </footer>
   );
