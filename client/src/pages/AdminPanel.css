@@ -1208,3 +1208,77 @@
   background: #e6f4e6;
   border-color: #43a047;
 }
+
+/* ============================================
+   SAVE & UPDATE BUTTON (sidebar + section headers)
+   ============================================ */
+.btn-save-all {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #C9B037 0%, #8B7525 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.btn-save-all:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 125, 45, 0.4);
+}
+
+.btn-save-all:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Section header: group the Add + Save buttons side-by-side */
+.section-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-save-section {
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #C9B037 0%, #8B7525 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-save-section:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(139, 125, 45, 0.4);
+}
+
+.btn-save-section:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+@media (max-width: 768px) {
+  .section-header-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+  .btn-save-section {
+    width: 100%;
+    text-align: center;
+  }
+}

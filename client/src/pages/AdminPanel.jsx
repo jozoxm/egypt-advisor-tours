@@ -16,6 +16,9 @@ const NAV_TABS = [
   { id: 'instructions',icon: '📚', label: 'Help' },
 ];
 
+// Tabs that have server-persisted data and show the "Save & Update" button.
+const SAVEABLE_TABS = new Set(['slideshow', 'tours', 'blogs', 'gallery', 'testimonials', 'settings', 'contact']);
+
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tours, setTours] = useState([]);
@@ -206,7 +209,7 @@ const AdminPanel = () => {
     // Strip temporary _key fields from itinerary steps before saving
     const cleanTour = {
       ...editingTour,
-      itinerary: (editingTour.itinerary || []).map(({ _key: _removed, ...step }) => step)
+      itinerary: (editingTour.itinerary || []).map(({ _key: _omitted, ...step }) => step)
     };
     const updatedTours = tours.map(tour =>
       tour.id === cleanTour.id ? cleanTour : tour
@@ -791,6 +794,103 @@ const AdminPanel = () => {
     setSaving(false);
   };
 
+  // ============================================
+  // GLOBAL SAVE & TAB-SWITCH HELPERS
+  // ============================================
+
+  // Commit helpers — merge the in-progress edit into the data array and clear
+  // editing state, returning the updated array ready to POST to the server.
+  // Returns null if there is no active edit for that section.
+  const commitSlideshowEdit = () => {
+    if (!editingSlideshowId || !editingSlide) return null;
+    const updated = slides.map(s => s.id === editingSlide.id ? editingSlide : s);
+    setSlides(updated);
+    setEditingSlideshowId(null);
+    setEditingSlide(null);
+    return updated;
+  };
+
+  const commitTourEdit = () => {
+    if (!editingTourId || !editingTour) return null;
+    const cleanTour = {
+      ...editingTour,
+      itinerary: (editingTour.itinerary || []).map(({ _key: _omitted, ...step }) => step)
+    };
+    const updated = tours.map(t => t.id === cleanTour.id ? cleanTour : t);
+    setTours(updated);
+    setEditingTourId(null);
+    setEditingTour(null);
+    return updated;
+  };
+
+  const commitBlogEdit = () => {
+    if (!editingBlogId || !editingBlog) return null;
+    const updated = blogs.map(b => b.id === editingBlog.id ? editingBlog : b);
+    setBlogs(updated);
+    setEditingBlogId(null);
+    setEditingBlog(null);
+    return updated;
+  };
+
+  const commitGalleryEdit = () => {
+    if (!editingGalleryId || !editingGalleryItem) return null;
+    const updated = gallery.map(g => g.id === editingGalleryItem.id ? editingGalleryItem : g);
+    setGallery(updated);
+    setEditingGalleryId(null);
+    setEditingGalleryItem(null);
+    return updated;
+  };
+
+  // Save whatever section is currently active. Also commits any open inline
+  // edit form before sending to the server so no in-progress data is lost.
+  const handleSaveCurrentTab = async () => {
+    switch (activeTab) {
+      case 'slideshow':
+        await saveSlideshowToServer(commitSlideshowEdit() ?? slides);
+        break;
+      case 'tours':
+        await saveToursToServer(commitTourEdit() ?? tours);
+        break;
+      case 'blogs':
+        await saveBlogsToServer(commitBlogEdit() ?? blogs);
+        break;
+      case 'gallery':
+        await saveGalleryToServer(commitGalleryEdit() ?? gallery);
+        break;
+      case 'testimonials':
+        await saveTestimonialsToServer(testimonials);
+        break;
+      case 'settings':
+        await saveSiteSettingsToServer();
+        break;
+      case 'contact':
+        await saveContactInfoToServer(contactInfo);
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Intercept tab navigation: auto-commit + save any open inline edit so that
+  // data is never silently lost when the user clicks a different sidebar tab.
+  const handleTabSwitch = async (tabId) => {
+    if (tabId === activeTab) return;
+
+    const updatedSlides = commitSlideshowEdit();
+    if (updatedSlides) await saveSlideshowToServer(updatedSlides);
+
+    const updatedTours = commitTourEdit();
+    if (updatedTours) await saveToursToServer(updatedTours);
+
+    const updatedBlogs = commitBlogEdit();
+    if (updatedBlogs) await saveBlogsToServer(updatedBlogs);
+
+    const updatedGallery = commitGalleryEdit();
+    if (updatedGallery) await saveGalleryToServer(updatedGallery);
+
+    setActiveTab(tabId);
+  };
+
   if (loading) {
     return (
       <div className="admin-panel">
@@ -830,7 +930,7 @@ const AdminPanel = () => {
             <button
               key={tab.id}
               className={`admin-nav-item ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabSwitch(tab.id)}
             >
               <span className="nav-icon">{tab.icon}</span>
               <span className="nav-label">{tab.label}</span>
@@ -840,6 +940,15 @@ const AdminPanel = () => {
 
         <div className="admin-sidebar-footer">
           {saving && <div className="saving-indicator">💾 Saving...</div>}
+          {SAVEABLE_TABS.has(activeTab) && (
+            <button
+              className="btn-save-all"
+              onClick={handleSaveCurrentTab}
+              disabled={saving}
+            >
+              {saving ? '💾 Saving…' : '💾 Save & Update'}
+            </button>
+          )}
         </div>
       </aside>
 
@@ -945,9 +1054,14 @@ const AdminPanel = () => {
                   <h2>Manage Home Page Slideshow</h2>
                   <p className="section-description">Upload photos or paste image URLs to change the hero slideshow.</p>
                 </div>
-                <button className="btn-add" onClick={addNewSlide}>
-                  ➕ Add New Slide
-                </button>
+                <div className="section-header-buttons">
+                  <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                    💾 Save & Update
+                  </button>
+                  <button className="btn-add" onClick={addNewSlide}>
+                    ➕ Add New Slide
+                  </button>
+                </div>
               </div>
 
               <div className="tours-list">
@@ -1052,9 +1166,14 @@ const AdminPanel = () => {
           <div className="tours-section">
             <div className="section-header-with-action">
               <h2>Manage Tours</h2>
-              <button className="btn-add" onClick={addNewTour}>
-                ➕ Add New Tour
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewTour}>
+                  ➕ Add New Tour
+                </button>
+              </div>
             </div>
             <p className="section-description">Create, edit, and manage tour packages</p>
             
@@ -1325,9 +1444,14 @@ const AdminPanel = () => {
           <div className="blogs-section">
             <div className="section-header-with-action">
               <h2>Manage Blogs</h2>
-              <button className="btn-add" onClick={addNewBlog}>
-                ➕ Add New Blog
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewBlog}>
+                  ➕ Add New Blog
+                </button>
+              </div>
             </div>
             <p className="section-description">Create and edit blog posts</p>
             
@@ -1455,9 +1579,14 @@ const AdminPanel = () => {
           <div className="gallery-section">
             <div className="section-header-with-action">
               <h2>Manage Gallery</h2>
-              <button className="btn-add" onClick={addNewGalleryItem}>
-                ➕ Add New Image
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewGalleryItem}>
+                  ➕ Add New Image
+                </button>
+              </div>
             </div>
             <p className="section-description">Upload and manage gallery images</p>
             
@@ -1878,9 +2007,14 @@ const AdminPanel = () => {
                 <h2>Manage Customer Testimonials</h2>
                 <p className="section-description">Add, edit, and remove customer reviews shown on the homepage.</p>
               </div>
-              <button className="btn-add" onClick={addNewTestimonial}>
-                ➕ Add Testimonial
-              </button>
+              <div className="section-header-buttons">
+                <button className="btn-save-section" onClick={handleSaveCurrentTab} disabled={saving}>
+                  💾 Save & Update
+                </button>
+                <button className="btn-add" onClick={addNewTestimonial}>
+                  ➕ Add Testimonial
+                </button>
+              </div>
             </div>
 
             <div className="tours-list">
