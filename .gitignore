@@ -39,3 +39,6 @@ coverage/
 .vercel
 .env*.local
 client/package-lock.json
+".env" 
+".env.local" 
+".env.*.local" 
