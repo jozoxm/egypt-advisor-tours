@@ -1,0 +1,36 @@
+@keyframes skeleton-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-card {
+  pointer-events: none;
+  cursor: default;
+}
+
+.skeleton-image {
+  height: 220px;
+  background: #e8e0d0;
+}
+
+.skeleton-line {
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background: linear-gradient(90deg, #e8e0d0 25%, #f5f0e8 50%, #e8e0d0 75%);
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s infinite linear;
+}
+
+.skeleton-title  { height: 20px; width: 75%; }
+.skeleton-short  { height: 14px; width: 40%; }
+.skeleton-medium { height: 14px; width: 90%; }
+
+.skeleton-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.skeleton-price { height: 18px; width: 30%; margin-bottom: 0; }
+.skeleton-btn   { height: 32px; width: 28%; border-radius: 20px; margin-bottom: 0; }

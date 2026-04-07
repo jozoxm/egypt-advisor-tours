@@ -26,6 +26,16 @@ body {
   min-height: 100vh;
 }
 
+/* Admin panel lazy-load placeholder */
+.admin-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  font-size: 1.1rem;
+  color: var(--text-light);
+}
+
 /* Navigation Bar */
 .navbar {
   background: white;

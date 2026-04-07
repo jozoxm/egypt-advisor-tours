@@ -63,6 +63,10 @@ const BookingModal = ({ tour, onClose }) => {
     const templateParams = {
       tour_name: tour.name,
       customer_name: formData.customerName,
+      // EmailJS uses `reply_to` to send auto-replies.
+      // In your EmailJS template, set the "Reply To" field to {{customer_email}}
+      // and enable "Auto-Reply" to send a confirmation copy to the customer.
+      reply_to: formData.customerEmail,
       customer_email: formData.customerEmail,
       customer_phone: formData.customerPhone,
       number_of_people: formData.numberOfPeople,

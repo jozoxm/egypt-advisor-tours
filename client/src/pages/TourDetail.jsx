@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import BookingModal from '../components/BookingModal';
 import { tours as defaultTours } from '../data/tours-data';
+import useTitle from '../hooks/useTitle';
 import './TourDetail.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -11,6 +12,9 @@ const TourDetail = () => {
   const navigate = useNavigate();
   const [tours, setTours] = useState(defaultTours);
   const [bookingTour, setBookingTour] = useState(null);
+
+  const tour = tours.find((t) => t.id === parseInt(id, 10));
+  useTitle(tour ? tour.name : 'Tour');
 
   useEffect(() => {
     let isMounted = true;
@@ -23,8 +27,6 @@ const TourDetail = () => {
       .catch(() => {});
     return () => { isMounted = false; };
   }, []);
-
-  const tour = tours.find((t) => t.id === parseInt(id, 10));
 
   if (!tour) {
     return (

@@ -1,5 +1,6 @@
 import React from 'react';
 import { blogs as defaultBlogs } from '../data/blogs-data';
+import useTitle from '../hooks/useTitle';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -11,7 +12,9 @@ const formatBlogDate = (dateString) => {
   });
 };
 
-const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => (
+const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => {
+  useTitle('Travel Blogs');
+  return (
   <section className="blogs">
     <div className="section-header">
       <h2>Travel Insights &amp; Blogs</h2>
@@ -40,6 +43,7 @@ const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => (
       ))}
     </div>
   </section>
-);
+  );
+};
 
 export default BlogsPage;

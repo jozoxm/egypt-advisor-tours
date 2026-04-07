@@ -1,6 +1,9 @@
 import React from 'react';
+import useTitle from '../hooks/useTitle';
 
-const About = () => (
+const About = () => {
+  useTitle('About Us');
+  return (
   <section id="about" className="about">
     <div className="about-content">
       <h2>Why Egypt Advisor?</h2>
@@ -40,6 +43,7 @@ const About = () => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 export default About;
