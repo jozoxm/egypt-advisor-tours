@@ -15,7 +15,7 @@ app.set('trust proxy', 1);
 
 // Enable CORS
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // ============================================
 // AUTHENTICATION MIDDLEWARE
@@ -166,6 +166,50 @@ function writeData(key, data) {
         console.warn(`Could not persist "${key}" to JSON file (read-only filesystem?):`, e.message);
     }
 }
+
+// Seed all JSON data files from their JS source equivalents on startup so that
+// the server always has up-to-date JSON files from day one — even on a fresh
+// Hostinger deployment where server/data/*.json are gitignored and therefore
+// absent from the repository checkout.
+const SEED_MAP = [
+    { key: 'tours',     regex: /export const tours\s*=\s*(\[[\s\S]*?\]);/,      wrapFn: (m, c) => {
+        const testimonialsMatch = c.match(/export const testimonials\s*=\s*(\[[\s\S]*?\]);/);
+        return { tours: JSON.parse(m[1]), testimonials: testimonialsMatch ? JSON.parse(testimonialsMatch[1]) : [] };
+    }},
+    { key: 'contact',   regex: /export const contactInfo\s*=\s*({[\s\S]*?});/,  wrapFn: (m) => JSON.parse(m[1]) },
+    { key: 'blogs',     regex: /export const blogs\s*=\s*(\[[\s\S]*?\]);/,      wrapFn: (m) => ({ blogs: JSON.parse(m[1]) }) },
+    { key: 'gallery',   regex: /export const gallery\s*=\s*(\[[\s\S]*?\]);/,    wrapFn: (m) => ({ gallery: JSON.parse(m[1]) }) },
+    { key: 'slideshow', regex: /export const slides\s*=\s*(\[[\s\S]*?\]);/,     wrapFn: (m) => ({ slides: JSON.parse(m[1]) }) },
+    { key: 'settings',  regex: /export const siteSettings\s*=\s*({[\s\S]*?});/, wrapFn: (m) => JSON.parse(m[1]) },
+    { key: 'bookings',  regex: /export const bookings\s*=\s*(\[[\s\S]*?\]);/,   wrapFn: (m) => ({ bookings: JSON.parse(m[1]) }) },
+];
+
+function seedDataFiles() {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch (e) {
+        console.warn('Could not create data directory on startup:', e.message);
+        return;
+    }
+    for (const { key, regex, wrapFn } of SEED_MAP) {
+        if (fs.existsSync(JSON_FILES[key])) continue; // already present — skip
+        const jsFile = JS_FILES[key];
+        if (!fs.existsSync(jsFile)) continue;
+        try {
+            const content = fs.readFileSync(jsFile, 'utf8');
+            const match = content.match(regex);
+            if (!match) continue;
+            const data = wrapFn(match, content);
+            fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+            console.log(`Seeded ${JSON_FILES[key]} from JS source.`);
+        } catch (e) {
+            console.warn(`Could not seed "${key}" from JS source:`, e.message);
+        }
+    }
+}
+
+// Run once at startup — no-ops if files already exist.
+seedDataFiles();
 
 app.get('/api', (req, res) => {
     res.json({

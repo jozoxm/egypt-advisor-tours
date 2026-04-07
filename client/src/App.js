@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link, NavLink, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import emailjs from '@emailjs/browser';
 import './App.css';
@@ -12,8 +12,6 @@ import { tours as defaultTours, testimonials as defaultTestimonials } from './da
 import { contactInfo as defaultContactInfo } from './data/contact-info';
 import { blogs as defaultBlogs } from './data/blogs-data';
 import { siteSettings as defaultSiteSettings } from './data/site-settings';
-
-const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -32,7 +30,6 @@ const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY     
 
 function App() {
   const [scrolled, setScrolled] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tourSearch, setTourSearch] = useState('');
   const [showTripTailor, setShowTripTailor] = useState(false);
@@ -167,34 +164,6 @@ useEffect(() => {
     );
     scrollTimeoutsRef.current.push(timeoutId);
   };
-
-  // If admin panel is active, show only the admin panel
-  if (showAdmin) {
-    return (
-      <div className="App">
-        <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
-          <div className="nav-container">
-            <a href="#home" className="logo-link">
-              <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
-            </a>
-            <button
-              className="contact-btn"
-              onClick={() => {
-                // Ensure main-site mobile menu is closed when leaving admin
-                setMenuOpen(false);
-                setShowAdmin(false);
-              }}
-            >
-              ← Back to Website
-            </button>
-          </div>
-        </nav>
-        <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
-          <AdminPanel />
-        </Suspense>
-      </div>
-    );
-  }
 
   return (
     <div className="App">
@@ -507,7 +476,6 @@ useEffect(() => {
               </li>
               <li><Link to="/blogs">Blogs</Link></li>
               <li><Link to="/about">About Us</Link></li>
-              <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
             </ul>
           </div>
           <div className="footer-section">
