@@ -99,7 +99,14 @@ function validateObject(body) {
 // ============================================
 // Primary: server/data/*.json — clean JSON, survives restarts on persistent hosts.
 // Fallback: client/src/data/*.js — bundled source files, parsed on cold start.
-const DATA_DIR = path.join(__dirname, 'data');
+//
+// On hosts like Hostinger that wipe the project directory on each deployment, set
+// the DATA_PATH environment variable to an absolute path OUTSIDE the project root
+// so that admin-saved data survives across deployments.
+// Example (Hostinger): DATA_PATH=/home/u123456789/admin_data
+const DATA_DIR = process.env.DATA_PATH
+    ? path.resolve(process.env.DATA_PATH)
+    : path.join(__dirname, 'data');
 
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
@@ -157,14 +164,11 @@ function readData(key, jsRegex) {
     return null;
 }
 
-// Write data to the JSON file.  Silently skips on read-only filesystems.
+// Write data to the JSON file.  Throws on failure so callers can surface the
+// error to the admin panel instead of silently returning a false success.
 function writeData(key, data) {
-    try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
-    } catch (e) {
-        console.warn(`Could not persist "${key}" to JSON file (read-only filesystem?):`, e.message);
-    }
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -209,6 +213,7 @@ function seedDataFiles() {
 }
 
 // Run once at startup — no-ops if files already exist.
+console.log(`Data directory: ${DATA_DIR}`);
 seedDataFiles();
 
 app.get('/api', (req, res) => {
