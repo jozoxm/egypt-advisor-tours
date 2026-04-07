@@ -32,6 +32,12 @@ Thumbs.db
 # Testing
 coverage/
 
+# Runtime data — written by the server when the admin saves content.
+# These files must NOT be tracked so that Hostinger (and other Git-connected
+# hosts) never overwrite live admin data when pulling a new deployment.
+# The server seeds them from client/src/data/*.js on first startup.
+server/data/*.json
+
 # Temporary files
 *.tmp
 *.temp
