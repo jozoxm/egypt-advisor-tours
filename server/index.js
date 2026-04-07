@@ -99,8 +99,38 @@ function validateObject(body) {
 // ============================================
 // Primary: server/data/*.json — clean JSON, survives restarts on persistent hosts.
 // Fallback: client/src/data/*.js — bundled source files, parsed on cold start.
-const DATA_DIR = path.join(__dirname, 'data');
+//
+// On hosts like Hostinger that wipe the project directory on each deployment, set
+// the DATA_PATH environment variable to an absolute path OUTSIDE the project root
+// so that admin-saved data survives across deployments.
+// Example (Hostinger): DATA_PATH=/home/u123456789/admin_data
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const configuredDataPath = process.env.DATA_PATH;
 
+let DATA_DIR;
+if (configuredDataPath) {
+    if (!path.isAbsolute(configuredDataPath)) {
+        throw new Error(
+            `Invalid DATA_PATH "${configuredDataPath}": it must be an absolute path outside the project root.`
+        );
+    }
+
+    const resolvedDataPath = path.resolve(configuredDataPath);
+    const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
+    const isInsideProjectRoot =
+        relativeToProjectRoot === '' ||
+        (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
+
+    if (isInsideProjectRoot) {
+        throw new Error(
+            `Invalid DATA_PATH "${configuredDataPath}": it must point outside the project root (${PROJECT_ROOT}).`
+        );
+    }
+
+    DATA_DIR = resolvedDataPath;
+} else {
+    DATA_DIR = path.join(__dirname, 'data');
+}
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
     contact:   path.join(DATA_DIR, 'contact.json'),
@@ -157,14 +187,11 @@ function readData(key, jsRegex) {
     return null;
 }
 
-// Write data to the JSON file.  Silently skips on read-only filesystems.
+// Write data to the JSON file.  Throws on failure so callers can surface the
+// error to the admin panel instead of silently returning a false success.
 function writeData(key, data) {
-    try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
-    } catch (e) {
-        console.warn(`Could not persist "${key}" to JSON file (read-only filesystem?):`, e.message);
-    }
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -209,6 +236,7 @@ function seedDataFiles() {
 }
 
 // Run once at startup — no-ops if files already exist.
+console.log(`Data directory: ${DATA_DIR}`);
 seedDataFiles();
 
 app.get('/api', (req, res) => {
@@ -254,8 +282,8 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const tours = sanitize(req.body.tours);
         const testimonials = sanitize(req.body.testimonials || []);
-        store.tours = { tours, testimonials };
         writeData('tours', { tours, testimonials });
+        store.tours = { tours, testimonials };
         res.json({ success: true, message: 'Tours saved successfully' });
     } catch (error) {
         console.error('Error saving tours:', error);
@@ -282,8 +310,8 @@ app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const contactInfo = sanitize(req.body);
-        store.contact = contactInfo;
         writeData('contact', contactInfo);
+        store.contact = contactInfo;
         res.json({ success: true, message: 'Contact info saved successfully' });
     } catch (error) {
         console.error('Error saving contact info:', error);
@@ -310,8 +338,8 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const blogs = sanitize(req.body.blogs);
-        store.blogs = { blogs };
         writeData('blogs', { blogs });
+        store.blogs = { blogs };
         res.json({ success: true, message: 'Blogs saved successfully' });
     } catch (error) {
         console.error('Error saving blogs:', error);
@@ -338,8 +366,8 @@ app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const gallery = sanitize(req.body.gallery);
-        store.gallery = { gallery };
         writeData('gallery', { gallery });
+        store.gallery = { gallery };
         res.json({ success: true, message: 'Gallery saved successfully' });
     } catch (error) {
         console.error('Error saving gallery:', error);
@@ -367,8 +395,8 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const bookings = sanitize(req.body.bookings);
-        store.bookings = { bookings };
         writeData('bookings', { bookings });
+        store.bookings = { bookings };
         res.json({ success: true, message: 'Bookings saved successfully' });
     } catch (error) {
         console.error('Error saving bookings:', error);
@@ -395,8 +423,8 @@ app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const slides = sanitize(req.body.slides);
-        store.slideshow = { slides };
         writeData('slideshow', { slides });
+        store.slideshow = { slides };
         res.json({ success: true, message: 'Slideshow saved successfully' });
     } catch (error) {
         console.error('Error saving slideshow:', error);
@@ -423,8 +451,8 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const settings = sanitize(req.body);
-        store.settings = settings;
         writeData('settings', settings);
+        store.settings = settings;
         res.json({ success: true, message: 'Site settings saved successfully' });
     } catch (error) {
         console.error('Error saving site settings:', error);
