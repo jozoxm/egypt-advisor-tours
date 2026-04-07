@@ -104,10 +104,33 @@ function validateObject(body) {
 // the DATA_PATH environment variable to an absolute path OUTSIDE the project root
 // so that admin-saved data survives across deployments.
 // Example (Hostinger): DATA_PATH=/home/u123456789/admin_data
-const DATA_DIR = process.env.DATA_PATH
-    ? path.resolve(process.env.DATA_PATH)
-    : path.join(__dirname, 'data');
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const configuredDataPath = process.env.DATA_PATH;
 
+let DATA_DIR;
+if (configuredDataPath) {
+    if (!path.isAbsolute(configuredDataPath)) {
+        throw new Error(
+            `Invalid DATA_PATH "${configuredDataPath}": it must be an absolute path outside the project root.`
+        );
+    }
+
+    const resolvedDataPath = path.resolve(configuredDataPath);
+    const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
+    const isInsideProjectRoot =
+        relativeToProjectRoot === '' ||
+        (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
+
+    if (isInsideProjectRoot) {
+        throw new Error(
+            `Invalid DATA_PATH "${configuredDataPath}": it must point outside the project root (${PROJECT_ROOT}).`
+        );
+    }
+
+    DATA_DIR = resolvedDataPath;
+} else {
+    DATA_DIR = path.join(__dirname, 'data');
+}
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
     contact:   path.join(DATA_DIR, 'contact.json'),
