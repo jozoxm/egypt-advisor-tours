@@ -15,7 +15,27 @@ app.set('trust proxy', 1);
 
 // Enable CORS
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+
+// ============================================
+// AUTHENTICATION MIDDLEWARE
+// ============================================
+// Set ADMIN_SECRET in your environment variables to protect admin endpoints.
+// Requests must include the header: X-Admin-Secret: <your-secret>
+// If ADMIN_SECRET is not set, all requests are allowed (useful for local dev).
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+
+const requireAdminAuth = (req, res, next) => {
+    if (!ADMIN_SECRET) {
+        // No secret configured — open access (development mode)
+        return next();
+    }
+    const token = req.headers['x-admin-secret'] || '';
+    if (!token || token !== ADMIN_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized: missing or invalid X-Admin-Secret header.' });
+    }
+    next();
+};
 
 // Rate-limit write (POST) endpoints to prevent abuse
 const writeLimiter = rateLimit({
@@ -26,22 +46,117 @@ const writeLimiter = rateLimit({
     message: { error: 'Too many requests, please try again later.' }
 });
 
-// Paths to data files
-const TOURS_FILE = path.join(__dirname, '../client/src/data/tours-data.js');
-const CONTACT_FILE = path.join(__dirname, '../client/src/data/contact-info.js');
-const BLOGS_FILE = path.join(__dirname, '../client/src/data/blogs-data.js');
-const GALLERY_FILE = path.join(__dirname, '../client/src/data/gallery-data.js');
-const BOOKINGS_FILE = path.join(__dirname, '../client/src/data/bookings-data.js');
-const SLIDESHOW_FILE = path.join(__dirname, '../client/src/data/slideshow-data.js');
-const SETTINGS_FILE = path.join(__dirname, '../client/src/data/site-settings.js');
+// ============================================
+// INPUT VALIDATION HELPERS
+// ============================================
+const MAX_STRING_LENGTH = 5000;
+const MAX_ARRAY_LENGTH = 500;
+
+// Recursively sanitize a value: truncate strings, limit arrays.
+function sanitize(value, depth = 0) {
+    if (depth > 10) return value; // guard against deeply nested objects
+    if (typeof value === 'string') {
+        return value.slice(0, MAX_STRING_LENGTH);
+    }
+    if (Array.isArray(value)) {
+        return value.slice(0, MAX_ARRAY_LENGTH).map((v) => sanitize(v, depth + 1));
+    }
+    if (value && typeof value === 'object') {
+        const result = {};
+        for (const key of Object.keys(value).slice(0, 100)) {
+            result[key] = sanitize(value[key], depth + 1);
+        }
+        return result;
+    }
+    return value;
+}
+
+function validateArray(body, field) {
+    if (!body || !Array.isArray(body[field])) {
+        return `Request body must contain a "${field}" array.`;
+    }
+    return null;
+}
+
+function validateObject(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return 'Request body must be a JSON object.';
+    }
+    return null;
+}
+
+// ============================================
+// DATA FILE PATHS
+// ============================================
+// Primary: server/data/*.json — clean JSON, survives restarts on persistent hosts.
+// Fallback: client/src/data/*.js — bundled source files, parsed on cold start.
+const DATA_DIR = path.join(__dirname, 'data');
+
+const JSON_FILES = {
+    tours:     path.join(DATA_DIR, 'tours.json'),
+    contact:   path.join(DATA_DIR, 'contact.json'),
+    blogs:     path.join(DATA_DIR, 'blogs.json'),
+    gallery:   path.join(DATA_DIR, 'gallery.json'),
+    bookings:  path.join(DATA_DIR, 'bookings.json'),
+    slideshow: path.join(DATA_DIR, 'slideshow.json'),
+    settings:  path.join(DATA_DIR, 'settings.json'),
+};
+
+// Legacy JS source files — used as cold-start fallbacks only.
+const JS_FILES = {
+    tours:     path.join(__dirname, '../client/src/data/tours-data.js'),
+    contact:   path.join(__dirname, '../client/src/data/contact-info.js'),
+    blogs:     path.join(__dirname, '../client/src/data/blogs-data.js'),
+    gallery:   path.join(__dirname, '../client/src/data/gallery-data.js'),
+    bookings:  path.join(__dirname, '../client/src/data/bookings-data.js'),
+    slideshow: path.join(__dirname, '../client/src/data/slideshow-data.js'),
+    settings:  path.join(__dirname, '../client/src/data/site-settings.js'),
+};
 
 // In-memory data store — used as a writable cache so that admin edits survive
 // even when the filesystem is read-only (e.g. Vercel serverless).  Changes
 // written here are reflected immediately within the function instance's lifetime.
 // On persistent servers the store is also seeded from files on first read, and
 // file writes keep both in sync.  Note: a new deployment or function cold-start
-// resets the store and reloads from the bundled source files.
+// resets the store and reloads from the bundled source/JSON files.
 const store = {};
+
+// ============================================
+// DATA I/O HELPERS
+// ============================================
+
+// Try to read from the JSON data file first; fall back to parsing the legacy JS file.
+function readData(key, jsRegex) {
+    // 1. Try JSON file (fast, no regex)
+    if (fs.existsSync(JSON_FILES[key])) {
+        try {
+            return JSON.parse(fs.readFileSync(JSON_FILES[key], 'utf8'));
+        } catch (e) {
+            console.warn(`Could not parse JSON file for "${key}":`, e.message);
+        }
+    }
+    // 2. Fall back to legacy JS source file
+    if (fs.existsSync(JS_FILES[key])) {
+        try {
+            const content = fs.readFileSync(JS_FILES[key], 'utf8');
+            const match = content.match(jsRegex);
+            if (match) return JSON.parse(match[1]);
+        } catch (e) {
+            console.warn(`Could not parse JS fallback for "${key}":`, e.message);
+        }
+    }
+    return null;
+}
+
+// Write data to the JSON file.  Silently skips on read-only filesystems.
+function writeData(key, data) {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+    } catch (e) {
+        console.warn(`Could not persist "${key}" to JSON file (read-only filesystem?):`, e.message);
+    }
+}
 
 app.get('/api', (req, res) => {
     res.json({
@@ -55,76 +170,39 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
-// Get tours data
+// ============================================
+// TOURS API ENDPOINTS
+// ============================================
+
 app.get('/api/tours', (req, res) => {
     if (store.tours) return res.json(store.tours);
-    try {
-        const fileContent = fs.readFileSync(TOURS_FILE, 'utf8');
-        // Extract tours array from the file
-        const toursMatch = fileContent.match(/export const tours = (\[[\s\S]*?\]);/);
-        const testimonialsMatch = fileContent.match(/export const testimonials = (\[[\s\S]*?\]);/);
-        
-        if (toursMatch && testimonialsMatch) {
-            const tours = JSON.parse(toursMatch[1]);
-            const testimonials = JSON.parse(testimonialsMatch[1]);
-            store.tours = { tours, testimonials };
-            res.json(store.tours);
-        } else {
-            res.status(500).json({ error: 'Failed to parse tours data' });
-        }
-    } catch (error) {
-        console.error('Error reading tours:', error);
-        res.status(500).json({ error: 'Failed to read tours data' });
+    const data = readData('tours', /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/);
+    if (data) {
+        store.tours = data;
+        return res.json(store.tours);
     }
+    // Try extracting separately
+    const jsContent = fs.existsSync(JS_FILES.tours) ? fs.readFileSync(JS_FILES.tours, 'utf8') : '';
+    const toursMatch = jsContent.match(/export const tours = (\[[\s\S]*?\]);/);
+    const testimonialsMatch = jsContent.match(/export const testimonials = (\[[\s\S]*?\]);/);
+    if (toursMatch) {
+        store.tours = {
+            tours: JSON.parse(toursMatch[1]),
+            testimonials: testimonialsMatch ? JSON.parse(testimonialsMatch[1]) : []
+        };
+        return res.json(store.tours);
+    }
+    res.status(500).json({ error: 'Failed to read tours data' });
 });
 
-// Save tours data
-app.post('/api/tours', writeLimiter, (req, res) => {
+app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'tours');
+    if (err) return res.status(400).json({ error: err });
     try {
-        const { tours, testimonials } = req.body;
-        
-        // Generate the file content
-        const fileContent = `// ============================================
-// TOURS DATA FILE
-// ============================================
-// This file contains all tour information for the website.
-// 
-// HOW TO EDIT TOURS:
-// 1. To change existing tour details, simply edit the values below
-// 2. To add a new tour, copy an existing tour object and paste it at the end
-// 3. Make sure to give it a unique 'id' number
-// 4. Change the details (name, prices, duration, description, etc.)
-// 
-// TOUR OBJECT STRUCTURE:
-// - id: Unique number for the tour (1, 2, 3, etc.)
-// - name: Tour name/title
-// - prices: Price categories object with keys: individual, group, sharing
-//   e.g., { "individual": "$199", "group": "$159", "sharing": "$89" }
-// - duration: How long the tour takes (e.g., '4 hours')
-// - description: Detailed description of the tour
-// - image: Emoji icon (copy from emojipedia.org)
-// - rating: Star rating out of 5 (e.g., 4.9)
-// - reviews: Number of reviews
-// - groupSize: Size of tour group (e.g., '2-10 people')
-
-export const tours = ${JSON.stringify(tours, null, 2)};
-
-// ============================================
-// TESTIMONIALS DATA
-// ============================================
-// Customer testimonials that appear on the website
-
-export const testimonials = ${JSON.stringify(testimonials || [], null, 2)};
-`;
-        
-        // Update store unconditionally so subsequent GETs see the new data
-        // even if the file write below fails (e.g. read-only FS on Vercel).
+        const tours = sanitize(req.body.tours);
+        const testimonials = sanitize(req.body.testimonials || []);
         store.tours = { tours, testimonials };
-        try {
-            fs.writeFileSync(TOURS_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist tours to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('tours', { tours, testimonials });
         res.json({ success: true, message: 'Tours saved successfully' });
     } catch (error) {
         console.error('Error saving tours:', error);
@@ -132,52 +210,27 @@ export const testimonials = ${JSON.stringify(testimonials || [], null, 2)};
     }
 });
 
-// Get contact info
+// ============================================
+// CONTACT API ENDPOINTS
+// ============================================
+
 app.get('/api/contact', (req, res) => {
     if (store.contact) return res.json(store.contact);
-    try {
-        const fileContent = fs.readFileSync(CONTACT_FILE, 'utf8');
-        // Extract contactInfo object from the file
-        const match = fileContent.match(/export const contactInfo = ({[\s\S]*?});[\s\n]*$/);
-        
-        if (match) {
-            const contactInfo = JSON.parse(match[1]);
-            store.contact = contactInfo;
-            res.json(store.contact);
-        } else {
-            res.status(500).json({ error: 'Failed to parse contact info' });
-        }
-    } catch (error) {
-        console.error('Error reading contact info:', error);
-        res.status(500).json({ error: 'Failed to read contact info' });
+    const data = readData('contact', /export const contactInfo = ({[\s\S]*?});[\s\n]*$/);
+    if (data) {
+        store.contact = data;
+        return res.json(store.contact);
     }
+    res.status(500).json({ error: 'Failed to read contact info' });
 });
 
-// Save contact info
-app.post('/api/contact', writeLimiter, (req, res) => {
+app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateObject(req.body);
+    if (err) return res.status(400).json({ error: err });
     try {
-        const contactInfo = req.body;
-        
-        // Generate the file content
-        const fileContent = `// ============================================
-// CONTACT INFORMATION FILE
-// ============================================
-// This file contains all contact information for the website.
-// 
-// HOW TO EDIT CONTACT INFO:
-// 1. Simply change the values below
-// 2. The changes will automatically appear throughout the website
-// 3. Make sure to keep the format the same (e.g., quotes around text)
-
-export const contactInfo = ${JSON.stringify(contactInfo, null, 2)};
-`;
-        
+        const contactInfo = sanitize(req.body);
         store.contact = contactInfo;
-        try {
-            fs.writeFileSync(CONTACT_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist contact info to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('contact', contactInfo);
         res.json({ success: true, message: 'Contact info saved successfully' });
     } catch (error) {
         console.error('Error saving contact info:', error);
@@ -189,45 +242,23 @@ export const contactInfo = ${JSON.stringify(contactInfo, null, 2)};
 // BLOGS API ENDPOINTS
 // ============================================
 
-// Get blogs data
 app.get('/api/blogs', (req, res) => {
     if (store.blogs) return res.json(store.blogs);
-    try {
-        const fileContent = fs.readFileSync(BLOGS_FILE, 'utf8');
-        const blogsMatch = fileContent.match(/export const blogs = (\[[\s\S]*?\]);/);
-        
-        if (blogsMatch) {
-            const blogs = JSON.parse(blogsMatch[1]);
-            store.blogs = { blogs };
-            res.json(store.blogs);
-        } else {
-            res.status(500).json({ error: 'Failed to parse blogs data' });
-        }
-    } catch (error) {
-        console.error('Error reading blogs:', error);
-        res.status(500).json({ error: 'Failed to read blogs data' });
+    const data = readData('blogs', /export const blogs = (\[[\s\S]*?\]);/);
+    if (data) {
+        store.blogs = data.blogs ? data : { blogs: data };
+        return res.json(store.blogs);
     }
+    res.status(500).json({ error: 'Failed to read blogs data' });
 });
 
-// Save blogs data
-app.post('/api/blogs', writeLimiter, (req, res) => {
+app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'blogs');
+    if (err) return res.status(400).json({ error: err });
     try {
-        const { blogs } = req.body;
-        
-        const fileContent = `// ============================================
-// BLOGS DATA FILE
-// ============================================
-// This file contains all blog posts for the website.
-
-export const blogs = ${JSON.stringify(blogs, null, 2)};
-`;
-        
+        const blogs = sanitize(req.body.blogs);
         store.blogs = { blogs };
-        try {
-            fs.writeFileSync(BLOGS_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist blogs to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('blogs', { blogs });
         res.json({ success: true, message: 'Blogs saved successfully' });
     } catch (error) {
         console.error('Error saving blogs:', error);
@@ -239,45 +270,23 @@ export const blogs = ${JSON.stringify(blogs, null, 2)};
 // GALLERY API ENDPOINTS
 // ============================================
 
-// Get gallery data
 app.get('/api/gallery', (req, res) => {
     if (store.gallery) return res.json(store.gallery);
-    try {
-        const fileContent = fs.readFileSync(GALLERY_FILE, 'utf8');
-        const galleryMatch = fileContent.match(/export const gallery = (\[[\s\S]*?\]);/);
-        
-        if (galleryMatch) {
-            const gallery = JSON.parse(galleryMatch[1]);
-            store.gallery = { gallery };
-            res.json(store.gallery);
-        } else {
-            res.status(500).json({ error: 'Failed to parse gallery data' });
-        }
-    } catch (error) {
-        console.error('Error reading gallery:', error);
-        res.status(500).json({ error: 'Failed to read gallery data' });
+    const data = readData('gallery', /export const gallery = (\[[\s\S]*?\]);/);
+    if (data) {
+        store.gallery = data.gallery ? data : { gallery: data };
+        return res.json(store.gallery);
     }
+    res.status(500).json({ error: 'Failed to read gallery data' });
 });
 
-// Save gallery data
-app.post('/api/gallery', writeLimiter, (req, res) => {
+app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'gallery');
+    if (err) return res.status(400).json({ error: err });
     try {
-        const { gallery } = req.body;
-        
-        const fileContent = `// ============================================
-// GALLERY DATA FILE
-// ============================================
-// This file contains all gallery images for the website.
-
-export const gallery = ${JSON.stringify(gallery, null, 2)};
-`;
-        
+        const gallery = sanitize(req.body.gallery);
         store.gallery = { gallery };
-        try {
-            fs.writeFileSync(GALLERY_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist gallery to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('gallery', { gallery });
         res.json({ success: true, message: 'Gallery saved successfully' });
     } catch (error) {
         console.error('Error saving gallery:', error);
@@ -288,46 +297,25 @@ export const gallery = ${JSON.stringify(gallery, null, 2)};
 // ============================================
 // BOOKINGS API ENDPOINTS
 // ============================================
+// GET /api/bookings requires admin auth — booking records contain customer PII.
 
-// Get bookings data
-app.get('/api/bookings', (req, res) => {
+app.get('/api/bookings', requireAdminAuth, (req, res) => {
     if (store.bookings) return res.json(store.bookings);
-    try {
-        const fileContent = fs.readFileSync(BOOKINGS_FILE, 'utf8');
-        const bookingsMatch = fileContent.match(/export const bookings = (\[[\s\S]*?\]);/);
-        
-        if (bookingsMatch) {
-            const bookings = JSON.parse(bookingsMatch[1]);
-            store.bookings = { bookings };
-            res.json(store.bookings);
-        } else {
-            res.status(500).json({ error: 'Failed to parse bookings data' });
-        }
-    } catch (error) {
-        console.error('Error reading bookings:', error);
-        res.status(500).json({ error: 'Failed to read bookings data' });
+    const data = readData('bookings', /export const bookings = (\[[\s\S]*?\]);/);
+    if (data) {
+        store.bookings = data.bookings ? data : { bookings: data };
+        return res.json(store.bookings);
     }
+    res.status(500).json({ error: 'Failed to read bookings data' });
 });
 
-// Save bookings data
-app.post('/api/bookings', writeLimiter, (req, res) => {
+app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'bookings');
+    if (err) return res.status(400).json({ error: err });
     try {
-        const { bookings } = req.body;
-        
-        const fileContent = `// ============================================
-// BOOKINGS DATA FILE
-// ============================================
-// This file contains all booking records for the admin panel.
-
-export const bookings = ${JSON.stringify(bookings, null, 2)};
-`;
-        
+        const bookings = sanitize(req.body.bookings);
         store.bookings = { bookings };
-        try {
-            fs.writeFileSync(BOOKINGS_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist bookings to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('bookings', { bookings });
         res.json({ success: true, message: 'Bookings saved successfully' });
     } catch (error) {
         console.error('Error saving bookings:', error);
@@ -339,47 +327,23 @@ export const bookings = ${JSON.stringify(bookings, null, 2)};
 // SLIDESHOW API ENDPOINTS
 // ============================================
 
-// Get slideshow data
 app.get('/api/slideshow', (req, res) => {
     if (store.slideshow) return res.json(store.slideshow);
-    try {
-        const fileContent = fs.readFileSync(SLIDESHOW_FILE, 'utf8');
-        const slidesMatch = fileContent.match(/export const slides = (\[[\s\S]*?\]);?/);
-
-        if (slidesMatch) {
-            const slides = JSON.parse(slidesMatch[1]);
-            store.slideshow = { slides };
-            res.json(store.slideshow);
-        } else {
-            res.status(500).json({ error: 'Failed to parse slideshow data' });
-        }
-    } catch (error) {
-        console.error('Error reading slideshow:', error);
-        res.status(500).json({ error: 'Failed to read slideshow data' });
+    const data = readData('slideshow', /export const slides = (\[[\s\S]*?\]);?/);
+    if (data) {
+        store.slideshow = data.slides ? data : { slides: data };
+        return res.json(store.slideshow);
     }
+    res.status(500).json({ error: 'Failed to read slideshow data' });
 });
 
-// Save slideshow data
-app.post('/api/slideshow', writeLimiter, (req, res) => {
+app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'slides');
+    if (err) return res.status(400).json({ error: err });
     try {
-        const { slides } = req.body;
-
-        const fileContent = `// ============================================
-// SLIDESHOW DATA FILE
-// ============================================
-// This file controls the home page hero slideshow images.
-// Each slide has a name, an image URL, and a gradient fallback color.
-// You can manage these slides from the Admin Panel → Slideshow tab.
-
-export const slides = ${JSON.stringify(slides, null, 2)};
-`;
-
+        const slides = sanitize(req.body.slides);
         store.slideshow = { slides };
-        try {
-            fs.writeFileSync(SLIDESHOW_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist slideshow to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('slideshow', { slides });
         res.json({ success: true, message: 'Slideshow saved successfully' });
     } catch (error) {
         console.error('Error saving slideshow:', error);
@@ -391,51 +355,23 @@ export const slides = ${JSON.stringify(slides, null, 2)};
 // SITE SETTINGS API ENDPOINTS
 // ============================================
 
-// Get site settings
 app.get('/api/settings', (req, res) => {
     if (store.settings) return res.json(store.settings);
-    try {
-        const fileContent = fs.readFileSync(SETTINGS_FILE, 'utf8');
-        const match = fileContent.match(/export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
-
-        if (match) {
-            try {
-                const settings = JSON.parse(match[1]);
-                store.settings = settings;
-                res.json(store.settings);
-            } catch (parseError) {
-                console.error('Error parsing site settings JSON:', parseError.message);
-                res.status(500).json({ error: `Failed to parse site settings: ${parseError.message}` });
-            }
-        } else {
-            res.status(500).json({ error: 'Failed to parse site settings' });
-        }
-    } catch (error) {
-        console.error('Error reading site settings:', error);
-        res.status(500).json({ error: 'Failed to read site settings' });
+    const data = readData('settings', /export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
+    if (data) {
+        store.settings = data;
+        return res.json(store.settings);
     }
+    res.status(500).json({ error: 'Failed to read site settings' });
 });
 
-// Save site settings
-app.post('/api/settings', writeLimiter, (req, res) => {
+app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateObject(req.body);
+    if (err) return res.status(400).json({ error: err });
     try {
-        const settings = req.body;
-
-        const fileContent = `// ============================================
-// SITE SETTINGS FILE
-// ============================================
-// This file controls the main content shown on your homepage.
-// Edit these values from the Admin Panel → Site Settings tab.
-
-export const siteSettings = ${JSON.stringify(settings, null, 2)};
-`;
-
+        const settings = sanitize(req.body);
         store.settings = settings;
-        try {
-            fs.writeFileSync(SETTINGS_FILE, fileContent, 'utf8');
-        } catch (writeErr) {
-            console.warn('Could not persist site settings to file (read-only filesystem):', writeErr.message);
-        }
+        writeData('settings', settings);
         res.json({ success: true, message: 'Site settings saved successfully' });
     } catch (error) {
         console.error('Error saving site settings:', error);

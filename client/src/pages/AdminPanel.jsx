@@ -2,6 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './AdminPanel.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
+const ADMIN_SECRET = process.env.REACT_APP_ADMIN_SECRET || '';
+
+// Build headers for all admin API requests.
+// REACT_APP_ADMIN_SECRET must match the server's ADMIN_SECRET env var.
+const adminHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...(ADMIN_SECRET ? { 'X-Admin-Secret': ADMIN_SECRET } : {}),
+});
 
 const NAV_TABS = [
   { id: 'dashboard',    icon: '📊', label: 'Dashboard' },
@@ -61,14 +69,15 @@ const AdminPanel = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      const headers = adminHeaders();
       const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes, slideshowRes, settingsRes] = await Promise.all([
-        fetch(`${API_URL}/api/tours`),
-        fetch(`${API_URL}/api/contact`),
-        fetch(`${API_URL}/api/blogs`),
-        fetch(`${API_URL}/api/gallery`),
-        fetch(`${API_URL}/api/bookings`),
-        fetch(`${API_URL}/api/slideshow`),
-        fetch(`${API_URL}/api/settings`)
+        fetch(`${API_URL}/api/tours`, { headers }),
+        fetch(`${API_URL}/api/contact`, { headers }),
+        fetch(`${API_URL}/api/blogs`, { headers }),
+        fetch(`${API_URL}/api/gallery`, { headers }),
+        fetch(`${API_URL}/api/bookings`, { headers }),
+        fetch(`${API_URL}/api/slideshow`, { headers }),
+        fetch(`${API_URL}/api/settings`, { headers })
       ]);
 
       // Tours & testimonials
@@ -109,13 +118,12 @@ const AdminPanel = () => {
         setGallery(localGallery || []);
       }
 
-      // Bookings
+      // Bookings — server-only, no local fallback (data contains customer PII)
       if (bookingsRes.ok) {
         const bookingsData = await bookingsRes.json();
         setBookings(bookingsData.bookings || []);
       } else {
-        const { bookings: localBookings } = await import('../data/bookings-data');
-        setBookings(localBookings || []);
+        setBookings([]);
       }
 
       // Slideshow
@@ -146,7 +154,6 @@ const AdminPanel = () => {
         const { contactInfo: localContactInfo } = await import('../data/contact-info');
         const { blogs: localBlogs } = await import('../data/blogs-data');
         const { gallery: localGallery } = await import('../data/gallery-data');
-        const { bookings: localBookings } = await import('../data/bookings-data');
         const { slides: localSlides } = await import('../data/slideshow-data');
         const { siteSettings: localSettings } = await import('../data/site-settings');
         setTours(localTours);
@@ -154,7 +161,7 @@ const AdminPanel = () => {
         setContactInfo(localContactInfo);
         setBlogs(localBlogs || []);
         setGallery(localGallery || []);
-        setBookings(localBookings || []);
+        setBookings([]); // bookings require server — keep empty on network failure
         setSlides(localSlides || []);
         setSiteSettings(localSettings || {});
       } catch (importError) {
@@ -227,9 +234,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/tours`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: adminHeaders(),
         body: JSON.stringify({
           tours: toursData,
           testimonials: testimonials
@@ -374,9 +379,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/contact`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: adminHeaders(),
         body: JSON.stringify(contactData),
       });
 
@@ -450,9 +453,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/blogs`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: adminHeaders(),
         body: JSON.stringify({ blogs: blogsData }),
       });
 
@@ -524,9 +525,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/gallery`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: adminHeaders(),
         body: JSON.stringify({ gallery: galleryData }),
       });
 
@@ -567,9 +566,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/bookings`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: adminHeaders(),
         body: JSON.stringify({ bookings: bookingsData }),
       });
 
@@ -668,7 +665,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/slideshow`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify({ slides: slidesData }),
       });
 
@@ -744,7 +741,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/tours`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify({ tours, testimonials: testimonialsData }),
       });
       if (response.ok) {
@@ -779,7 +776,7 @@ const AdminPanel = () => {
     try {
       const response = await fetch(`${API_URL}/api/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders(),
         body: JSON.stringify(siteSettings),
       });
       if (response.ok) {
@@ -1133,7 +1130,7 @@ const AdminPanel = () => {
                         </div>
                         {slide.image ? (
                           <div className="tour-photo-preview">
-                            <img src={slide.image} alt={slide.name} className="tour-photo-preview-image" />
+                            <img src={slide.image} alt={slide.name} className="tour-photo-preview-image" loading="lazy" />
                           </div>
                         ) : (
                           <div
@@ -1302,6 +1299,7 @@ const AdminPanel = () => {
                               src={editingTour.photoUrl} 
                               alt="Tour preview" 
                               className="photo-preview"
+                              loading="lazy"
                             />
                             <button 
                               type="button"
@@ -1420,7 +1418,7 @@ const AdminPanel = () => {
                       <p className="tour-description">{tour.description}</p>
                       {tour.photoUrl && (
                         <div className="tour-photo-preview">
-                          <img src={tour.photoUrl} alt={tour.name} className="tour-photo-preview-image" />
+                          <img src={tour.photoUrl} alt={tour.name} className="tour-photo-preview-image" loading="lazy" />
                         </div>
                       )}
                       <div className="tour-actions">
@@ -1656,7 +1654,7 @@ const AdminPanel = () => {
                   ) : (
                     // VIEW MODE
                     <div className="gallery-view">
-                      <img src={item.imageUrl} alt={item.title} className="gallery-preview" />
+                      <img src={item.imageUrl} alt={item.title} className="gallery-preview" loading="lazy" />
                       <div className="gallery-info">
                         <h4>{item.title}</h4>
                         <p>{item.description}</p>

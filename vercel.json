@@ -5,7 +5,7 @@
   "installCommand": "npm install && npm install --prefix client",
   "functions": {
     "api/index.js": {
-      "includeFiles": "client/src/data/**"
+      "includeFiles": "{client/src/data/**,server/data/**}"
     }
   },
   "rewrites": [

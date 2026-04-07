@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Link, NavLink, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import emailjs from '@emailjs/browser';
 import './App.css';
-import AdminPanel from './pages/AdminPanel';
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 import About from './pages/About';
 import BlogsPage from './pages/BlogsPage';
 import TourDetail from './pages/TourDetail';
@@ -344,7 +344,9 @@ useEffect(() => {
             </button>
           </div>
         </nav>
-        <AdminPanel />
+        <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
+          <AdminPanel />
+        </Suspense>
       </div>
     );
   }

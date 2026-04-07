@@ -5,7 +5,7 @@ import './TourCard.css';
 const TourCard = ({ image, title, description, duration, price, rating }) => {
   return (
     <div className="tour-card">
-      <img src={image} alt={title} className="tour-card__image" />
+      <img src={image} alt={title} className="tour-card__image" loading="lazy" />
       <h3 className="tour-card__title">{title}</h3>
       <p className="tour-card__description">{description}</p>
       <p className="tour-card__duration">Duration: {duration}</p>
