@@ -30,9 +30,30 @@ const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID     
 const EMAILJS_TRIPTAILOR_TEMPLATE = process.env.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID || '';
 const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY           || '';
 
+// Admin layout: minimal navbar (logo + back button) wrapping the lazy AdminPanel.
+function AdminRoute() {
+  const navigate = useNavigate();
+  return (
+    <div className="App">
+      <nav className="navbar scrolled">{/* always solid — admin has no hero behind the navbar */}
+        <div className="nav-container">
+          <Link to="/" className="logo-link">
+            <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
+          </Link>
+          <button className="contact-btn" onClick={() => navigate('/')}>
+            ← Back to Website
+          </button>
+        </div>
+      </nav>
+      <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
+        <AdminPanel />
+      </Suspense>
+    </div>
+  );
+}
+
 function App() {
   const [scrolled, setScrolled] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tourSearch, setTourSearch] = useState('');
   const [showTripTailor, setShowTripTailor] = useState(false);
@@ -168,34 +189,6 @@ useEffect(() => {
     scrollTimeoutsRef.current.push(timeoutId);
   };
 
-  // If admin panel is active, show only the admin panel
-  if (showAdmin) {
-    return (
-      <div className="App">
-        <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
-          <div className="nav-container">
-            <a href="#home" className="logo-link">
-              <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
-            </a>
-            <button
-              className="contact-btn"
-              onClick={() => {
-                // Ensure main-site mobile menu is closed when leaving admin
-                setMenuOpen(false);
-                setShowAdmin(false);
-              }}
-            >
-              ← Back to Website
-            </button>
-          </div>
-        </nav>
-        <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
-          <AdminPanel />
-        </Suspense>
-      </div>
-    );
-  }
-
   return (
     <div className="App">
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
@@ -284,6 +277,8 @@ useEffect(() => {
         <Route path="/about" element={<About />} />
 
         <Route path="/tours/:id" element={<TourDetail />} />
+
+        <Route path="/admin" element={<AdminRoute />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -507,7 +502,7 @@ useEffect(() => {
               </li>
               <li><Link to="/blogs">Blogs</Link></li>
               <li><Link to="/about">About Us</Link></li>
-              <li><a href="#admin" onClick={(e) => { e.preventDefault(); setShowAdmin(true); window.scrollTo(0, 0); }}>🎨 Admin Panel</a></li>
+              <li><Link to="/admin">🎨 Admin Panel</Link></li>
             </ul>
           </div>
           <div className="footer-section">
