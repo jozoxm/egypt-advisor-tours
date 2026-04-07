@@ -30,20 +30,35 @@ const HeroSlideshow = () => {
     return () => clearInterval(interval);
   }, [slides.length]);
 
+  if (slides.length === 0) return null;
+
+  const nextIndex = (currentIndex + 1) % slides.length;
+
+  // Only render the active slide and preload the next one to reduce DOM size.
+  // All other slides are unmounted until needed.
+  const visibleIndices = new Set([currentIndex, nextIndex]);
+
   return (
-    <div className="hero-slideshow">
-      {slides.map((slide, index) => (
-        <div
-          key={slide.id || slide.name}
-          className={`hero-slide ${index === currentIndex ? 'active' : ''}`}
-          style={{
-            background: slide.image
-              ? `url("${slide.image}") center/cover no-repeat, ${slide.gradient}`
-              : slide.gradient
-          }}
-          aria-hidden="true"
-        />
-      ))}
+    <div className="hero-slideshow" aria-hidden="true">
+      {slides.map((slide, index) => {
+        if (!visibleIndices.has(index)) return null;
+        const isActive = index === currentIndex;
+        const bgStyle = slide.image
+          ? { backgroundImage: `url("${slide.image}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : {};
+        return (
+          <div
+            key={slide.id || slide.name}
+            className={`hero-slide${isActive ? ' active' : ''}`}
+            style={{
+              ...bgStyle,
+              background: slide.image
+                ? `url("${slide.image}") center/cover no-repeat, ${slide.gradient}`
+                : slide.gradient
+            }}
+          />
+        );
+      })}
     </div>
   );
 };

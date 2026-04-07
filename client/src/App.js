@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Link, NavLink, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import emailjs from '@emailjs/browser';
 import './App.css';
-import AdminPanel from './pages/AdminPanel';
 import About from './pages/About';
 import BlogsPage from './pages/BlogsPage';
 import TourDetail from './pages/TourDetail';
-import HeroSlideshow from './components/HeroSlideshow';
+import HomePage from './pages/HomePage';
+import ToursPage from './pages/ToursPage';
+import useTitle from './hooks/useTitle';
 import { tours as defaultTours, testimonials as defaultTestimonials } from './data/tours-data';
 import { contactInfo as defaultContactInfo } from './data/contact-info';
 import { blogs as defaultBlogs } from './data/blogs-data';
 import { siteSettings as defaultSiteSettings } from './data/site-settings';
+
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -27,158 +30,6 @@ const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID     
 const EMAILJS_TRIPTAILOR_TEMPLATE = process.env.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID || '';
 const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY           || '';
 
-const TOURS_PER_PAGE = 6;
-
-const ToursSection = ({
-  filteredTours,
-  tourSearch,
-  setTourSearch,
-  totalTours,
-  heading = 'Signature Experiences',
-  subheading = "Carefully curated tours designed to showcase Egypt's most breathtaking destinations"
-}) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const navigate = useNavigate();
-
-  // Reset to page 1 whenever the filtered list changes (e.g. after a search)
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filteredTours]);
-
-  const totalPages = Math.ceil(filteredTours.length / TOURS_PER_PAGE);
-  const startIndex = (currentPage - 1) * TOURS_PER_PAGE;
-  const paginatedTours = filteredTours.slice(startIndex, startIndex + TOURS_PER_PAGE);
-
-  // Build a compact list of page numbers to show (always show first, last, current ±1)
-  const getPageNumbers = () => {
-    const pages = new Set([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
-    return [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
-  };
-
-  return (
-  <section id="tours" className="tours">
-    <div className="section-header">
-      <h2>{heading}</h2>
-      <p>{subheading}</p>
-    </div>
-
-    <div className="tours-toolbar">
-      <div className="search-input">
-        <input
-          type="search"
-          value={tourSearch}
-          onChange={(e) => setTourSearch(e.target.value)}
-          placeholder="Search tours by name, duration, or experience (e.g., Nile, pyramids, Luxor)"
-          aria-label="Search tours"
-        />
-        {tourSearch && (
-          <button className="clear-search" onClick={() => setTourSearch('')}>
-            Clear
-          </button>
-        )}
-      </div>
-      <div className="tours-count">
-        Showing {startIndex + 1}–{Math.min(startIndex + TOURS_PER_PAGE, filteredTours.length)} of {filteredTours.length} tours
-      </div>
-    </div>
-    
-    {filteredTours.length === 0 ? (
-      <div className="empty-state">
-        <p>No tours match that search yet.</p>
-        <button className="btn btn-primary" onClick={() => setTourSearch('')}>
-          Show all tours
-        </button>
-      </div>
-    ) : (
-      <>
-      <div className="tours-grid">
-        {paginatedTours.map(tour => (
-          <div 
-            key={tour.id} 
-            className="tour-card"
-            onClick={() => navigate(`/tours/${tour.id}`)}
-          >
-            <div
-              className="tour-image-wrapper"
-              style={tour.photoUrl ? { backgroundImage: `url("${tour.photoUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-            >
-              {!tour.photoUrl && <div className="tour-icon">{tour.image}</div>}
-              <div className="tour-overlay">
-                <button className="explore-btn">View Details</button>
-              </div>
-            </div>
-            <div className="tour-content">
-              <h3>{tour.name}</h3>
-              <div className="tour-rating">
-                <span className="stars">{'⭐'.repeat(Math.floor(tour.rating))}</span>
-                <span className="rating-text">({tour.reviews} reviews)</span>
-              </div>
-              <p className="tour-description">{tour.description}</p>
-              <div className="tour-details">
-                <span className="detail">⏱️ {tour.duration}</span>
-                <span className="detail">👥 {tour.groupSize}</span>
-              </div>
-              <div className="tour-footer">
-                <span className="price">From {tour.prices ? tour.prices.sharing : tour.price}</span>
-                <button 
-                  className="book-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/tours/${tour.id}`);
-                  }}
-                >
-                  Book Now
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {totalPages > 1 && (
-        <div className="pagination">
-          <button
-            className="pagination-btn pagination-prev"
-            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-            disabled={currentPage === 1}
-            aria-label="Previous page"
-          >
-            ← Prev
-          </button>
-
-          <div className="pagination-pages">
-            {getPageNumbers().map((page, idx, arr) => (
-              <React.Fragment key={page}>
-                {idx > 0 && arr[idx - 1] !== page - 1 && (
-                  <span className="pagination-ellipsis">…</span>
-                )}
-                <button
-                  className={`pagination-btn${currentPage === page ? ' active' : ''}`}
-                  onClick={() => setCurrentPage(page)}
-                  aria-current={currentPage === page ? 'page' : undefined}
-                >
-                  {page}
-                </button>
-              </React.Fragment>
-            ))}
-          </div>
-
-          <button
-            className="pagination-btn pagination-next"
-            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            aria-label="Next page"
-          >
-            Next →
-          </button>
-        </div>
-      )}
-      </>
-    )}
-  </section>
-  );
-};
-
 function App() {
   const [scrolled, setScrolled] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -188,6 +39,7 @@ function App() {
   const [tripTailorSubmitting, setTripTailorSubmitting] = useState(false);
   const [tripTailorMessage, setTripTailorMessage] = useState('');
   const [tours, setTours] = useState(defaultTours);
+  const [toursLoading, setToursLoading] = useState(true);
   const [testimonials, setTestimonials] = useState(defaultTestimonials);
   const [contactInfo, setContactInfo] = useState(defaultContactInfo);
   const [blogs, setBlogs] = useState(defaultBlogs);
@@ -195,6 +47,10 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const scrollTimeoutsRef = useRef([]);
+
+  // Set page title based on current route (individual pages override this via useTitle)
+  const routeTitles = { '/tours': 'All Tours', '/': null };
+  useTitle(routeTitles[location.pathname] ?? null);
 
   const clearScrollTimeouts = () => {
     scrollTimeoutsRef.current.forEach((id) => clearTimeout(id));
@@ -247,7 +103,8 @@ useEffect(() => {
       if (data.tours) setTours(data.tours);
       if (data.testimonials) setTestimonials(data.testimonials);
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => { if (isMounted) setToursLoading(false); });
 
   fetch(`${API_URL}/api/contact`)
     .then((res) => (res.ok ? res.json() : null))
@@ -311,18 +168,6 @@ useEffect(() => {
     scrollTimeoutsRef.current.push(timeoutId);
   };
 
-  const formatBlogDate = (dateString) => {
-    const parsedDate = new Date(dateString);
-    if (Number.isNaN(parsedDate.getTime())) {
-      return 'Date unavailable';
-    }
-    return parsedDate.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
   // If admin panel is active, show only the admin panel
   if (showAdmin) {
     return (
@@ -344,7 +189,9 @@ useEffect(() => {
             </button>
           </div>
         </nav>
-        <AdminPanel />
+        <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
+          <AdminPanel />
+        </Suspense>
       </div>
     );
   }
@@ -402,161 +249,33 @@ useEffect(() => {
         <Route
           path="/"
           element={
-            <>
-              <section id="home" className="hero">
-                <HeroSlideshow />
-                <div className="hero-overlay"></div>
-                <div className="hero-content">
-                  <span className="hero-tag">{siteSettings.hero.badge}</span>
-                  <h1>{siteSettings.hero.title}</h1>
-                  <p>{siteSettings.hero.subtitle}</p>
-                  <div className="hero-buttons">
-                    <button className="btn btn-primary" onClick={() => goToSection('tours')}>
-                      {siteSettings.hero.primaryButtonText}
-                    </button>
-                  <button className="btn btn-secondary" onClick={scrollToTripTailor}>
-                    {siteSettings.hero.secondaryButtonText}
-                  </button>
-                  </div>
-                </div>
-              </section>
-
-              <section className="stats">
-                {siteSettings.stats.map((stat, i) => (
-                  <div key={i} className="stat-item">
-                    <h3>{stat.value}</h3>
-                    <p>{stat.label}</p>
-                  </div>
-                ))}
-              </section>
-
-              <ToursSection
-                filteredTours={filteredTours}
-                tourSearch={tourSearch}
-                setTourSearch={setTourSearch}
-                totalTours={tours.length}
-              />
-
-              <section id="blogs" className="blogs">
-                <div className="section-header">
-                  <h2>Travel Insights & Blogs</h2>
-                  <p>Fresh stories, tips, and cultural guides to help you craft the perfect journey through Egypt</p>
-                </div>
-
-                <div className="blogs-grid">
-                {blogs.map((blog) => (
-                    <article key={blog.id} className="blog-card">
-                      <div className="blog-icon">{blog.image}</div>
-                      <div className="blog-content">
-                        <div className="blog-meta">
-                          <span className="blog-category">{blog.category}</span>
-                          <span className="blog-date">{formatBlogDate(blog.date)}</span>
-                        </div>
-                        <h3>{blog.title}</h3>
-                        <p className="blog-excerpt">{blog.excerpt}</p>
-                        <div className="blog-footer">
-                          <span className="blog-author">By {blog.author}</span>
-                          <button className="text-button" onClick={scrollToTripTailor}>
-                            Tailor a trip like this →
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                ))}
-                </div>
-              </section>
-
-              <section id="about" className="about">
-                <div className="about-content">
-                  <h2>Why Egypt Advisor?</h2>
-                  <p className="about-intro">We're not just a tour company – we're your gateway to authentic Egyptian experiences</p>
-                  
-                  <div className="features-grid">
-                    <div className="feature-card">
-                      <div className="feature-icon">🎓</div>
-                      <h3>Expert Guides</h3>
-                      <p>Certified Egyptologists with decades of combined experience sharing their passion for ancient history</p>
-                    </div>
-                    <div className="feature-card">
-                      <div className="feature-icon">🛡️</div>
-                      <h3>Safety & Comfort</h3>
-                      <p>Your safety is paramount. Climate-controlled vehicles and premium accommodations included</p>
-                    </div>
-                    <div className="feature-card">
-                      <div className="feature-icon">💎</div>
-                      <h3>Exclusive Access</h3>
-                      <p>Private viewings and special permits to explore off-the-beaten-path archaeological sites</p>
-                    </div>
-                    <div className="feature-card">
-                      <div className="feature-icon">🌍</div>
-                      <h3>Personalized Service</h3>
-                      <p>Custom itineraries tailored to your interests, pace, and travel style</p>
-                    </div>
-                    <div className="feature-card">
-                      <div className="feature-icon">⭐</div>
-                      <h3>Best Value</h3>
-                      <p>Transparent pricing with no hidden fees. Premium experiences at competitive rates</p>
-                    </div>
-                    <div className="feature-card">
-                      <div className="feature-icon">🤝</div>
-                      <h3>24/7 Support</h3>
-                      <p>Round-the-clock customer support before, during, and after your journey</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="testimonials">
-                <h2>Trusted by Travelers Worldwide</h2>
-                <p>See what our satisfied guests have to say about their Egyptian adventures</p>
-                
-                <div className="testimonials-grid">
-                  {testimonials.map((testimonial, index) => (
-                    <div key={index} className="testimonial-card">
-                      <div className="testimonial-stars">⭐⭐⭐⭐⭐</div>
-                      <p className="testimonial-text">"{testimonial.text}"</p>
-                      <div className="testimonial-author">
-                        <h4>{testimonial.name}</h4>
-                        <p>{testimonial.country}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </>
+            <HomePage
+              siteSettings={siteSettings}
+              filteredTours={filteredTours}
+              tourSearch={tourSearch}
+              setTourSearch={setTourSearch}
+              totalTours={tours.length}
+              toursLoading={toursLoading}
+              blogs={blogs}
+              testimonials={testimonials}
+              goToSection={goToSection}
+              onTailorTrip={scrollToTripTailor}
+            />
           }
         />
 
         <Route
           path="/tours"
           element={
-            <>
-              <section className="hero tours-hero">
-                <div className="hero-overlay"></div>
-                <div className="hero-content">
-                  <span className="hero-tag">🧭 Explore Egypt</span>
-                  <h1>All Tours & Experiences</h1>
-                  <p>Dive into our full collection of curated adventures across Cairo, Luxor, Aswan, the Nile, and beyond.</p>
-                  <div className="hero-buttons">
-                    <button className="btn btn-primary" onClick={() => goToSection('tours')}>
-                      View Tours
-                    </button>
-                    <button className="btn btn-secondary" onClick={scrollToTripTailor}>
-                      Tailor My Trip
-                    </button>
-                  </div>
-                </div>
-              </section>
-
-              <ToursSection
-                filteredTours={filteredTours}
-                tourSearch={tourSearch}
-                setTourSearch={setTourSearch}
-                totalTours={tours.length}
-                heading="All Egypt Tours"
-                subheading="Browse every signature experience and choose the adventure that fits you best."
-              />
-            </>
+            <ToursPage
+              filteredTours={filteredTours}
+              tourSearch={tourSearch}
+              setTourSearch={setTourSearch}
+              totalTours={tours.length}
+              toursLoading={toursLoading}
+              onTailorTrip={scrollToTripTailor}
+              goToSection={goToSection}
+            />
           }
         />
 
