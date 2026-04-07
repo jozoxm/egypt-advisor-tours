@@ -46,6 +46,15 @@ const writeLimiter = rateLimit({
     message: { error: 'Too many requests, please try again later.' }
 });
 
+// Rate-limit read (GET) endpoints that hit the filesystem
+const readLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+
 // ============================================
 // INPUT VALIDATION HELPERS
 // ============================================
@@ -174,7 +183,7 @@ app.get('/health', (req, res) => {
 // TOURS API ENDPOINTS
 // ============================================
 
-app.get('/api/tours', (req, res) => {
+app.get('/api/tours', readLimiter, (req, res) => {
     if (store.tours) return res.json(store.tours);
     const data = readData('tours', /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/);
     if (data) {
@@ -214,7 +223,7 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
 // CONTACT API ENDPOINTS
 // ============================================
 
-app.get('/api/contact', (req, res) => {
+app.get('/api/contact', readLimiter, (req, res) => {
     if (store.contact) return res.json(store.contact);
     const data = readData('contact', /export const contactInfo = ({[\s\S]*?});[\s\n]*$/);
     if (data) {
@@ -242,7 +251,7 @@ app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
 // BLOGS API ENDPOINTS
 // ============================================
 
-app.get('/api/blogs', (req, res) => {
+app.get('/api/blogs', readLimiter, (req, res) => {
     if (store.blogs) return res.json(store.blogs);
     const data = readData('blogs', /export const blogs = (\[[\s\S]*?\]);/);
     if (data) {
@@ -270,7 +279,7 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
 // GALLERY API ENDPOINTS
 // ============================================
 
-app.get('/api/gallery', (req, res) => {
+app.get('/api/gallery', readLimiter, (req, res) => {
     if (store.gallery) return res.json(store.gallery);
     const data = readData('gallery', /export const gallery = (\[[\s\S]*?\]);/);
     if (data) {
@@ -299,7 +308,7 @@ app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
 // ============================================
 // GET /api/bookings requires admin auth — booking records contain customer PII.
 
-app.get('/api/bookings', requireAdminAuth, (req, res) => {
+app.get('/api/bookings', readLimiter, requireAdminAuth, (req, res) => {
     if (store.bookings) return res.json(store.bookings);
     const data = readData('bookings', /export const bookings = (\[[\s\S]*?\]);/);
     if (data) {
@@ -327,7 +336,7 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
 // SLIDESHOW API ENDPOINTS
 // ============================================
 
-app.get('/api/slideshow', (req, res) => {
+app.get('/api/slideshow', readLimiter, (req, res) => {
     if (store.slideshow) return res.json(store.slideshow);
     const data = readData('slideshow', /export const slides = (\[[\s\S]*?\]);?/);
     if (data) {
@@ -355,7 +364,7 @@ app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
 // SITE SETTINGS API ENDPOINTS
 // ============================================
 
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', readLimiter, (req, res) => {
     if (store.settings) return res.json(store.settings);
     const data = readData('settings', /export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
     if (data) {
