@@ -282,8 +282,8 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const tours = sanitize(req.body.tours);
         const testimonials = sanitize(req.body.testimonials || []);
-        store.tours = { tours, testimonials };
         writeData('tours', { tours, testimonials });
+        store.tours = { tours, testimonials };
         res.json({ success: true, message: 'Tours saved successfully' });
     } catch (error) {
         console.error('Error saving tours:', error);
@@ -310,8 +310,8 @@ app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const contactInfo = sanitize(req.body);
-        store.contact = contactInfo;
         writeData('contact', contactInfo);
+        store.contact = contactInfo;
         res.json({ success: true, message: 'Contact info saved successfully' });
     } catch (error) {
         console.error('Error saving contact info:', error);
@@ -338,8 +338,8 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const blogs = sanitize(req.body.blogs);
-        store.blogs = { blogs };
         writeData('blogs', { blogs });
+        store.blogs = { blogs };
         res.json({ success: true, message: 'Blogs saved successfully' });
     } catch (error) {
         console.error('Error saving blogs:', error);
@@ -366,8 +366,8 @@ app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const gallery = sanitize(req.body.gallery);
-        store.gallery = { gallery };
         writeData('gallery', { gallery });
+        store.gallery = { gallery };
         res.json({ success: true, message: 'Gallery saved successfully' });
     } catch (error) {
         console.error('Error saving gallery:', error);
@@ -395,8 +395,8 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const bookings = sanitize(req.body.bookings);
-        store.bookings = { bookings };
         writeData('bookings', { bookings });
+        store.bookings = { bookings };
         res.json({ success: true, message: 'Bookings saved successfully' });
     } catch (error) {
         console.error('Error saving bookings:', error);
@@ -423,8 +423,8 @@ app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const slides = sanitize(req.body.slides);
-        store.slideshow = { slides };
         writeData('slideshow', { slides });
+        store.slideshow = { slides };
         res.json({ success: true, message: 'Slideshow saved successfully' });
     } catch (error) {
         console.error('Error saving slideshow:', error);
@@ -451,8 +451,8 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const settings = sanitize(req.body);
-        store.settings = settings;
         writeData('settings', settings);
+        store.settings = settings;
         res.json({ success: true, message: 'Site settings saved successfully' });
     } catch (error) {
         console.error('Error saving site settings:', error);
