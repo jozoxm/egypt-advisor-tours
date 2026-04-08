@@ -387,8 +387,14 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const blogs = sanitize(req.body.blogs);
         store.blogs = { blogs };
-        writeData('blogs', { blogs });
-        res.json({ success: true, message: 'Blogs saved successfully' });
+        const persisted = writeData('blogs', { blogs });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted
+                ? 'Blogs saved successfully'
+                : 'Blogs updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving blogs:', error);
         res.status(500).json({ error: 'Failed to save blogs data' });
