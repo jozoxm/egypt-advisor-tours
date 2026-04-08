@@ -37,11 +37,12 @@ jobs:
           REACT_APP_API_URL: ""
           REACT_APP_ADMIN_SECRET: ""
 
-      # Verify the server starts without errors
+      # Verify the server module loads without errors
       - name: Smoke-test server startup
         run: |
           node -e "
             process.env.NODE_ENV = 'production';
+            process.env.VERCEL = '1';
             const app = require('./server/index.js');
             console.log('Server module loaded successfully');
             process.exit(0);
