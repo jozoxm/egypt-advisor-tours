@@ -8,7 +8,7 @@
     "install:all": "npm install && npm install --prefix client && npm install --prefix server",
     "install:client": "npm install --prefix client",
     "install:server": "npm install --prefix server",
-    "postinstall": "npm install --prefix client && npm run build --prefix client",
+    "postinstall": "node -e \"if (process.env.BUILD_CLIENT === 'true') { const { spawnSync } = require('child_process'); const result = spawnSync('npm', ['run', 'build'], { stdio: 'inherit', shell: true }); process.exit(result.status || 0); } console.log('Skipping client build during postinstall. Set BUILD_CLIENT=true to enable it.');\"",
     "start": "node index.js",
     "start:client": "npm start --prefix client",
     "start:server": "npm start --prefix server",
