@@ -160,8 +160,11 @@ try {
     DATA_DIR = fallback;
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.accessSync(DATA_DIR, fs.constants.W_OK);
     } catch (e) {
-        console.error(`[DATA_PATH] Fatal: cannot create fallback data directory "${DATA_DIR}": ${e.message}`);
+        console.error(
+            `[DATA_PATH] Fatal: fallback data directory "${DATA_DIR}" cannot be created or is not writable: ${e.message}`
+        );
         process.exit(1);
     }
 }
