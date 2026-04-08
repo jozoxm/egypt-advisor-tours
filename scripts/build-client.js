@@ -49,6 +49,7 @@ try {
     }).toString().trim();
 } catch {
     // git unavailable — fall through to unconditional rebuild.
+    console.log('[postinstall] git not available; will rebuild the React client unconditionally.');
 }
 
 const buildHashFile = path.join(buildPath, 'build-hash.txt');
