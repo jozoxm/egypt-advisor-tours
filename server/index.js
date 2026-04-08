@@ -147,12 +147,26 @@ if (configuredDataPath) {
 }
 
 // Ensure the chosen data directory exists and is writable.
+// On Vercel (and other read-only Lambda environments) the default server/data
+// directory cannot be created, so we fall back to /tmp which is always writable.
 try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.accessSync(DATA_DIR, fs.constants.W_OK);
 } catch (err) {
-    console.error(`[DATA_PATH] Fatal: data directory "${DATA_DIR}" cannot be created or is not writable: ${err.message}`);
-    process.exit(1);
+    const fallback = '/tmp/egypt-advisor-data';
+    console.warn(
+        `[DATA_PATH] "${DATA_DIR}" is not writable (${err.message}). Falling back to ${fallback}.`
+    );
+    DATA_DIR = fallback;
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.accessSync(DATA_DIR, fs.constants.W_OK);
+    } catch (e) {
+        console.error(
+            `[DATA_PATH] Fatal: fallback data directory "${DATA_DIR}" cannot be created or is not writable: ${e.message}`
+        );
+        process.exit(1);
+    }
 }
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
@@ -210,11 +224,22 @@ function readData(key, jsRegex) {
     return null;
 }
 
-// Write data to the JSON file.  Throws on failure so callers can surface the
-// error to the admin panel instead of silently returning a false success.
+// Write data to the JSON file.  Returns true on success, false on failure.
+// Never throws — callers always update the in-memory store first so that
+// admin edits survive even when the filesystem is read-only (e.g. Vercel).
 function writeData(key, data) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+    if (!JSON_FILES[key]) {
+        console.error(`[writeData] Unknown data key: "${key}". This is a programmer error.`);
+        return false;
+    }
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.warn(`[writeData] Could not persist "${key}" to disk: ${e.message}. Change is in memory only.`);
+        return false;
+    }
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -235,12 +260,44 @@ const SEED_MAP = [
 ];
 
 function seedDataFiles() {
-    try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-    } catch (e) {
-        console.warn('Could not create data directory on startup:', e.message);
+    // If the configured DATA_DIR is not writable (e.g. DATA_PATH points to a
+    // directory the process cannot create on this host), fall back to the
+    // default server/data directory and then /tmp so that seeding — and all
+    // subsequent reads/writes — still work correctly.
+    const tmpFallback = '/tmp/egypt-advisor-data';
+    // Deduplicate while preserving preference order: configured → default → /tmp.
+    const candidateDirs = [...new Set([DATA_DIR, DEFAULT_DATA_DIR, tmpFallback])];
+
+    let workingDir = null;
+    for (const candidate of candidateDirs) {
+        try {
+            fs.mkdirSync(candidate, { recursive: true });
+            workingDir = candidate;
+            break;
+        } catch (e) {
+            console.warn(`[seedDataFiles] Cannot create "${candidate}": ${e.message}`);
+        }
+    }
+
+    if (!workingDir) {
+        console.warn('[seedDataFiles] No writable data directory found; data seeding skipped.');
         return;
     }
+
+    // If we had to use a fallback, update the module-level DATA_DIR and
+    // JSON_FILES so that all subsequent reads and writes in this process
+    // (writeData, readData, etc.) transparently use the working location.
+    // This intentional mutation is the simplest way to keep the rest of the
+    // server code path-agnostic; DATA_DIR is a module-level `let` precisely
+    // to allow this late resolution.
+    if (workingDir !== DATA_DIR) {
+        console.warn(`[seedDataFiles] Configured DATA_PATH "${DATA_DIR}" is not writable; using "${workingDir}" instead.`);
+        DATA_DIR = workingDir;
+        for (const key of Object.keys(JSON_FILES)) {
+            JSON_FILES[key] = path.join(DATA_DIR, path.basename(JSON_FILES[key]));
+        }
+    }
+
     for (const { key, regex, wrapFn } of SEED_MAP) {
         if (fs.existsSync(JSON_FILES[key])) continue; // already present — skip
         const jsFile = JS_FILES[key];
@@ -259,8 +316,9 @@ function seedDataFiles() {
 }
 
 // Run once at startup — no-ops if files already exist.
-console.log(`Data directory: ${DATA_DIR}`);
+// NOTE: seedDataFiles() may update DATA_DIR if the configured path is not writable.
 seedDataFiles();
+console.log(`Data directory: ${DATA_DIR}`);
 
 app.get('/api', (req, res) => {
     res.json({
@@ -305,9 +363,13 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const tours = sanitize(req.body.tours);
         const testimonials = sanitize(req.body.testimonials || []);
-        writeData('tours', { tours, testimonials });
         store.tours = { tours, testimonials };
-        res.json({ success: true, message: 'Tours saved successfully' });
+        const persisted = writeData('tours', { tours, testimonials });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Tours saved successfully' : 'Tours saved in memory but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving tours:', error);
         res.status(500).json({ error: 'Failed to save tours data' });
@@ -333,9 +395,13 @@ app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const contactInfo = sanitize(req.body);
-        writeData('contact', contactInfo);
         store.contact = contactInfo;
-        res.json({ success: true, message: 'Contact info saved successfully' });
+        const persisted = writeData('contact', contactInfo);
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Contact info saved successfully' : 'Contact info updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving contact info:', error);
         res.status(500).json({ error: 'Failed to save contact info' });
@@ -361,9 +427,15 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const blogs = sanitize(req.body.blogs);
-        writeData('blogs', { blogs });
         store.blogs = { blogs };
-        res.json({ success: true, message: 'Blogs saved successfully' });
+        const persisted = writeData('blogs', { blogs });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted
+                ? 'Blogs saved successfully'
+                : 'Blogs updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving blogs:', error);
         res.status(500).json({ error: 'Failed to save blogs data' });
@@ -389,9 +461,13 @@ app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const gallery = sanitize(req.body.gallery);
-        writeData('gallery', { gallery });
         store.gallery = { gallery };
-        res.json({ success: true, message: 'Gallery saved successfully' });
+        const persisted = writeData('gallery', { gallery });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Gallery saved successfully' : 'Gallery updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving gallery:', error);
         res.status(500).json({ error: 'Failed to save gallery data' });
@@ -418,9 +494,13 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const bookings = sanitize(req.body.bookings);
-        writeData('bookings', { bookings });
         store.bookings = { bookings };
-        res.json({ success: true, message: 'Bookings saved successfully' });
+        const persisted = writeData('bookings', { bookings });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Bookings saved successfully' : 'Bookings updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving bookings:', error);
         res.status(500).json({ error: 'Failed to save bookings data' });
@@ -446,9 +526,13 @@ app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const slides = sanitize(req.body.slides);
-        writeData('slideshow', { slides });
         store.slideshow = { slides };
-        res.json({ success: true, message: 'Slideshow saved successfully' });
+        const persisted = writeData('slideshow', { slides });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Slideshow saved successfully' : 'Slideshow updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving slideshow:', error);
         res.status(500).json({ error: 'Failed to save slideshow data' });
@@ -474,9 +558,13 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     if (err) return res.status(400).json({ error: err });
     try {
         const settings = sanitize(req.body);
-        writeData('settings', settings);
         store.settings = settings;
-        res.json({ success: true, message: 'Site settings saved successfully' });
+        const persisted = writeData('settings', settings);
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Site settings saved successfully' : 'Site settings updated in memory, but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving site settings:', error);
         res.status(500).json({ error: 'Failed to save site settings' });

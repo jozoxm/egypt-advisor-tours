@@ -707,6 +707,25 @@ pm2 delete egypt-advisor-tours
 pm2 start server/index.js --name "egypt-advisor-tours"
 ```
 
+### ❌ Website shows blank page / "Not Found" after deploying via Hostinger hPanel Node.js
+
+If you are using **Hostinger's built-in Node.js app** (the Node.js feature available in hPanel on shared/business plans — not a VPS), the site starts but the frontend may not appear because the React app has not been built yet.
+
+**Automatic fix (recommended):** The project's `postinstall` script builds the React app automatically whenever `npm install` is run in a non-development environment. To trigger it:
+
+1. In hPanel, open your **Node.js app** settings
+2. Make sure `NODE_ENV` is **not** set to `development` (leave it blank or set to `production`)
+3. Click **Restart** (or **Stop → Start**) — Hostinger re-runs `npm install` on restart, which triggers the build
+
+> ⏳ The first restart after a fresh deployment will take **2–4 extra minutes** because it builds the React app. Subsequent restarts that still have the `client/build` directory present are instant (the build step is skipped). Note: if Hostinger ever wipes the build directory (e.g., a full re-deploy from Git), the build will run again on the next restart.
+
+**Manual fix:** If you prefer to skip the automatic build, SSH into your server (or use Hostinger's Terminal) and run:
+```bash
+cd /path/to/egypt-advisor-tours
+npm run build
+```
+Then restart the Node.js app in hPanel.
+
 ---
 
 ## 📞 Quick Reference — Useful Commands
