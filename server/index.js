@@ -160,8 +160,9 @@ try {
     DATA_DIR = fallback;
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.accessSync(DATA_DIR, fs.constants.W_OK);
     } catch (e) {
-        console.error(`[DATA_PATH] Fatal: cannot create fallback data directory "${DATA_DIR}": ${e.message}`);
+        console.error(`[DATA_PATH] Fatal: fallback data directory "${DATA_DIR}" cannot be created or is not writable: ${e.message}`);
         process.exit(1);
     }
 }
@@ -225,6 +226,10 @@ function readData(key, jsRegex) {
 // Never throws — callers always update the in-memory store first so that
 // admin edits survive even when the filesystem is read-only (e.g. Vercel).
 function writeData(key, data) {
+    if (!JSON_FILES[key]) {
+        console.error(`[writeData] Unknown data key: "${key}". This is a programmer error.`);
+        return false;
+    }
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
@@ -324,8 +329,8 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
         const tours = sanitize(req.body.tours);
         const testimonials = sanitize(req.body.testimonials || []);
         store.tours = { tours, testimonials };
-        writeData('tours', { tours, testimonials });
-        res.json({ success: true, message: 'Tours saved successfully' });
+        const persisted = writeData('tours', { tours, testimonials });
+        res.json({ success: true, persisted, message: persisted ? 'Tours saved successfully' : 'Tours saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving tours:', error);
         res.status(500).json({ error: 'Failed to save tours data' });
@@ -352,8 +357,8 @@ app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const contactInfo = sanitize(req.body);
         store.contact = contactInfo;
-        writeData('contact', contactInfo);
-        res.json({ success: true, message: 'Contact info saved successfully' });
+        const persisted = writeData('contact', contactInfo);
+        res.json({ success: true, persisted, message: persisted ? 'Contact info saved successfully' : 'Contact info saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving contact info:', error);
         res.status(500).json({ error: 'Failed to save contact info' });
@@ -380,8 +385,8 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const blogs = sanitize(req.body.blogs);
         store.blogs = { blogs };
-        writeData('blogs', { blogs });
-        res.json({ success: true, message: 'Blogs saved successfully' });
+        const persisted = writeData('blogs', { blogs });
+        res.json({ success: true, persisted, message: persisted ? 'Blogs saved successfully' : 'Blogs saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving blogs:', error);
         res.status(500).json({ error: 'Failed to save blogs data' });
@@ -408,8 +413,8 @@ app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const gallery = sanitize(req.body.gallery);
         store.gallery = { gallery };
-        writeData('gallery', { gallery });
-        res.json({ success: true, message: 'Gallery saved successfully' });
+        const persisted = writeData('gallery', { gallery });
+        res.json({ success: true, persisted, message: persisted ? 'Gallery saved successfully' : 'Gallery saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving gallery:', error);
         res.status(500).json({ error: 'Failed to save gallery data' });
@@ -437,8 +442,8 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const bookings = sanitize(req.body.bookings);
         store.bookings = { bookings };
-        writeData('bookings', { bookings });
-        res.json({ success: true, message: 'Bookings saved successfully' });
+        const persisted = writeData('bookings', { bookings });
+        res.json({ success: true, persisted, message: persisted ? 'Bookings saved successfully' : 'Bookings saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving bookings:', error);
         res.status(500).json({ error: 'Failed to save bookings data' });
@@ -465,8 +470,8 @@ app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const slides = sanitize(req.body.slides);
         store.slideshow = { slides };
-        writeData('slideshow', { slides });
-        res.json({ success: true, message: 'Slideshow saved successfully' });
+        const persisted = writeData('slideshow', { slides });
+        res.json({ success: true, persisted, message: persisted ? 'Slideshow saved successfully' : 'Slideshow saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving slideshow:', error);
         res.status(500).json({ error: 'Failed to save slideshow data' });
@@ -493,8 +498,8 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     try {
         const settings = sanitize(req.body);
         store.settings = settings;
-        writeData('settings', settings);
-        res.json({ success: true, message: 'Site settings saved successfully' });
+        const persisted = writeData('settings', settings);
+        res.json({ success: true, persisted, message: persisted ? 'Site settings saved successfully' : 'Site settings saved in memory but failed to persist to disk' });
     } catch (error) {
         console.error('Error saving site settings:', error);
         res.status(500).json({ error: 'Failed to save site settings' });
