@@ -25,21 +25,36 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    outputs:
+      has_jekyll_config: ${{ steps.detect_jekyll.outputs.has_jekyll_config }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Detect Jekyll site
+        id: detect_jekyll
+        run: |
+          if [ -f "_config.yml" ] || [ -f "_config.yaml" ]; then
+            echo "has_jekyll_config=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_jekyll_config=false" >> "$GITHUB_OUTPUT"
+            echo "No Jekyll configuration file found; skipping GitHub Pages Jekyll deployment."
+          fi
       - name: Setup Pages
+        if: steps.detect_jekyll.outputs.has_jekyll_config == 'true'
         uses: actions/configure-pages@v5
       - name: Build with Jekyll
+        if: steps.detect_jekyll.outputs.has_jekyll_config == 'true'
         uses: actions/jekyll-build-pages@v1
         with:
           source: ./
           destination: ./_site
       - name: Upload artifact
+        if: steps.detect_jekyll.outputs.has_jekyll_config == 'true'
         uses: actions/upload-pages-artifact@v3
 
   # Deployment job
   deploy:
+    if: needs.build.outputs.has_jekyll_config == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

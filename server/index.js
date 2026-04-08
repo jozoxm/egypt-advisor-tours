@@ -107,29 +107,43 @@ function validateObject(body) {
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const configuredDataPath = process.env.DATA_PATH;
 
+const DEFAULT_DATA_DIR = path.join(__dirname, 'data');
+
 let DATA_DIR;
 if (configuredDataPath) {
     if (!path.isAbsolute(configuredDataPath)) {
-        throw new Error(
-            `Invalid DATA_PATH "${configuredDataPath}": it must be an absolute path outside the project root.`
+        console.warn(
+            `[DATA_PATH] Warning: "${configuredDataPath}" is not an absolute path. Falling back to default data directory.`
         );
+        DATA_DIR = DEFAULT_DATA_DIR;
+    } else {
+        const resolvedDataPath = path.resolve(configuredDataPath);
+        const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
+        const isInsideProjectRoot =
+            relativeToProjectRoot === '' ||
+            (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
+
+        if (isInsideProjectRoot) {
+            console.warn(
+                `[DATA_PATH] Warning: "${configuredDataPath}" is inside the project root (${PROJECT_ROOT}). Falling back to default data directory.`
+            );
+            DATA_DIR = DEFAULT_DATA_DIR;
+        } else {
+            DATA_DIR = resolvedDataPath;
+            // Pre-validate that the directory exists (or can be created) and is writable.
+            try {
+                fs.mkdirSync(DATA_DIR, { recursive: true });
+                fs.accessSync(DATA_DIR, fs.constants.W_OK);
+            } catch (err) {
+                console.warn(
+                    `[DATA_PATH] Warning: "${DATA_DIR}" is not writable (${err.message}). Falling back to default data directory.`
+                );
+                DATA_DIR = DEFAULT_DATA_DIR;
+            }
+        }
     }
-
-    const resolvedDataPath = path.resolve(configuredDataPath);
-    const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
-    const isInsideProjectRoot =
-        relativeToProjectRoot === '' ||
-        (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
-
-    if (isInsideProjectRoot) {
-        throw new Error(
-            `Invalid DATA_PATH "${configuredDataPath}": it must point outside the project root (${PROJECT_ROOT}).`
-        );
-    }
-
-    DATA_DIR = resolvedDataPath;
 } else {
-    DATA_DIR = path.join(__dirname, 'data');
+    DATA_DIR = DEFAULT_DATA_DIR;
 }
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
