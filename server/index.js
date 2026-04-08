@@ -109,25 +109,37 @@ const configuredDataPath = process.env.DATA_PATH;
 
 let DATA_DIR;
 if (configuredDataPath) {
+    let dataPathValid = true;
+
     if (!path.isAbsolute(configuredDataPath)) {
-        throw new Error(
-            `Invalid DATA_PATH "${configuredDataPath}": it must be an absolute path outside the project root.`
+        console.warn(
+            `[WARN] DATA_PATH "${configuredDataPath}" is not an absolute path. ` +
+            `Falling back to default data directory. ` +
+            `Set DATA_PATH to an absolute path outside the project root (e.g. /home/u123456789/admin_data).`
         );
+        dataPathValid = false;
+    } else {
+        const resolvedDataPath = path.resolve(configuredDataPath);
+        const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
+        const isInsideProjectRoot =
+            relativeToProjectRoot === '' ||
+            (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
+
+        if (isInsideProjectRoot) {
+            console.warn(
+                `[WARN] DATA_PATH "${configuredDataPath}" points inside the project root (${PROJECT_ROOT}). ` +
+                `Falling back to default data directory. ` +
+                `Set DATA_PATH to an absolute path OUTSIDE the project root so data survives re-deployments.`
+            );
+            dataPathValid = false;
+        } else {
+            DATA_DIR = resolvedDataPath;
+        }
     }
 
-    const resolvedDataPath = path.resolve(configuredDataPath);
-    const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
-    const isInsideProjectRoot =
-        relativeToProjectRoot === '' ||
-        (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
-
-    if (isInsideProjectRoot) {
-        throw new Error(
-            `Invalid DATA_PATH "${configuredDataPath}": it must point outside the project root (${PROJECT_ROOT}).`
-        );
+    if (!dataPathValid) {
+        DATA_DIR = path.join(__dirname, 'data');
     }
-
-    DATA_DIR = resolvedDataPath;
 } else {
     DATA_DIR = path.join(__dirname, 'data');
 }
