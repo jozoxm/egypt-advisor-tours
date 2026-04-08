@@ -107,17 +107,15 @@ function validateObject(body) {
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const configuredDataPath = process.env.DATA_PATH;
 
+const DEFAULT_DATA_DIR = path.join(__dirname, 'data');
+
 let DATA_DIR;
 if (configuredDataPath) {
-    let dataPathValid = true;
-
     if (!path.isAbsolute(configuredDataPath)) {
         console.warn(
-            `[WARN] DATA_PATH "${configuredDataPath}" is not an absolute path. ` +
-            `Falling back to default data directory. ` +
-            `Set DATA_PATH to an absolute path outside the project root (e.g. /home/u123456789/admin_data).`
+            `[DATA_PATH] Warning: "${configuredDataPath}" is not an absolute path. Falling back to default data directory.`
         );
-        dataPathValid = false;
+        DATA_DIR = DEFAULT_DATA_DIR;
     } else {
         const resolvedDataPath = path.resolve(configuredDataPath);
         const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
@@ -127,45 +125,35 @@ if (configuredDataPath) {
 
         if (isInsideProjectRoot) {
             console.warn(
-                `[WARN] DATA_PATH "${configuredDataPath}" points inside the project root (${PROJECT_ROOT}). ` +
-                `Falling back to default data directory. ` +
-                `Set DATA_PATH to an absolute path OUTSIDE the project root so data survives re-deployments.`
+                `[DATA_PATH] Warning: "${configuredDataPath}" is inside the project root (${PROJECT_ROOT}). Falling back to default data directory.`
             );
-            dataPathValid = false;
+            DATA_DIR = DEFAULT_DATA_DIR;
         } else {
             DATA_DIR = resolvedDataPath;
+            // Pre-validate that the directory exists (or can be created) and is writable.
+            try {
+                fs.mkdirSync(DATA_DIR, { recursive: true });
+                fs.accessSync(DATA_DIR, fs.constants.W_OK);
+            } catch (err) {
+                console.warn(
+                    `[DATA_PATH] Warning: "${DATA_DIR}" cannot be created or is not writable (${err.message}). Falling back to default data directory.`
+                );
+                DATA_DIR = DEFAULT_DATA_DIR;
+            }
         }
     }
-
-    if (!dataPathValid) {
-        DATA_DIR = path.join(__dirname, 'data');
-    }
 } else {
-    DATA_DIR = path.join(__dirname, 'data');
+    DATA_DIR = DEFAULT_DATA_DIR;
 }
 
-// Verify the chosen DATA_DIR is actually writable before committing to it.
-// If not (e.g. Hostinger EACCES when DATA_PATH points to a directory that
-// doesn't exist yet or isn't owned by the Node process), fall back to the
-// in-project server/data/ directory and log a clear warning.
-const DEFAULT_DATA_DIR = path.join(__dirname, 'data');
-if (DATA_DIR !== DEFAULT_DATA_DIR) {
-    try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-        // Quick write-permission test
-        const testFile = path.join(DATA_DIR, '.write-test');
-        fs.writeFileSync(testFile, '');
-        fs.unlinkSync(testFile);
-    } catch (e) {
-        console.warn(
-            `[WARN] DATA_PATH directory "${DATA_DIR}" is not writable (${e.message}). ` +
-            `Falling back to default data directory (${DEFAULT_DATA_DIR}). ` +
-            `To use a custom path on Hostinger, create the directory first via SSH: mkdir -p ${DATA_DIR}`
-        );
-        DATA_DIR = DEFAULT_DATA_DIR;
-    }
+// Ensure the chosen data directory exists and is writable.
+try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.accessSync(DATA_DIR, fs.constants.W_OK);
+} catch (err) {
+    console.error(`[DATA_PATH] Fatal: data directory "${DATA_DIR}" cannot be created or is not writable: ${err.message}`);
+    process.exit(1);
 }
-
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
     contact:   path.join(DATA_DIR, 'contact.json'),
@@ -250,7 +238,7 @@ function seedDataFiles() {
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
     } catch (e) {
-        console.error('Could not create data directory on startup:', e.message, '— data seeding skipped.');
+        console.warn('Could not create data directory on startup:', e.message);
         return;
     }
     for (const { key, regex, wrapFn } of SEED_MAP) {
