@@ -136,7 +136,7 @@ if (configuredDataPath) {
                 fs.accessSync(DATA_DIR, fs.constants.W_OK);
             } catch (err) {
                 console.warn(
-                    `[DATA_PATH] Warning: "${DATA_DIR}" is not writable (${err.message}). Falling back to default data directory.`
+                    `[DATA_PATH] Warning: "${DATA_DIR}" cannot be created or is not writable (${err.message}). Falling back to default data directory.`
                 );
                 DATA_DIR = DEFAULT_DATA_DIR;
             }
@@ -144,6 +144,15 @@ if (configuredDataPath) {
     }
 } else {
     DATA_DIR = DEFAULT_DATA_DIR;
+}
+
+// Ensure the chosen data directory exists and is writable.
+try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.accessSync(DATA_DIR, fs.constants.W_OK);
+} catch (err) {
+    console.error(`[DATA_PATH] Fatal: data directory "${DATA_DIR}" cannot be created or is not writable: ${err.message}`);
+    process.exit(1);
 }
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
