@@ -717,7 +717,13 @@ If you are using **Hostinger's built-in Node.js app** (the Node.js feature avail
 2. Make sure `NODE_ENV` is **not** set to `development` (leave it blank or set to `production`)
 3. Click **Restart** (or **Stop → Start**) — Hostinger re-runs `npm install` on restart, which triggers the build
 
-> ⏳ The first restart after a fresh deployment will take **2–4 extra minutes** because it builds the React app. Subsequent restarts that still have the `client/build` directory present are instant (the build step is skipped). Note: if Hostinger ever wipes the build directory (e.g., a full re-deploy from Git), the build will run again on the next restart.
+> ⏳ **Build timing:** The postinstall script uses the git commit hash to decide whether a rebuild is needed.
+> - **First restart / fresh deploy**: always builds (2–4 extra minutes).
+> - **Restart after a code push** (new git commit): always rebuilds (2–4 minutes).
+> - **Restart with no code changes** (same git commit): skips the build — fast restart.
+> - **Git not available** (e.g., files uploaded via FTP): always rebuilds to be safe.
+>
+> To force-skip the build entirely, set the environment variable `SKIP_CLIENT_BUILD=1` in hPanel before restarting.
 
 **Manual fix:** If you prefer to skip the automatic build, SSH into your server (or use Hostinger's Terminal) and run:
 ```bash
