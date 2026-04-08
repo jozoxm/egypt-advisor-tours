@@ -260,12 +260,44 @@ const SEED_MAP = [
 ];
 
 function seedDataFiles() {
-    try {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-    } catch (e) {
-        console.warn('Could not create data directory on startup:', e.message);
+    // If the configured DATA_DIR is not writable (e.g. DATA_PATH points to a
+    // directory the process cannot create on this host), fall back to the
+    // default server/data directory and then /tmp so that seeding — and all
+    // subsequent reads/writes — still work correctly.
+    const tmpFallback = '/tmp/egypt-advisor-data';
+    // Deduplicate while preserving preference order: configured → default → /tmp.
+    const candidateDirs = [...new Set([DATA_DIR, DEFAULT_DATA_DIR, tmpFallback])];
+
+    let workingDir = null;
+    for (const candidate of candidateDirs) {
+        try {
+            fs.mkdirSync(candidate, { recursive: true });
+            workingDir = candidate;
+            break;
+        } catch (e) {
+            console.warn(`[seedDataFiles] Cannot create "${candidate}": ${e.message}`);
+        }
+    }
+
+    if (!workingDir) {
+        console.warn('[seedDataFiles] No writable data directory found; data seeding skipped.');
         return;
     }
+
+    // If we had to use a fallback, update the module-level DATA_DIR and
+    // JSON_FILES so that all subsequent reads and writes in this process
+    // (writeData, readData, etc.) transparently use the working location.
+    // This intentional mutation is the simplest way to keep the rest of the
+    // server code path-agnostic; DATA_DIR is a module-level `let` precisely
+    // to allow this late resolution.
+    if (workingDir !== DATA_DIR) {
+        console.warn(`[seedDataFiles] Configured DATA_PATH "${DATA_DIR}" is not writable; using "${workingDir}" instead.`);
+        DATA_DIR = workingDir;
+        for (const key of Object.keys(JSON_FILES)) {
+            JSON_FILES[key] = path.join(DATA_DIR, path.basename(JSON_FILES[key]));
+        }
+    }
+
     for (const { key, regex, wrapFn } of SEED_MAP) {
         if (fs.existsSync(JSON_FILES[key])) continue; // already present — skip
         const jsFile = JS_FILES[key];
@@ -284,8 +316,9 @@ function seedDataFiles() {
 }
 
 // Run once at startup — no-ops if files already exist.
-console.log(`Data directory: ${DATA_DIR}`);
+// NOTE: seedDataFiles() may update DATA_DIR if the configured path is not writable.
 seedDataFiles();
+console.log(`Data directory: ${DATA_DIR}`);
 
 app.get('/api', (req, res) => {
     res.json({
