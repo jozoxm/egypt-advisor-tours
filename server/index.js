@@ -327,8 +327,12 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
         const tours = sanitize(req.body.tours);
         const testimonials = sanitize(req.body.testimonials || []);
         store.tours = { tours, testimonials };
-        writeData('tours', { tours, testimonials });
-        res.json({ success: true, message: 'Tours saved successfully' });
+        const persisted = writeData('tours', { tours, testimonials });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Tours saved successfully' : 'Tours saved in memory but failed to persist'
+        });
     } catch (error) {
         console.error('Error saving tours:', error);
         res.status(500).json({ error: 'Failed to save tours data' });
