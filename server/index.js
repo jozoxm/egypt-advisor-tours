@@ -109,28 +109,63 @@ const configuredDataPath = process.env.DATA_PATH;
 
 let DATA_DIR;
 if (configuredDataPath) {
+    let dataPathValid = true;
+
     if (!path.isAbsolute(configuredDataPath)) {
-        throw new Error(
-            `Invalid DATA_PATH "${configuredDataPath}": it must be an absolute path outside the project root.`
+        console.warn(
+            `[WARN] DATA_PATH "${configuredDataPath}" is not an absolute path. ` +
+            `Falling back to default data directory. ` +
+            `Set DATA_PATH to an absolute path outside the project root (e.g. /home/u123456789/admin_data).`
         );
+        dataPathValid = false;
+    } else {
+        const resolvedDataPath = path.resolve(configuredDataPath);
+        const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
+        const isInsideProjectRoot =
+            relativeToProjectRoot === '' ||
+            (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
+
+        if (isInsideProjectRoot) {
+            console.warn(
+                `[WARN] DATA_PATH "${configuredDataPath}" points inside the project root (${PROJECT_ROOT}). ` +
+                `Falling back to default data directory. ` +
+                `Set DATA_PATH to an absolute path OUTSIDE the project root so data survives re-deployments.`
+            );
+            dataPathValid = false;
+        } else {
+            DATA_DIR = resolvedDataPath;
+        }
     }
 
-    const resolvedDataPath = path.resolve(configuredDataPath);
-    const relativeToProjectRoot = path.relative(PROJECT_ROOT, resolvedDataPath);
-    const isInsideProjectRoot =
-        relativeToProjectRoot === '' ||
-        (!relativeToProjectRoot.startsWith('..') && !path.isAbsolute(relativeToProjectRoot));
-
-    if (isInsideProjectRoot) {
-        throw new Error(
-            `Invalid DATA_PATH "${configuredDataPath}": it must point outside the project root (${PROJECT_ROOT}).`
-        );
+    if (!dataPathValid) {
+        DATA_DIR = path.join(__dirname, 'data');
     }
-
-    DATA_DIR = resolvedDataPath;
 } else {
     DATA_DIR = path.join(__dirname, 'data');
 }
+
+// Verify the chosen DATA_DIR is actually writable before committing to it.
+// If not (e.g. Hostinger EACCES when DATA_PATH points to a directory that
+// doesn't exist yet or isn't owned by the Node process), fall back to the
+// in-project server/data/ directory and log a clear warning.
+const DEFAULT_DATA_DIR = path.join(__dirname, 'data');
+if (DATA_DIR !== DEFAULT_DATA_DIR) {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        // Quick write-permission test
+        const testFile = path.join(DATA_DIR, '.write-test');
+        fs.writeFileSync(testFile, '');
+        fs.unlinkSync(testFile);
+    } catch (e) {
+        console.warn(
+            `[WARN] DATA_PATH directory "${DATA_DIR}" is not writable (${e.message}). ` +
+            `Falling back to default data directory (${DEFAULT_DATA_DIR}). ` +
+            `To use a custom path on Hostinger, create the directory first via SSH: mkdir -p ${DATA_DIR}`
+        );
+        DATA_DIR = DEFAULT_DATA_DIR;
+    }
+}
+
 const JSON_FILES = {
     tours:     path.join(DATA_DIR, 'tours.json'),
     contact:   path.join(DATA_DIR, 'contact.json'),
@@ -215,7 +250,7 @@ function seedDataFiles() {
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
     } catch (e) {
-        console.warn('Could not create data directory on startup:', e.message);
+        console.error('Could not create data directory on startup:', e.message, '— data seeding skipped.');
         return;
     }
     for (const { key, regex, wrapFn } of SEED_MAP) {
