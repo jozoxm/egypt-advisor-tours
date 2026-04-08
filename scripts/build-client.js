@@ -2,14 +2,18 @@
  * build-client.js
  *
  * Runs automatically after `npm install` (via the "postinstall" hook in the
- * root package.json) when NODE_ENV is "production".  This covers hosting
- * providers like Hostinger that run `npm install` on deployment but do NOT
- * run a separate build command — without this the React frontend would be
- * missing (gitignored client/build is absent from a fresh clone) and every
- * page request would return 404.
+ * root package.json).  This covers hosting providers like Hostinger that run
+ * `npm install` on each deployment but do NOT run a separate build command —
+ * without this the React frontend would be missing (gitignored client/build is
+ * absent from a fresh clone) and every page request would return 404.
  *
- * The script is skipped in development/CI environments unless the caller
- * explicitly sets BUILD_CLIENT=1, so local `npm install` stays fast.
+ * The script always rebuilds the client so that incremental git-pull
+ * deployments (where client/build may already exist from a previous deploy)
+ * always serve up-to-date code.
+ *
+ * Set SKIP_CLIENT_BUILD=1 to bypass the build entirely (useful in CI
+ * pipelines that handle the build separately).
+ * Set NODE_ENV=development to skip (local development).
  */
 
 'use strict';
@@ -32,12 +36,7 @@ if (isDevelopment || skipBuild) {
     process.exit(0);
 }
 
-if (fs.existsSync(buildPath)) {
-    // Build already present — nothing to do.
-    process.exit(0);
-}
-
-console.log('[postinstall] React build not found. Building client for production...');
+console.log('[postinstall] Building React client for production...');
 
 try {
     execSync('npm install --prefix client --silent', { stdio: 'inherit', cwd: ROOT });
