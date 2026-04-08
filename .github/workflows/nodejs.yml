@@ -22,11 +22,11 @@ jobs:
 
       # Install root (server) dependencies
       - name: Install root dependencies
-        run: npm install
+        run: npm ci
 
       # Install client dependencies separately so the build script can run
       - name: Install client dependencies
-        run: npm install --prefix client
+        run: npm ci --prefix client
 
       # Build the React front-end
       - name: Build React client
