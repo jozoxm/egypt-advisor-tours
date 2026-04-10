@@ -2,13 +2,14 @@
 
 ## 🟢 Ready to Go Live?
 
-**Deploy to Vercel (easiest, free):**
+**Live site:** [https://egyptadvisortours.com](https://egyptadvisortours.com)
 
-👉 **[GO-LIVE-GUIDE.md](docs/GO-LIVE-GUIDE.md)** — Step-by-step: update contact info, set up EmailJS, deploy to Vercel, test everything.
+**Auto-deploy to Hostinger** is configured via GitHub Actions (`.github/workflows/deploy-hostinger.yml`).
+Every push to `main` automatically pulls the latest code to the Hostinger server, rebuilds the React client if needed, and restarts the Node.js app.
 
-**Deploy to Hostinger hosting:**
+> **One-time setup required:** See the comment block at the top of `.github/workflows/deploy-hostinger.yml` for the full checklist — SSH key creation, GitHub Secrets to add, and hPanel Node.js app setup.
 
-👉 **[HOSTINGER-DEPLOYMENT.md](docs/HOSTINGER-DEPLOYMENT.md)** — Step-by-step beginner guide for Hostinger Shared Hosting and VPS, including live preview instructions.
+👉 **[HOSTINGER-DEPLOYMENT.md](docs/HOSTINGER-DEPLOYMENT.md)** — Full step-by-step guide for Hostinger Shared Hosting and VPS, including manual upload instructions.
 
 ---
 

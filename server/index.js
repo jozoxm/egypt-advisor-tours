@@ -580,12 +580,14 @@ app.use('/api', (req, res) => {
 // Serve the React static build when it exists (i.e. after running npm run build).
 // This catch-all is intentionally placed after all API routes so it only
 // matches non-API paths.  On Vercel, static files are served by the CDN from
-// the outputDirectory — the Lambda bundle does not contain client/build — so
+// the outputDirectory — the Lambda bundle does not contain build/ — so
 // this block is intentionally skipped there.
-const buildPath = path.join(__dirname, '../client/build');
+// The React client is configured with BUILD_PATH=../build (client/.env) so CRA
+// outputs to the project root's build/ directory where Hostinger can find it.
+const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
-    app.get(/.*/, (req, res) => {
+    app.get('*', (req, res) => {
         res.sendFile(path.join(buildPath, 'index.html'));
     });
 }
