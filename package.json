@@ -12,7 +12,7 @@
     "start": "node index.js",
     "start:client": "npm start --prefix client",
     "start:server": "npm start --prefix server",
-    "build": "npm install --prefix client && npm run build --prefix client",
+    "build": "node scripts/build-client.js",
     "test": "npm test --prefix client",
     "dev:client": "npm start --prefix client",
     "dev:server": "npm run dev --prefix server"
@@ -28,6 +28,7 @@
   },
   "author": "jozoxm",
   "license": "ISC",
+  "homepage": "https://egyptadvisortours.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/jozoxm/egypt-advisor-tours.git"
