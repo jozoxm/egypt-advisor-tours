@@ -571,6 +571,12 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     }
 });
 
+// Return a JSON 404 for any unmatched /api/* routes so they are never
+// swallowed by the SPA catch-all below.
+app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'API route not found' });
+});
+
 // Serve the React static build when it exists (i.e. after running npm run build).
 // This catch-all is intentionally placed after all API routes so it only
 // matches non-API paths.  On Vercel, static files are served by the CDN from

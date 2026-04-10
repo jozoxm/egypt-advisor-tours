@@ -4,11 +4,11 @@
 
 **Deploy to Vercel (easiest, free):**
 
-👉 **[GO-LIVE-GUIDE.md](GO-LIVE-GUIDE.md)** — Step-by-step: update contact info, set up EmailJS, deploy to Vercel, test everything.
+👉 **[GO-LIVE-GUIDE.md](docs/GO-LIVE-GUIDE.md)** — Step-by-step: update contact info, set up EmailJS, deploy to Vercel, test everything.
 
 **Deploy to Hostinger hosting:**
 
-👉 **[HOSTINGER-DEPLOYMENT.md](HOSTINGER-DEPLOYMENT.md)** — Step-by-step beginner guide for Hostinger Shared Hosting and VPS, including live preview instructions.
+👉 **[HOSTINGER-DEPLOYMENT.md](docs/HOSTINGER-DEPLOYMENT.md)** — Step-by-step beginner guide for Hostinger Shared Hosting and VPS, including live preview instructions.
 
 ---
 
