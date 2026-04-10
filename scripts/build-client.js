@@ -25,7 +25,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const buildPath = path.join(ROOT, 'client', 'build');
+const buildPath = path.join(ROOT, 'build');
 
 // Skip only when explicitly in development mode or when opted out.
 // This covers the common case where the hosting provider (e.g. Hostinger hPanel)
