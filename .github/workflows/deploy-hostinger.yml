@@ -1,0 +1,117 @@
+# ============================================================
+# Auto-deploy to Hostinger on every push to main
+# ============================================================
+#
+# SETUP CHECKLIST (one-time, done by the repo owner):
+#
+#  1. In Hostinger hPanel, set up a Node.js application:
+#       hPanel → Websites → egyptadvisortours.com → Node.js
+#       • Node.js version : 18 (LTS) or higher
+#       • Application root : the folder where this repo is deployed, e.g.
+#                            /home/u123456789/egyptadvisortours.com
+#       • Startup file     : index.js
+#       • Click "Create" / "Save"
+#
+#  2. Enable SSH access for your Hostinger account:
+#       hPanel → Advanced → SSH Access → Enable
+#       Note your SSH hostname (e.g. server123.web-hosting.com), username,
+#       and port (usually 65002 on Hostinger shared/business plans).
+#
+#  3. Generate a dedicated SSH key-pair on your local machine:
+#       ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/hostinger_deploy
+#     Add the PUBLIC key (~/.ssh/hostinger_deploy.pub) to Hostinger:
+#       hPanel → Advanced → SSH Access → Manage SSH Keys → Add SSH Key
+#     Copy the PRIVATE key (~/.ssh/hostinger_deploy) content for step 4.
+#
+#  4. Add the following GitHub Secrets to this repository:
+#       GitHub → Settings → Secrets and variables → Actions → New repository secret
+#
+#       Secret name                    Example value
+#       ──────────────────────────────────────────────────────────────────────
+#       HOSTINGER_SSH_HOST             server123.web-hosting.com
+#       HOSTINGER_SSH_PORT             65002          (check hPanel SSH page)
+#       HOSTINGER_SSH_USER             u123456789     (your Hostinger username)
+#       HOSTINGER_SSH_KEY              -----BEGIN OPENSSH PRIVATE KEY----- ...
+#       HOSTINGER_APP_DIR              /home/u123456789/egyptadvisortours.com
+#       HOSTINGER_SSH_KNOWN_HOSTS      output of: ssh-keyscan -p <PORT> <HOST>
+#                                      Run once locally and paste the output as
+#                                      the secret value to pin the server key.
+#       ADMIN_SECRET                   a-long-random-string (protects /api writes)
+#       REACT_APP_ADMIN_SECRET         same-long-random-string (must match above)
+#
+#       Optional — only needed if you use EmailJS:
+#       REACT_APP_EMAILJS_SERVICE_ID
+#       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
+#       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
+#       REACT_APP_EMAILJS_PUBLIC_KEY
+#
+#  5. On the first deploy, Hostinger must already have the repo cloned:
+#       SSH into your server and run once:
+#         git clone https://github.com/jozoxm/egypt-advisor-tours.git \
+#                   /home/u123456789/egyptadvisortours.com
+#       (replace the path with your HOSTINGER_APP_DIR value)
+#
+# After completing steps 1–5, every push to `main` will automatically
+# deploy the latest code to https://egyptadvisortours.com.
+# ============================================================
+
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
+
+jobs:
+  deploy:
+    name: SSH deploy → Hostinger
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Check out code (needed only to verify the workflow itself) ──
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Add pinned Hostinger SSH host key to known_hosts ───────────
+      - name: Add Hostinger to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      # ── 3. Write the private key ──────────────────────────────────────
+      - name: Install SSH private key
+        run: |
+          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
+          chmod 600 ~/.ssh/hostinger_deploy
+
+      # ── 4. Deploy: pull latest code and restart the app ──────────────
+      #    The postinstall hook (scripts/build-client.js) auto-builds the
+      #    React frontend only when the git hash has changed, so this is
+      #    safe to run on every push.
+      - name: Pull & restart on Hostinger
+        run: |
+          ssh -i ~/.ssh/hostinger_deploy \
+              -p "${{ secrets.HOSTINGER_SSH_PORT }}" \
+              "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}" \
+              "set -e
+               cd '${{ secrets.HOSTINGER_APP_DIR }}'
+               echo '--- pulling latest code ---'
+               git pull origin main
+               echo '--- installing dependencies (triggers client build if needed) ---'
+               npm install --production=false
+               echo '--- restarting Node.js app ---'
+               # Ensure the restart marker directory exists before touching the file.
+               mkdir -p tmp
+               # The touch trick causes Passenger/PM2 to reload the app.
+               touch tmp/restart.txt
+               # If the host uses PM2 directly:
+               # pm2 restart egypt-advisor-tours 2>/dev/null || true
+               echo '--- deploy complete ---'"
+
+      # ── 5. Print deployment summary ───────────────────────────────────
+      - name: Deployment summary
+        run: |
+          echo "✅ Deployed to https://egyptadvisortours.com"
+          echo "   Remote deployment completed successfully."
