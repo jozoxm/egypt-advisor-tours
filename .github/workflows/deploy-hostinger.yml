@@ -83,7 +83,7 @@ jobs:
       # ── 3. Write the private key ──────────────────────────────────────
       - name: Install SSH private key
         run: |
-          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
+          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
 
       # ── 4. Deploy: pull latest code and restart the app ──────────────
@@ -91,12 +91,22 @@ jobs:
       #    React frontend only when the git hash has changed, so this is
       #    safe to run on every push.
       - name: Pull & restart on Hostinger
+        env:
+          DEPLOY_HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          DEPLOY_PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          DEPLOY_USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          DEPLOY_DIR: ${{ secrets.HOSTINGER_APP_DIR }}
         run: |
+          # Strip any accidental whitespace/newlines from secret values to prevent
+          # "hostname contains invalid characters" errors from SSH.
+          DEPLOY_HOST=$(printf '%s' "$DEPLOY_HOST" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "$DEPLOY_USER" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "$DEPLOY_PORT" | tr -d '[:space:]')
           ssh -i ~/.ssh/hostinger_deploy \
-              -p "${{ secrets.HOSTINGER_SSH_PORT }}" \
-              "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}" \
+              -p "$DEPLOY_PORT" \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
-               cd '${{ secrets.HOSTINGER_APP_DIR }}'
+               cd '$DEPLOY_DIR'
                echo '--- pulling latest code ---'
                git pull origin main
                echo '--- installing dependencies (triggers client build if needed) ---'
