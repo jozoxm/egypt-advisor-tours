@@ -26,15 +26,18 @@
 #  4. Add the following GitHub Secrets to this repository:
 #       GitHub → Settings → Secrets and variables → Actions → New repository secret
 #
-#       Secret name               Example value
-#       ─────────────────────────────────────────────────────────────────
-#       HOSTINGER_SSH_HOST        server123.web-hosting.com
-#       HOSTINGER_SSH_PORT        65002          (check hPanel SSH page)
-#       HOSTINGER_SSH_USER        u123456789     (your Hostinger username)
-#       HOSTINGER_SSH_KEY         -----BEGIN OPENSSH PRIVATE KEY----- ...
-#       HOSTINGER_APP_DIR         /home/u123456789/egyptadvisortours.com
-#       ADMIN_SECRET              a-long-random-string (protects /api writes)
-#       REACT_APP_ADMIN_SECRET    same-long-random-string (must match above)
+#       Secret name                    Example value
+#       ──────────────────────────────────────────────────────────────────────
+#       HOSTINGER_SSH_HOST             server123.web-hosting.com
+#       HOSTINGER_SSH_PORT             65002          (check hPanel SSH page)
+#       HOSTINGER_SSH_USER             u123456789     (your Hostinger username)
+#       HOSTINGER_SSH_KEY              -----BEGIN OPENSSH PRIVATE KEY----- ...
+#       HOSTINGER_APP_DIR              /home/u123456789/egyptadvisortours.com
+#       HOSTINGER_SSH_KNOWN_HOSTS      output of: ssh-keyscan -p <PORT> <HOST>
+#                                      Run once locally and paste the output as
+#                                      the secret value to pin the server key.
+#       ADMIN_SECRET                   a-long-random-string (protects /api writes)
+#       REACT_APP_ADMIN_SECRET         same-long-random-string (must match above)
 #
 #       Optional — only needed if you use EmailJS:
 #       REACT_APP_EMAILJS_SERVICE_ID
@@ -70,12 +73,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Add Hostinger SSH host key to known_hosts ──────────────────
+      # ── 2. Add pinned Hostinger SSH host key to known_hosts ───────────
       - name: Add Hostinger to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -p "${{ secrets.HOSTINGER_SSH_PORT }}" \
-            "${{ secrets.HOSTINGER_SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       # ── 3. Write the private key ──────────────────────────────────────
       - name: Install SSH private key
@@ -99,9 +102,10 @@ jobs:
                echo '--- installing dependencies (triggers client build if needed) ---'
                npm install --production=false
                echo '--- restarting Node.js app ---'
-               # Hostinger Node.js apps are managed by the hPanel process manager.
+               # Ensure the restart marker directory exists before touching the file.
+               mkdir -p tmp
                # The touch trick causes Passenger/PM2 to reload the app.
-               touch tmp/restart.txt 2>/dev/null || true
+               touch tmp/restart.txt
                # If the host uses PM2 directly:
                # pm2 restart egypt-advisor-tours 2>/dev/null || true
                echo '--- deploy complete ---'"
@@ -110,5 +114,4 @@ jobs:
       - name: Deployment summary
         run: |
           echo "✅ Deployed to https://egyptadvisortours.com"
-          echo "   Host : ${{ secrets.HOSTINGER_SSH_HOST }}"
-          echo "   Dir  : ${{ secrets.HOSTINGER_APP_DIR }}"
+          echo "   Remote deployment completed successfully."
