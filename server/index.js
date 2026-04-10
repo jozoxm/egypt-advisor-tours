@@ -579,7 +579,7 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
 const buildPath = path.join(__dirname, '../client/build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
-    app.get('*', (req, res) => {
+    app.get(/.*/, (req, res) => {
         res.sendFile(path.join(buildPath, 'index.html'));
     });
 }
