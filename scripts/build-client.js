@@ -4,11 +4,11 @@
  * Runs automatically after `npm install` (via the "postinstall" hook in the
  * root package.json).  This covers hosting providers like Hostinger that run
  * `npm install` on each deployment but do NOT run a separate build command —
- * without this the React frontend would be missing (gitignored client/build is
+ * without this the React frontend would be missing (gitignored build/ directory is
  * absent from a fresh clone) and every page request would return 404.
  *
  * Smart rebuild logic (git-hash-based):
- *   - Always builds on the first deployment (no client/build directory).
+ *   - Always builds on the first deployment (no build/ directory).
  *   - Rebuilds after a code change (git HEAD has moved since the last build).
  *   - Skips the build when nothing has changed (fast Hostinger restarts).
  *   - Falls back to always rebuilding when git is unavailable.
@@ -25,7 +25,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const buildPath = path.join(ROOT, 'client', 'build');
+const buildPath = path.join(ROOT, 'build');
 
 // Skip only when explicitly in development mode or when opted out.
 // This covers the common case where the hosting provider (e.g. Hostinger hPanel)
@@ -69,7 +69,11 @@ console.log('[postinstall] Building React client for production...');
 
 try {
     execSync('npm install --prefix client --silent', { stdio: 'inherit', cwd: ROOT });
-    execSync('npm run build --prefix client', { stdio: 'inherit', cwd: ROOT });
+    execSync('npm run build --prefix client', {
+        stdio: 'inherit',
+        cwd: ROOT,
+        env: { ...process.env, BUILD_PATH: buildPath },
+    });
     // Persist the git hash so subsequent restarts with the same code skip the build.
     if (currentHash) {
         try {
