@@ -45,6 +45,13 @@
 #       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
 #       REACT_APP_EMAILJS_PUBLIC_KEY
 #
+#       Optional — persistent data directory (strongly recommended for Hostinger):
+#       DATA_PATH   absolute path OUTSIDE the project folder, e.g.
+#                   /home/u123456789/admin_data
+#                   Set this in hPanel → Node.js → Environment Variables so
+#                   that admin-saved content (tours, blogs, gallery, etc.)
+#                   survives git pull / re-deployments.
+#
 #  5. On the first deploy, Hostinger must already have the repo cloned:
 #       SSH into your server and run once:
 #         git clone https://github.com/jozoxm/egypt-advisor-tours.git \
@@ -63,12 +70,41 @@ on:
       - main
   workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
 
+env:
+  # Opt in to Node.js 24 now; avoids deprecation warnings from actions/checkout
+  # that will become hard errors when GitHub removes Node.js 20 support.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   deploy:
     name: SSH deploy → Hostinger
     runs-on: ubuntu-latest
 
     steps:
+      # ── 0. Validate required secrets ─────────────────────────────────────
+      #    Fail fast with a helpful message before spending time on SSH steps.
+      - name: Validate required secrets
+        env:
+          _HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          _USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          _PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          _KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
+          _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+        run: |
+          missing=()
+          [ -z "$_HOST" ]        && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ]        && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ]        && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ]         && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ]         && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required GitHub Secrets: ${missing[*]}"
+            echo "Add them at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
       # ── 1. Check out code (needed only to verify the workflow itself) ──
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -86,10 +122,46 @@ jobs:
           printf '%s' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
 
-      # ── 4. Deploy: pull latest code and restart the app ──────────────
+      # ── 4a. Write client build-time env vars to the server ───────────
+      #    REACT_APP_* variables are embedded into the React bundle at build
+      #    time (triggered by scripts/build-client.js via the postinstall hook).
+      #    Because the SSH session on Hostinger does not inherit hPanel env vars,
+      #    we pipe them into a gitignored client/.env.production.local file that
+      #    Create React App reads automatically during the build.
+      #    The file is deleted in step 4b right after npm install completes.
+      - name: Write client env vars to server
+        env:
+          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
+          _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
+          _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
+          _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
+          _REACT_APP_EMAILJS_PUBLIC_KEY: ${{ secrets.REACT_APP_EMAILJS_PUBLIC_KEY }}
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          # Pipe build-time env vars into a gitignored file on the server so
+          # `npm run build` embeds the correct values in the React bundle.
+          # .env.production.local is matched by the .env*.local gitignore rule.
+          printf '%s\n%s\n%s\n%s\n%s\n' \
+            "REACT_APP_ADMIN_SECRET=${_REACT_APP_ADMIN_SECRET}" \
+            "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
+            "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
+            "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
+            "REACT_APP_EMAILJS_PUBLIC_KEY=${_REACT_APP_EMAILJS_PUBLIC_KEY}" \
+          | ssh -i ~/.ssh/hostinger_deploy \
+                -p "$DEPLOY_PORT" \
+                "$DEPLOY_USER@$DEPLOY_HOST" \
+                "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'"
+
+      # ── 4b. Pull latest code, build, and restart the app ─────────────
       #    The postinstall hook (scripts/build-client.js) auto-builds the
       #    React frontend only when the git hash has changed, so this is
       #    safe to run on every push.
+      #    NOTE: If you change only GitHub Secrets (not code), you must also
+      #    push a code change to trigger a rebuild, or delete
+      #    build/build-hash.txt on the server to force an unconditional rebuild.
       - name: Pull & restart on Hostinger
         run: |
           # Strip any accidental whitespace/newlines from secret values to prevent
@@ -102,11 +174,14 @@ jobs:
               -p "$DEPLOY_PORT" \
               "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
+               trap 'rm -f \"$DEPLOY_DIR/client/.env.production.local\"' EXIT
                cd '$DEPLOY_DIR'
                echo '--- pulling latest code ---'
                git pull origin main
                echo '--- installing dependencies (triggers client build if needed) ---'
                npm install --production=false
+               echo '--- removing temporary build env file ---'
+               rm -f client/.env.production.local
                echo '--- restarting Node.js app ---'
                # Ensure the restart marker directory exists before touching the file.
                mkdir -p tmp
