@@ -232,7 +232,8 @@ function readData(key, jsRegex) {
     return null;
 }
 
-// Write data to the JSON file.  Returns true on success, false on failure.
+// Write data to the JSON file atomically (write to a temp file in the same
+// directory, then rename).  Returns true on success, false on failure.
 // Never throws — callers always update the in-memory store first so that
 // admin edits survive even when the filesystem is read-only (e.g. Vercel).
 function writeData(key, data) {
@@ -240,11 +241,16 @@ function writeData(key, data) {
         console.error(`[writeData] Unknown data key: "${key}". This is a programmer error.`);
         return false;
     }
+    const dest = JSON_FILES[key];
+    const tmp  = dest + '.tmp';
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+        fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+        fs.renameSync(tmp, dest);
         return true;
     } catch (e) {
+        // Best-effort cleanup of the temp file on failure.
+        try { fs.unlinkSync(tmp); } catch (_) {}
         console.warn(`[writeData] Could not persist "${key}" to disk: ${e.message}. Change is in memory only.`);
         return false;
     }
@@ -315,9 +321,14 @@ function seedDataFiles() {
             const match = content.match(regex);
             if (!match) continue;
             const data = wrapFn(match, content);
-            fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+            const dest = JSON_FILES[key];
+            const tmp  = dest + '.tmp';
+            fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+            fs.renameSync(tmp, dest);
             console.log(`Seeded ${JSON_FILES[key]} from JS source.`);
         } catch (e) {
+            // Best-effort cleanup of the temp file on failure.
+            try { fs.unlinkSync(JSON_FILES[key] + '.tmp'); } catch (_) {}
             console.warn(`Could not seed "${key}" from JS source:`, e.message);
         }
     }

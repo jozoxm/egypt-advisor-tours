@@ -123,13 +123,15 @@ jobs:
           printf '%s' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
 
-      # ── 4a. Write client build-time env vars to the server ───────────
+      # ── 4a. Write client build-time env vars and server runtime env to the server ──
       #    REACT_APP_* variables are embedded into the React bundle at build
       #    time (triggered by scripts/build-client.js via the postinstall hook).
       #    Because the SSH session on Hostinger does not inherit hPanel env vars,
       #    we pipe them into a gitignored client/.env.production.local file that
       #    Create React App reads automatically during the build.
       #    The file is deleted in step 4b right after npm install completes.
+      #    ADMIN_SECRET is written to a gitignored .env file at the app root so
+      #    the Node.js server process can read it at runtime and enforce admin auth.
       #    On first deploy this step also bootstraps the repo if the app directory
       #    does not yet contain a git repository.
       #
@@ -138,6 +140,7 @@ jobs:
       #    retry loop retries up to 3 times for transient network errors.
       - name: Write client env vars to server
         env:
+          _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
@@ -221,13 +224,37 @@ jobs:
           done
           rm -f "$env_file"
 
+          # Write the server runtime .env file containing ADMIN_SECRET so that
+          # the Node.js process enforces admin authentication in production.
+          # Without this, server/index.js allows all admin requests when
+          # process.env.ADMIN_SECRET is unset (open to unauthenticated writes).
+          server_env_file=$(mktemp)
+          printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" > "$server_env_file"
+
+          for attempt in 1 2 3; do
+            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+                 "umask 077; cat > '${DEPLOY_DIR}/.env'" \
+                 < "$server_env_file"; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Server env file write attempt $attempt failed, retrying in 10s..."
+              sleep 10
+            else
+              rm -f "$server_env_file"
+              echo "::error::Failed to write server .env file after 3 attempts."
+              exit 1
+            fi
+          done
+          rm -f "$server_env_file"
+
       # ── 4b. Pull latest code, build, and restart the app ─────────────
-      #    The postinstall hook (scripts/build-client.js) auto-builds the
-      #    React frontend only when the git hash has changed, so this is
-      #    safe to run on every push.
+      #    The postinstall hook (scripts/build-client.js) runs on every
+      #    `npm install` and builds the React frontend unconditionally
+      #    (unless SKIP_CLIENT_BUILD=1 or NODE_ENV=development is set).
       #    NOTE: If you change only GitHub Secrets (not code), you must also
-      #    push a code change to trigger a rebuild, or delete
-      #    build/build-hash.txt on the server to force an unconditional rebuild.
+      #    push a code change to trigger a rebuild, or run npm install manually
+      #    on the server to pick up the new env values.
       - name: Pull & restart on Hostinger
         run: |
           # Strip any accidental whitespace/newlines from secret values to prevent
