@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import useTitle from '../../hooks/useTitle';
 
 const BASE_TITLE = 'Egypt Advisor Tours';

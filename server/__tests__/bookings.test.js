@@ -1,14 +1,5 @@
 const express = require('express');
 const request = require('supertest');
-const bookingsRouter = require('../routes/bookings');
-
-// Create a minimal Express app for testing
-const createApp = () => {
-  const app = express();
-  app.use(express.json());
-  app.use('/bookings', bookingsRouter);
-  return app;
-};
 
 describe('Bookings API routes', () => {
   let app;

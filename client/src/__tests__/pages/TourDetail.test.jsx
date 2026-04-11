@@ -7,7 +7,12 @@ import TourDetail from '../../pages/TourDetail';
 jest.mock('@emailjs/browser', () => ({ send: jest.fn() }));
 
 // Silence fetch errors from test environment
+const originalFetch = global.fetch;
 global.fetch = jest.fn(() => Promise.resolve({ ok: false }));
+
+afterAll(() => {
+  global.fetch = originalFetch;
+});
 
 const mockTour = {
   id: 42,
