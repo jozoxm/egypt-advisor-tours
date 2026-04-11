@@ -153,7 +153,7 @@ jobs:
           | ssh -i ~/.ssh/hostinger_deploy \
                 -p "$DEPLOY_PORT" \
                 "$DEPLOY_USER@$DEPLOY_HOST" \
-                "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'"
+                "umask 077; mkdir -p '${DEPLOY_DIR}/client' && cat > '${DEPLOY_DIR}/client/.env.production.local'"
 
       # ── 4b. Pull latest code, build, and restart the app ─────────────
       #    The postinstall hook (scripts/build-client.js) auto-builds the
