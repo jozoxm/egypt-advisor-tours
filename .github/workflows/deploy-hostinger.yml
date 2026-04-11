@@ -297,6 +297,14 @@ jobs:
             ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
                trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
+               # Hostinger's SSH sessions are non-interactive and do not source
+               # .bashrc/.profile, so hPanel's Node.js (managed via nvm) is not
+               # on the PATH.  Load nvm explicitly; fall back to common system
+               # paths so the command also works on servers with a system Node.js.
+               export NVM_DIR=\"\$HOME/.nvm\"
+               [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+               # Ensure standard Node.js binary dirs are on PATH as a fallback.
+               export PATH=\"\$HOME/.nvm/versions/node/\$(ls \$HOME/.nvm/versions/node 2>/dev/null | sort -V | tail -1)/bin:/usr/local/bin:/usr/bin:\$PATH\"
                cd '$DEPLOY_DIR'
                echo '--- pulling latest code ---'
                git pull origin main
