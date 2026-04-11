@@ -88,14 +88,18 @@ jobs:
           _KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+          _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
         run: |
           missing=()
-          [ -z "$_HOST" ]        && missing+=("HOSTINGER_SSH_HOST")
-          [ -z "$_USER" ]        && missing+=("HOSTINGER_SSH_USER")
-          [ -z "$_PORT" ]        && missing+=("HOSTINGER_SSH_PORT")
-          [ -z "$_KEY" ]         && missing+=("HOSTINGER_SSH_KEY")
-          [ -z "$_DIR" ]         && missing+=("HOSTINGER_APP_DIR")
-          [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          [ -z "$_HOST" ]                 && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ]                 && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ]                 && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ]                  && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ]                  && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ]          && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          [ -z "$_ADMIN_SECRET" ]         && missing+=("ADMIN_SECRET")
+          [ -z "$_REACT_APP_ADMIN_SECRET" ] && missing+=("REACT_APP_ADMIN_SECRET")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
