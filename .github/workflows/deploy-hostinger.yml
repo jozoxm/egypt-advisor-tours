@@ -146,7 +146,7 @@ jobs:
               "if [ ! -d '${DEPLOY_DIR}/.git' ]; then
                  echo '--- first deploy: cloning repository ---'
                  mkdir -p '${DEPLOY_DIR}'
-                 git clone https://github.com/jozoxm/egypt-advisor-tours.git '${DEPLOY_DIR}'
+                 git clone https://github.com/${{ github.repository }}.git '${DEPLOY_DIR}'
                fi
                # Ensure the client subdirectory exists (it should be in the repo).
                mkdir -p '${DEPLOY_DIR}/client'"
