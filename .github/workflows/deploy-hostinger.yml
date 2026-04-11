@@ -126,8 +126,12 @@ jobs:
       #    we pipe them into a gitignored client/.env.production.local file that
       #    Create React App reads automatically during the build.
       #    The file is deleted in step 4b right after npm install completes.
-      #    On first deploy this step also clones the repo if the app directory
-      #    does not yet exist on the server.
+      #    On first deploy this step also bootstraps the repo if the app directory
+      #    does not yet contain a git repository.
+      #
+      #    SSH resilience: -4 forces IPv4 (avoids "Network is unreachable" on
+      #    runners that try IPv6 first), ConnectTimeout=10 fails fast, and the
+      #    retry loop retries up to 3 times for transient network errors.
       - name: Write client env vars to server
         env:
           _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
@@ -140,38 +144,78 @@ jobs:
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+
+          # Common SSH options used for every connection in this step.
+          # -4               : force IPv4 — avoids "Network is unreachable" when the
+          #                    runner resolves to an IPv6 address that Hostinger
+          #                    does not support.
+          # ConnectTimeout=10: give up quickly so retries kick in sooner.
+          # BatchMode=yes    : never prompt for a password (fail immediately).
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
+
+          # Helper: run a remote SSH command with up to 3 attempts.
+          ssh_retry() {
+            local attempt exit_code
+            for attempt in 1 2 3; do
+              ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "$1"
+              exit_code=$?
+              [ "$exit_code" -eq 0 ] && return 0
+              if [ "$attempt" -lt 3 ]; then
+                echo "SSH attempt $attempt failed (exit $exit_code), retrying in 10s..."
+                sleep 10
+              fi
+            done
+            echo "::error::SSH command failed after 3 attempts (exit $exit_code)."
+            return 1
+          }
+
           # On first deploy: bootstrap the repo in-place if .git is missing.
           # Using git init + fetch + reset works even if the directory already
           # exists and is non-empty (common on managed Hostinger hosts where
           # the application root is pre-created by hPanel).
-          ssh -i ~/.ssh/hostinger_deploy \
-              -p "$DEPLOY_PORT" \
-              "$DEPLOY_USER@$DEPLOY_HOST" \
-              "set -e
-               if [ ! -d '${DEPLOY_DIR}/.git' ]; then
-                 echo '--- first deploy: bootstrapping repository ---'
-                 mkdir -p '${DEPLOY_DIR}'
-                 cd '${DEPLOY_DIR}'
-                 git init
-                 git remote add origin https://github.com/${{ github.repository }}.git
-                 git fetch origin main
-                 git reset --hard FETCH_HEAD
-               fi
-               # Ensure the client subdirectory exists (it should be in the repo).
-               mkdir -p '${DEPLOY_DIR}/client'"
-          # Pipe build-time env vars into a gitignored file on the server so
+          ssh_retry "set -e
+            if [ ! -d '${DEPLOY_DIR}/.git' ]; then
+              echo '--- first deploy: bootstrapping repository ---'
+              mkdir -p '${DEPLOY_DIR}'
+              cd '${DEPLOY_DIR}'
+              git init
+              git remote add origin https://github.com/${{ github.repository }}.git
+              git fetch origin main
+              git reset --hard FETCH_HEAD
+            fi
+            # Ensure the client subdirectory exists (it should be in the repo).
+            mkdir -p '${DEPLOY_DIR}/client'"
+
+          # Write build-time env vars to a gitignored file on the server so
           # `npm run build` embeds the correct values in the React bundle.
           # .env.production.local is matched by the .env*.local gitignore rule.
+          # Save content to a secure temp file first so the retry loop can
+          # re-read it on each attempt (stdin pipe would be consumed after first try).
+          env_file=$(mktemp)
           printf '%s\n%s\n%s\n%s\n%s\n' \
             "REACT_APP_ADMIN_SECRET=${_REACT_APP_ADMIN_SECRET}" \
             "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
             "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_PUBLIC_KEY=${_REACT_APP_EMAILJS_PUBLIC_KEY}" \
-          | ssh -i ~/.ssh/hostinger_deploy \
-                -p "$DEPLOY_PORT" \
-                "$DEPLOY_USER@$DEPLOY_HOST" \
-                "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'"
+            > "$env_file"
+
+          for attempt in 1 2 3; do
+            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+                 "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'" \
+                 < "$env_file"; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Env file write attempt $attempt failed, retrying in 10s..."
+              sleep 10
+            else
+              rm -f "$env_file"
+              echo "::error::Failed to write env file to server after 3 attempts."
+              exit 1
+            fi
+          done
+          rm -f "$env_file"
 
       # ── 4b. Pull latest code, build, and restart the app ─────────────
       #    The postinstall hook (scripts/build-client.js) auto-builds the
@@ -188,9 +232,11 @@ jobs:
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
-          ssh -i ~/.ssh/hostinger_deploy \
-              -p "$DEPLOY_PORT" \
-              "$DEPLOY_USER@$DEPLOY_HOST" \
+
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
+
+          for attempt in 1 2 3; do
+            ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
                trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
                cd '$DEPLOY_DIR'
@@ -207,7 +253,15 @@ jobs:
                touch tmp/restart.txt
                # If the host uses PM2 directly:
                # pm2 restart egypt-advisor-tours 2>/dev/null || true
-               echo '--- deploy complete ---'"
+               echo '--- deploy complete ---'" && break
+            if [ "$attempt" -lt 3 ]; then
+              echo "Pull & restart attempt $attempt failed, retrying in 10s..."
+              sleep 10
+            else
+              echo "::error::Pull & restart failed after 3 attempts."
+              exit 1
+            fi
+          done
 
       # ── 5. Print deployment summary ───────────────────────────────────
       - name: Deployment summary
