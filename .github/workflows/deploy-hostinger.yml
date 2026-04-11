@@ -70,12 +70,41 @@ on:
       - main
   workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
 
+env:
+  # Opt in to Node.js 24 now; avoids deprecation warnings from actions/checkout
+  # that will become hard errors when GitHub removes Node.js 20 support.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   deploy:
     name: SSH deploy → Hostinger
     runs-on: ubuntu-latest
 
     steps:
+      # ── 0. Validate required secrets ─────────────────────────────────────
+      #    Fail fast with a helpful message before spending time on SSH steps.
+      - name: Validate required secrets
+        env:
+          _HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          _USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          _PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          _KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
+          _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+        run: |
+          missing=()
+          [ -z "$_HOST" ]        && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ]        && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ]        && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ]         && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ]         && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required GitHub Secrets: ${missing[*]}"
+            echo "Add them at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
       # ── 1. Check out code (needed only to verify the workflow itself) ──
       - name: Checkout repository
         uses: actions/checkout@v4
