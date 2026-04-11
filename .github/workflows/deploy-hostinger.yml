@@ -45,14 +45,15 @@
 #       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
 #       REACT_APP_EMAILJS_PUBLIC_KEY
 #
-#  5. On the first deploy, Hostinger must already have the repo cloned:
-#       SSH into your server and run once:
-#         git clone https://github.com/jozoxm/egypt-advisor-tours.git \
-#                   /home/u123456789/egyptadvisortours.com
-#       (replace the path with your HOSTINGER_APP_DIR value)
+#  5. No manual repository clone is required on first deploy.
+#     The workflow will bootstrap HOSTINGER_APP_DIR automatically and clone
+#     the repository there if it does not already exist.
+#     Make sure HOSTINGER_APP_DIR points to the folder you configured as the
+#     Node.js application root in hPanel.
 #
-# After completing steps 1–5, every push to `main` will automatically
-# deploy the latest code to https://egyptadvisortours.com.
+# After completing steps 1–5, the first push to `main` will bootstrap the
+# app if needed, and later pushes will automatically deploy updates to
+# https://egyptadvisortours.com.
 # ============================================================
 
 name: Deploy to Hostinger
@@ -139,14 +140,22 @@ jobs:
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
-          # On first deploy: clone the repo if the app directory doesn't exist yet.
+          # On first deploy: bootstrap the repo in-place if .git is missing.
+          # Using git init + fetch + reset works even if the directory already
+          # exists and is non-empty (common on managed Hostinger hosts where
+          # the application root is pre-created by hPanel).
           ssh -i ~/.ssh/hostinger_deploy \
               -p "$DEPLOY_PORT" \
               "$DEPLOY_USER@$DEPLOY_HOST" \
-              "if [ ! -d '${DEPLOY_DIR}/.git' ]; then
-                 echo '--- first deploy: cloning repository ---'
+              "set -e
+               if [ ! -d '${DEPLOY_DIR}/.git' ]; then
+                 echo '--- first deploy: bootstrapping repository ---'
                  mkdir -p '${DEPLOY_DIR}'
-                 git clone https://github.com/${{ github.repository }}.git '${DEPLOY_DIR}'
+                 cd '${DEPLOY_DIR}'
+                 git init
+                 git remote add origin https://github.com/${{ github.repository }}.git
+                 git fetch origin main
+                 git reset --hard FETCH_HEAD
                fi
                # Ensure the client subdirectory exists (it should be in the repo).
                mkdir -p '${DEPLOY_DIR}/client'"
@@ -183,7 +192,7 @@ jobs:
               -p "$DEPLOY_PORT" \
               "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
-               trap 'rm -f \"$DEPLOY_DIR/client/.env.production.local\"' EXIT
+               trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
                cd '$DEPLOY_DIR'
                echo '--- pulling latest code ---'
                git pull origin main
