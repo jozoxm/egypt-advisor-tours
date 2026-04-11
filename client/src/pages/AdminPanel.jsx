@@ -56,7 +56,7 @@ const AdminPanel = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Debounce timer for contact info auto-save
+  // Debounce timer ref for contact info auto-save
   const contactSaveTimer = useRef(null);
 
   // Helper function to show messages
@@ -179,6 +179,12 @@ const AdminPanel = () => {
     loadData();
   }, [loadData]);
 
+  // Clear the contact debounce timer on unmount to prevent state updates
+  // being called on an already-unmounted component.
+  useEffect(() => {
+    return () => clearTimeout(contactSaveTimer.current);
+  }, []);
+
   // Handle tour editing
   const startEditTour = (tour) => {
     const tourToEdit = { ...tour };
@@ -245,12 +251,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Tours saved successfully!', 'success');
-        }
+        showSaveMessage('✓ Tours saved successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save tours to server', 'error');
@@ -379,12 +380,11 @@ const AdminPanel = () => {
     }
     setContactInfo(updatedContactInfo);
     
-    // Debounced auto-save — waits 800 ms after the last keystroke before
-    // sending, so rapid typing doesn't flood the server with requests.
-    if (contactSaveTimer.current) clearTimeout(contactSaveTimer.current);
+    // Debounce auto-save contact info (1 second after last keystroke)
+    clearTimeout(contactSaveTimer.current);
     contactSaveTimer.current = setTimeout(() => {
       saveContactInfoToServer(updatedContactInfo);
-    }, 800);
+    }, 1000);
   };
 
   const saveContactInfoToServer = async (contactData) => {
@@ -397,12 +397,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Contact info saved successfully!', 'success');
-        }
+        showSaveMessage('✓ Contact info saved successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save contact info to server', 'error');
@@ -477,12 +472,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Blog saved successfully!', 'success');
-        }
+        showSaveMessage('✓ Blog saved successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save blog to server', 'error');
@@ -555,12 +545,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Gallery saved successfully!', 'success');
-        }
+        showSaveMessage('✓ Gallery saved successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save gallery to server', 'error');
@@ -602,12 +587,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Bookings updated successfully!', 'success');
-        }
+        showSaveMessage('✓ Bookings updated successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save bookings to server', 'error');
@@ -707,12 +687,7 @@ const AdminPanel = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Slideshow saved successfully!', 'success');
-        }
+        showSaveMessage('✓ Slideshow saved successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save slideshow to server', 'error');
@@ -788,12 +763,7 @@ const AdminPanel = () => {
         body: JSON.stringify({ tours, testimonials: testimonialsData }),
       });
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Testimonials saved successfully!', 'success');
-        }
+        showSaveMessage('✓ Testimonials saved successfully!', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save testimonials to server', 'error');
@@ -829,12 +799,7 @@ const AdminPanel = () => {
         body: JSON.stringify(siteSettings),
       });
       if (response.ok) {
-        const result = await response.json();
-        if (result.persisted === false) {
-          showSaveMessage('⚠ Saved in memory only — data may be lost on server restart. Set DATA_PATH to persist data across restarts.', 'warning');
-        } else {
-          showSaveMessage('✓ Site settings saved! Refresh the website to see your changes.', 'success');
-        }
+        showSaveMessage('✓ Site settings saved! Refresh the website to see your changes.', 'success');
       } else {
         const errBody = await response.json().catch(() => ({}));
         showSaveMessage(errBody.error || 'Failed to save site settings', 'error');

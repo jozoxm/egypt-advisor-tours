@@ -67,7 +67,7 @@ try {
     console.log('[postinstall] React client built successfully.');
 } catch (err) {
     console.error('[postinstall] ERROR: React client build failed:', err.message);
-    console.error('[postinstall] The server cannot serve the frontend without a successful build.');
+    console.error('[postinstall] Failing deployment because the frontend build is required for this target.');
     process.exit(1);
 }
 

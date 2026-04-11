@@ -232,31 +232,26 @@ function readData(key, jsRegex) {
     return null;
 }
 
-// Write data to the JSON file.  Returns true on success, false on failure.
+// Write data to the JSON file atomically (write to a temp file in the same
+// directory, then rename).  Returns true on success, false on failure.
 // Never throws — callers always update the in-memory store first so that
 // admin edits survive even when the filesystem is read-only (e.g. Vercel).
-// Writes atomically via a temporary file + rename so that a crash or power
-// loss mid-write never leaves a corrupted JSON file behind.
 function writeData(key, data) {
     if (!JSON_FILES[key]) {
         console.error(`[writeData] Unknown data key: "${key}". This is a programmer error.`);
         return false;
     }
-    const filePath = JSON_FILES[key];
-    const tmpPath = filePath + '.tmp';
-    let tmpWritten = false;
+    const dest = JSON_FILES[key];
+    const tmp  = dest + '.tmp';
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
-        tmpWritten = true;
-        fs.renameSync(tmpPath, filePath);
+        fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+        fs.renameSync(tmp, dest);
         return true;
     } catch (e) {
+        // Best-effort cleanup of the temp file on failure.
+        try { fs.unlinkSync(tmp); } catch (_) {}
         console.warn(`[writeData] Could not persist "${key}" to disk: ${e.message}. Change is in memory only.`);
-        // Clean up the temp file if it was written but the rename failed.
-        if (tmpWritten) {
-            try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore */ }
-        }
         return false;
     }
 }
@@ -321,25 +316,19 @@ function seedDataFiles() {
         if (fs.existsSync(JSON_FILES[key])) continue; // already present — skip
         const jsFile = JS_FILES[key];
         if (!fs.existsSync(jsFile)) continue;
+        const dest = JSON_FILES[key];
+        const tmp  = dest + '.tmp';
         try {
             const content = fs.readFileSync(jsFile, 'utf8');
             const match = content.match(regex);
             if (!match) continue;
             const data = wrapFn(match, content);
-            const seedTmp = JSON_FILES[key] + '.tmp';
-            let seedTmpWritten = false;
-            try {
-                fs.writeFileSync(seedTmp, JSON.stringify(data, null, 2), 'utf8');
-                seedTmpWritten = true;
-                fs.renameSync(seedTmp, JSON_FILES[key]);
-            } catch (writeErr) {
-                if (seedTmpWritten) {
-                    try { fs.unlinkSync(seedTmp); } catch (_) { /* ignore */ }
-                }
-                throw writeErr;
-            }
-            console.log(`Seeded ${JSON_FILES[key]} from JS source.`);
+            fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+            fs.renameSync(tmp, dest);
+            console.log(`Seeded ${dest} from JS source.`);
         } catch (e) {
+            // Best-effort cleanup of the temp file on failure.
+            try { fs.unlinkSync(tmp); } catch (_) {}
             console.warn(`Could not seed "${key}" from JS source:`, e.message);
         }
     }
