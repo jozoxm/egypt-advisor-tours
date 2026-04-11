@@ -52,11 +52,9 @@
 #                   that admin-saved content (tours, blogs, gallery, etc.)
 #                   survives git pull / re-deployments.
 #
-#  5. On the first deploy, Hostinger must already have the repo cloned:
-#       SSH into your server and run once:
-#         git clone https://github.com/jozoxm/egypt-advisor-tours.git \
-#                   /home/u123456789/egyptadvisortours.com
-#       (replace the path with your HOSTINGER_APP_DIR value)
+#  5. The first push to main will automatically clone the repo into
+#       HOSTINGER_APP_DIR even if Hostinger has already pre-created that
+#       directory with placeholder files — no manual SSH step needed.
 #
 # After completing steps 1–5, every push to `main` will automatically
 # deploy the latest code to https://egyptadvisortours.com.
@@ -174,8 +172,21 @@ jobs:
               -p "$DEPLOY_PORT" \
               "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
-               trap 'rm -f \"$DEPLOY_DIR/client/.env.production.local\"' EXIT
-               cd '$DEPLOY_DIR'
+               trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
+               mkdir -p '${DEPLOY_DIR}'
+               # ── first-deploy bootstrap ──────────────────────────────────
+               # Hostinger pre-creates the app directory, so git clone fails.
+               # Instead, initialise git in place and fetch — works whether the
+               # directory is empty or already contains placeholder files.
+               if [ ! -d '${DEPLOY_DIR}/.git' ]; then
+                 echo '--- first deploy: initialising git repository ---'
+                 cd '${DEPLOY_DIR}'
+                 git init
+                 git remote add origin https://github.com/${{ github.repository }}.git
+                 git fetch origin main
+                 git reset --hard origin/main
+               fi
+               cd '${DEPLOY_DIR}'
                echo '--- pulling latest code ---'
                git pull origin main
                echo '--- installing dependencies (triggers client build if needed) ---'
