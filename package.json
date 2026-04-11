@@ -14,6 +14,8 @@
     "start:server": "npm start --prefix server",
     "build": "node scripts/build-client.js",
     "test": "npm test --prefix client",
+    "test:server": "npm test --prefix server",
+    "test:all": "npm test --prefix client -- --watchAll=false && npm test --prefix server",
     "dev:client": "npm start --prefix client",
     "dev:server": "npm run dev --prefix server"
   },
