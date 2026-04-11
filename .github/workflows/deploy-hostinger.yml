@@ -95,17 +95,29 @@ jobs:
           _KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
           _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+          _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
         run: |
           missing=()
-          [ -z "$_HOST" ]        && missing+=("HOSTINGER_SSH_HOST")
-          [ -z "$_USER" ]        && missing+=("HOSTINGER_SSH_USER")
-          [ -z "$_PORT" ]        && missing+=("HOSTINGER_SSH_PORT")
-          [ -z "$_KEY" ]         && missing+=("HOSTINGER_SSH_KEY")
-          [ -z "$_DIR" ]         && missing+=("HOSTINGER_APP_DIR")
-          [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          [ -z "$_HOST" ]                  && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ]                  && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ]                  && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ]                   && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ]                   && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ]           && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          # Auth secrets are required — a missing or mismatched pair would
+          # either disable admin auth entirely or cause 401s on every save.
+          [ -z "$_ADMIN_SECRET" ]          && missing+=("ADMIN_SECRET")
+          [ -z "$_REACT_APP_ADMIN_SECRET" ] && missing+=("REACT_APP_ADMIN_SECRET")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          # Validate that the two admin secrets match so the frontend and backend
+          # stay in sync.  A mismatch would cause every admin save to return 401.
+          if [ "$_ADMIN_SECRET" != "$_REACT_APP_ADMIN_SECRET" ]; then
+            echo "::error::ADMIN_SECRET and REACT_APP_ADMIN_SECRET do not match. Both secrets must be identical — the React bundle sends REACT_APP_ADMIN_SECRET in the X-Admin-Secret header, which the server validates against ADMIN_SECRET."
             exit 1
           fi
 
