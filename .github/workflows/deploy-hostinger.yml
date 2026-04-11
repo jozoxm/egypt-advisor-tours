@@ -72,6 +72,9 @@ jobs:
   deploy:
     name: SSH deploy → Hostinger
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://egyptadvisortours.com
 
     steps:
       # ── 0. Validate required secrets ─────────────────────────────────────
@@ -122,6 +125,8 @@ jobs:
       #    we pipe them into a gitignored client/.env.production.local file that
       #    Create React App reads automatically during the build.
       #    The file is deleted in step 4b right after npm install completes.
+      #    On first deploy this step also clones the repo if the app directory
+      #    does not yet exist on the server.
       - name: Write client env vars to server
         env:
           _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
@@ -134,6 +139,17 @@ jobs:
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          # On first deploy: clone the repo if the app directory doesn't exist yet.
+          ssh -i ~/.ssh/hostinger_deploy \
+              -p "$DEPLOY_PORT" \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
+              "if [ ! -d '${DEPLOY_DIR}/.git' ]; then
+                 echo '--- first deploy: cloning repository ---'
+                 mkdir -p '${DEPLOY_DIR}'
+                 git clone https://github.com/jozoxm/egypt-advisor-tours.git '${DEPLOY_DIR}'
+               fi
+               # Ensure the client subdirectory exists (it should be in the repo).
+               mkdir -p '${DEPLOY_DIR}/client'"
           # Pipe build-time env vars into a gitignored file on the server so
           # `npm run build` embeds the correct values in the React bundle.
           # .env.production.local is matched by the .env*.local gitignore rule.
