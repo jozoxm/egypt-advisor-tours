@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "github": {
-    "enabled": false
-  },
   "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/build",
   "installCommand": "npm install && npm install --prefix client",
