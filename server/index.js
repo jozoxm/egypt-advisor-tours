@@ -244,14 +244,19 @@ function writeData(key, data) {
     }
     const filePath = JSON_FILES[key];
     const tmpPath = filePath + '.tmp';
+    let tmpWritten = false;
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+        tmpWritten = true;
         fs.renameSync(tmpPath, filePath);
         return true;
     } catch (e) {
         console.warn(`[writeData] Could not persist "${key}" to disk: ${e.message}. Change is in memory only.`);
-        try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore — tmp may not exist */ }
+        // Clean up the temp file if it was written but the rename failed.
+        if (tmpWritten) {
+            try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore */ }
+        }
         return false;
     }
 }
@@ -322,8 +327,17 @@ function seedDataFiles() {
             if (!match) continue;
             const data = wrapFn(match, content);
             const seedTmp = JSON_FILES[key] + '.tmp';
-            fs.writeFileSync(seedTmp, JSON.stringify(data, null, 2), 'utf8');
-            fs.renameSync(seedTmp, JSON_FILES[key]);
+            let seedTmpWritten = false;
+            try {
+                fs.writeFileSync(seedTmp, JSON.stringify(data, null, 2), 'utf8');
+                seedTmpWritten = true;
+                fs.renameSync(seedTmp, JSON_FILES[key]);
+            } catch (writeErr) {
+                if (seedTmpWritten) {
+                    try { fs.unlinkSync(seedTmp); } catch (_) { /* ignore */ }
+                }
+                throw writeErr;
+            }
             console.log(`Seeded ${JSON_FILES[key]} from JS source.`);
         } catch (e) {
             console.warn(`Could not seed "${key}" from JS source:`, e.message);
