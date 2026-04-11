@@ -45,13 +45,6 @@
 #       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
 #       REACT_APP_EMAILJS_PUBLIC_KEY
 #
-#       Optional — persistent data directory (strongly recommended for Hostinger):
-#       DATA_PATH   absolute path OUTSIDE the project folder, e.g.
-#                   /home/u123456789/admin_data
-#                   Set this in hPanel → Node.js → Environment Variables so
-#                   that admin-saved content (tours, blogs, gallery, etc.)
-#                   survives git pull / re-deployments.
-#
 #  5. On the first deploy, Hostinger must already have the repo cloned:
 #       SSH into your server and run once:
 #         git clone https://github.com/jozoxm/egypt-advisor-tours.git \
