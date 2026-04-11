@@ -6,11 +6,10 @@
 #
 #  1. In Hostinger hPanel, set up a Node.js application:
 #       hPanel → Websites → egyptadvisortours.com → Node.js
-#       • Node.js version : 24.x (recommended; 18+ also works)
+#       • Node.js version : 18 (LTS) or higher
 #       • Application root : the folder where this repo is deployed, e.g.
 #                            /home/u123456789/egyptadvisortours.com
 #       • Startup file     : index.js
-#       • Start command    : npm start
 #       • Click "Create" / "Save"
 #
 #  2. Enable SSH access for your Hostinger account:
@@ -45,12 +44,6 @@
 #       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
 #       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
 #       REACT_APP_EMAILJS_PUBLIC_KEY
-#
-#       Optional — only needed if you want data to persist outside the project root:
-#       HOSTINGER_DATA_PATH            /home/u239421793/egypt_admin_data
-#                                      (absolute path on the Hostinger server;
-#                                       must be outside the project root so data
-#                                       survives fresh git checkouts)
 #
 #  5. No manual repository clone is required on first deploy.
 #     The workflow will bootstrap HOSTINGER_APP_DIR automatically and clone
@@ -99,33 +92,17 @@ jobs:
           _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
         run: |
           missing=()
-          [ -z "$_HOST" ]                  && missing+=("HOSTINGER_SSH_HOST")
-          [ -z "$_USER" ]                  && missing+=("HOSTINGER_SSH_USER")
-          [ -z "$_PORT" ]                  && missing+=("HOSTINGER_SSH_PORT")
-          [ -z "$_KEY" ]                   && missing+=("HOSTINGER_SSH_KEY")
-          [ -z "$_DIR" ]                   && missing+=("HOSTINGER_APP_DIR")
-          [ -z "$_KNOWN_HOSTS" ]           && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
-          # Auth secrets are required — a missing or mismatched pair would
-          # either disable admin auth entirely or cause 401s on every save.
-          [ -z "$_ADMIN_SECRET" ]          && missing+=("ADMIN_SECRET")
+          [ -z "$_HOST" ]                 && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ]                 && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ]                 && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ]                  && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ]                  && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ]          && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          [ -z "$_ADMIN_SECRET" ]         && missing+=("ADMIN_SECRET")
           [ -z "$_REACT_APP_ADMIN_SECRET" ] && missing+=("REACT_APP_ADMIN_SECRET")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
-            exit 1
-          fi
-          # Validate that the two admin secrets match so the frontend and backend
-          # stay in sync.  A mismatch would cause every admin save to return 401.
-          # Normalize both values (strip CR/LF and surrounding whitespace) before
-          # comparing so a secret pasted with a trailing newline does not block
-          # an otherwise valid deploy.
-          normalize_secret() {
-            tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
-          }
-          _ADMIN_SECRET_NORMALIZED="$(printf '%s' "$_ADMIN_SECRET" | normalize_secret)"
-          _REACT_APP_ADMIN_SECRET_NORMALIZED="$(printf '%s' "$_REACT_APP_ADMIN_SECRET" | normalize_secret)"
-          if [ "$_ADMIN_SECRET_NORMALIZED" != "$_REACT_APP_ADMIN_SECRET_NORMALIZED" ]; then
-            echo "::error::ADMIN_SECRET and REACT_APP_ADMIN_SECRET do not match. Both secrets must be identical — the React bundle sends REACT_APP_ADMIN_SECRET in the X-Admin-Secret header, which the server validates against ADMIN_SECRET."
             exit 1
           fi
 
@@ -161,14 +138,11 @@ jobs:
       #    retry loop retries up to 3 times for transient network errors.
       - name: Write client env vars to server
         env:
-          _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
-          _REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_PUBLIC_KEY: ${{ secrets.REACT_APP_EMAILJS_PUBLIC_KEY }}
-          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
@@ -221,13 +195,9 @@ jobs:
           # .env.production.local is matched by the .env*.local gitignore rule.
           # Save content to a secure temp file first so the retry loop can
           # re-read it on each attempt (stdin pipe would be consumed after first try).
-          # REACT_APP_API_URL defaults to the production domain if the GitHub Secret is
-          # not set. If you fork this repo for a different domain, either set the
-          # REACT_APP_API_URL GitHub Secret or update this fallback value.
           env_file=$(mktemp)
-          printf '%s\n%s\n%s\n%s\n%s\n%s\n' \
+          printf '%s\n%s\n%s\n%s\n%s\n' \
             "REACT_APP_ADMIN_SECRET=${_REACT_APP_ADMIN_SECRET}" \
-            "REACT_APP_API_URL=${_REACT_APP_API_URL:-https://egyptadvisortours.com}" \
             "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
             "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
@@ -251,51 +221,13 @@ jobs:
           done
           rm -f "$env_file"
 
-          # Write server runtime env vars to .env at the project root.
-          # These are loaded by server/index.js via require('dotenv').config() and
-          # ensure the backend knows its secrets even when Hostinger hPanel env vars
-          # are not set.  Do not write PORT here so any platform-provided runtime PORT
-          # remains authoritative. umask 077 keeps the file readable only by the server process.
-          server_env_file=$(mktemp)
-          printf 'NODE_ENV=production\n' > "$server_env_file"
-          # Only write ADMIN_SECRET if provided — an empty value disables auth entirely.
-          if [ -n "${_ADMIN_SECRET}" ]; then
-            printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" >> "$server_env_file"
-          fi
-          # Append optional DATA_PATH (persists admin data outside the project root).
-          if [ -n "${_HOSTINGER_DATA_PATH}" ]; then
-            printf 'DATA_PATH=%s\n' "${_HOSTINGER_DATA_PATH}" >> "$server_env_file"
-          fi
-
-          # Note: umask 077 sets permissions to 600 for a newly created .env file.
-          # chmod 600 is also applied as a defensive measure: if the file already
-          # existed with broader permissions, truncating it keeps the old mode — the
-          # explicit chmod corrects that to ensure secrets stay owner-readable only.
-          for attempt in 1 2 3; do
-            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-                 "umask 077; cat > '${DEPLOY_DIR}/.env'; chmod 600 '${DEPLOY_DIR}/.env'" \
-                 < "$server_env_file"; then
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Server env file write attempt $attempt failed, retrying in 10s..."
-              sleep 10
-            else
-              rm -f "$server_env_file"
-              echo "::error::Failed to write server .env file after 3 attempts."
-              exit 1
-            fi
-          done
-          rm -f "$server_env_file"
-
       # ── 4b. Pull latest code, build, and restart the app ─────────────
-      #    The postinstall hook (scripts/build-client.js) builds the React
-      #    frontend on every npm install unless NODE_ENV=development or
-      #    SKIP_CLIENT_BUILD=1 is set. To skip a rebuild without code changes,
-      #    set SKIP_CLIENT_BUILD=1 in the Hostinger hPanel environment.
+      #    The postinstall hook (scripts/build-client.js) auto-builds the
+      #    React frontend only when the git hash has changed, so this is
+      #    safe to run on every push.
       #    NOTE: If you change only GitHub Secrets (not code), you must also
-      #    push a code change to trigger a rebuild, or set SKIP_CLIENT_BUILD=
-      #    to empty/unset and re-run the workflow to force an unconditional rebuild.
+      #    push a code change to trigger a rebuild, or delete
+      #    build/build-hash.txt on the server to force an unconditional rebuild.
       - name: Pull & restart on Hostinger
         run: |
           # Strip any accidental whitespace/newlines from secret values to prevent
@@ -311,14 +243,6 @@ jobs:
             ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
                trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
-               # Hostinger's SSH sessions are non-interactive and do not source
-               # .bashrc/.profile, so hPanel's Node.js (managed via nvm) is not
-               # on the PATH.  Load nvm explicitly; fall back to common system
-               # paths so the command also works on servers with a system Node.js.
-               export NVM_DIR=\"\$HOME/.nvm\"
-               [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
-               # Ensure standard Node.js binary dirs are on PATH as a fallback.
-               export PATH=\"\$HOME/.nvm/versions/node/\$(ls \$HOME/.nvm/versions/node 2>/dev/null | sort -V | tail -1)/bin:/usr/local/bin:/usr/bin:\$PATH\"
                cd '$DEPLOY_DIR'
                echo '--- pulling latest code ---'
                git pull origin main
