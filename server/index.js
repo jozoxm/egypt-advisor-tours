@@ -235,17 +235,28 @@ function readData(key, jsRegex) {
 // Write data to the JSON file.  Returns true on success, false on failure.
 // Never throws — callers always update the in-memory store first so that
 // admin edits survive even when the filesystem is read-only (e.g. Vercel).
+// Writes atomically via a temporary file + rename so that a crash or power
+// loss mid-write never leaves a corrupted JSON file behind.
 function writeData(key, data) {
     if (!JSON_FILES[key]) {
         console.error(`[writeData] Unknown data key: "${key}". This is a programmer error.`);
         return false;
     }
+    const filePath = JSON_FILES[key];
+    const tmpPath = filePath + '.tmp';
+    let tmpWritten = false;
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
-        fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+        fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
+        tmpWritten = true;
+        fs.renameSync(tmpPath, filePath);
         return true;
     } catch (e) {
         console.warn(`[writeData] Could not persist "${key}" to disk: ${e.message}. Change is in memory only.`);
+        // Clean up the temp file if it was written but the rename failed.
+        if (tmpWritten) {
+            try { fs.unlinkSync(tmpPath); } catch (_) { /* ignore */ }
+        }
         return false;
     }
 }
@@ -315,7 +326,18 @@ function seedDataFiles() {
             const match = content.match(regex);
             if (!match) continue;
             const data = wrapFn(match, content);
-            fs.writeFileSync(JSON_FILES[key], JSON.stringify(data, null, 2), 'utf8');
+            const seedTmp = JSON_FILES[key] + '.tmp';
+            let seedTmpWritten = false;
+            try {
+                fs.writeFileSync(seedTmp, JSON.stringify(data, null, 2), 'utf8');
+                seedTmpWritten = true;
+                fs.renameSync(seedTmp, JSON_FILES[key]);
+            } catch (writeErr) {
+                if (seedTmpWritten) {
+                    try { fs.unlinkSync(seedTmp); } catch (_) { /* ignore */ }
+                }
+                throw writeErr;
+            }
             console.log(`Seeded ${JSON_FILES[key]} from JS source.`);
         } catch (e) {
             console.warn(`Could not seed "${key}" from JS source:`, e.message);
