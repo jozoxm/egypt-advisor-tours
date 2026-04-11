@@ -17,12 +17,12 @@ app.set('trust proxy', 1);
 // In production, restrict to the configured origin (CORS_ORIGIN env var) or the
 // live domain.  In development, allow all origins so the dev server on
 // localhost:3000 can call the API on localhost:5000.
-const _corsOptions = process.env.CORS_ORIGIN
+const corsOptions = process.env.CORS_ORIGIN
     ? { origin: process.env.CORS_ORIGIN, optionsSuccessStatus: 200 }
     : process.env.NODE_ENV === 'production'
         ? { origin: 'https://egyptadvisortours.com', optionsSuccessStatus: 200 }
         : undefined; // allow all origins in development
-app.use(cors(_corsOptions));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 
 // ============================================
