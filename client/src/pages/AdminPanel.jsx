@@ -179,6 +179,12 @@ const AdminPanel = () => {
     loadData();
   }, [loadData]);
 
+  // Clear the contact debounce timer on unmount to prevent state updates
+  // being called on an already-unmounted component.
+  useEffect(() => {
+    return () => clearTimeout(contactSaveTimer.current);
+  }, []);
+
   // Handle tour editing
   const startEditTour = (tour) => {
     const tourToEdit = { ...tour };

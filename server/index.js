@@ -316,19 +316,19 @@ function seedDataFiles() {
         if (fs.existsSync(JSON_FILES[key])) continue; // already present — skip
         const jsFile = JS_FILES[key];
         if (!fs.existsSync(jsFile)) continue;
+        const dest = JSON_FILES[key];
+        const tmp  = dest + '.tmp';
         try {
             const content = fs.readFileSync(jsFile, 'utf8');
             const match = content.match(regex);
             if (!match) continue;
             const data = wrapFn(match, content);
-            const dest = JSON_FILES[key];
-            const tmp  = dest + '.tmp';
             fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
             fs.renameSync(tmp, dest);
-            console.log(`Seeded ${JSON_FILES[key]} from JS source.`);
+            console.log(`Seeded ${dest} from JS source.`);
         } catch (e) {
             // Best-effort cleanup of the temp file on failure.
-            try { fs.unlinkSync(JSON_FILES[key] + '.tmp'); } catch (_) {}
+            try { fs.unlinkSync(tmp); } catch (_) {}
             console.warn(`Could not seed "${key}" from JS source:`, e.message);
         }
     }
