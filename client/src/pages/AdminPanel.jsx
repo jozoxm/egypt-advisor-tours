@@ -1967,51 +1967,75 @@ const AdminPanel = () => {
         {activeTab === 'instructions' && (
           <div className="instructions-section">
             <h2>📚 How the Full Control Panel Works</h2>
-            
+
             <div className="instruction-card">
-              <h3>✨ Automatic Saving</h3>
-              <p>This is a <strong>full control panel</strong> - changes are saved automatically!</p>
+              <h3>✨ Saving Changes</h3>
+              <p>This is a <strong>full control panel</strong> — changes are sent to the backend server and saved to disk.</p>
               <ul>
-                <li><strong>Tours</strong>: Click "Save Changes" button after editing</li>
-                <li><strong>Contact Info</strong>: Changes save automatically as you type</li>
-                <li>No more copy/paste needed!</li>
+                <li><strong>Tours, Blogs, Gallery, Slideshow, Testimonials, Settings</strong>: Click the <strong>"💾 Save &amp; Update"</strong> button after editing</li>
+                <li><strong>Contact Info</strong>: Changes save automatically as you type (auto-save)</li>
+                <li>A green confirmation message appears when the save succeeds</li>
               </ul>
             </div>
 
             <div className="instruction-card">
-              <h3>🔧 How It Works</h3>
+              <h3>🚀 Local Development Setup</h3>
+              <p>You need <strong>two terminal windows</strong> open at the same time from the project root:</p>
+              <p><strong>Terminal 1 — React frontend:</strong></p>
+              <pre className="code-block">npm run dev:client</pre>
+              <p><strong>Terminal 2 — Express backend (port 5000):</strong></p>
+              <pre className="code-block">npm run server</pre>
+              <p>Both must be running simultaneously. The React dev server proxies <code>/api/*</code> requests to <code>localhost:5000</code> automatically.</p>
+            </div>
+
+            <div className="instruction-card warning">
+              <h3>⚠️ Common Reasons Saves Fail</h3>
               <ol>
-                <li>Make sure the backend server is running (<code>npm run server</code>)</li>
-                <li>Edit tours or contact information using the forms</li>
-                <li>Changes are saved directly to the data files</li>
-                <li>Refresh your website to see the updates</li>
+                <li>
+                  <strong>Backend not running</strong> — if only the React app is running (<code>npm run dev:client</code>),
+                  save requests have nowhere to go. Open a second terminal and run <code>npm run server</code>.
+                </li>
+                <li>
+                  <strong>Wrong API URL</strong> — <code>REACT_APP_API_URL</code> must be empty (same-origin) in production
+                  or <code>http://localhost:5000</code> in local development.
+                  Check <code>client/.env.development</code> — it should already contain <code>REACT_APP_API_URL=http://localhost:5000</code>.
+                  Restart the React app after any <code>.env</code> change.
+                </li>
+                <li>
+                  <strong>Admin secret mismatch</strong> — if your server has <code>ADMIN_SECRET</code> set, the React app
+                  must send the same value via <code>REACT_APP_ADMIN_SECRET</code>.
+                  Add it to a <strong>gitignored</strong> <code>client/.env.development.local</code> file:
+                  <pre className="code-block">REACT_APP_ADMIN_SECRET=your_secret_here</pre>
+                  Then restart the React app. The value must exactly match the server's <code>ADMIN_SECRET</code>.
+                </li>
+              </ol>
+            </div>
+
+            <div className="instruction-card tip">
+              <h3>🔍 How to Debug Exactly What Is Failing</h3>
+              <ol>
+                <li>Open browser <strong>Developer Tools</strong> (Right-click → Inspect → Network tab)</li>
+                <li>Click <strong>"💾 Save &amp; Update"</strong> in the admin panel</li>
+                <li>Find the API request in the Network tab (e.g. <code>tours</code>, <code>settings</code>)</li>
+                <li>
+                  Check the response status:
+                  <ul>
+                    <li><strong>404 Not Found</strong> → wrong API URL (issue #2 above)</li>
+                    <li><strong>Connection Refused / Failed to Fetch</strong> → backend not running (issue #1)</li>
+                    <li><strong>401 Unauthorized</strong> → admin secret missing or wrong (issue #3)</li>
+                    <li><strong>200 OK with <code>persisted: false</code></strong> → server updated in memory but the data directory is not writable on disk (set <code>DATA_PATH</code> in server <code>.env</code>)</li>
+                  </ul>
+                </li>
               </ol>
             </div>
 
             <div className="instruction-card">
-              <h3>🚀 Starting the Server</h3>
-              <p>The admin panel needs the backend server to save changes. Run from project root:</p>
-              <pre className="code-block">npm run server</pre>
-              <p>The server should start on port 5000.</p>
-            </div>
-
-            <div className="instruction-card warning">
-              <h3>⚠️ Important Notes</h3>
-              <ul>
-                <li>The backend server must be running for automatic saves to work</li>
-                <li>If the server is not running, you'll see an error message</li>
-                <li>Changes are saved to files immediately - no manual copy/paste needed!</li>
-                <li>Refresh the website after saving to see your changes</li>
-              </ul>
-            </div>
-
-            <div className="instruction-card tip">
               <h3>💡 Pro Tips</h3>
               <ul>
-                <li>Watch for the green "saved successfully" message</li>
-                <li>If you see errors, check that the server is running</li>
-                <li>Changes persist across browser refreshes</li>
-                <li>Use this panel for all content updates - it's the easiest way!</li>
+                <li>Watch for the green "saved successfully" message with a timestamp</li>
+                <li>Changes persist across browser refreshes once saved to disk</li>
+                <li>For Hostinger deployments, set <code>DATA_PATH</code> to a folder outside the project root so saves survive re-deployments</li>
+                <li>Use this panel for all content updates — no manual file editing needed!</li>
               </ul>
             </div>
           </div>
