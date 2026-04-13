@@ -53,15 +53,24 @@ const AdminPanel = () => {
     stats: []
   });
   const [saveMessage, setSaveMessage] = useState('');
+  const [lastSaved, setLastSaved] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Debounce timer ref for contact info auto-save
   const contactSaveTimer = useRef(null);
 
-  // Helper function to show messages
+  // Helper function to show messages; success messages are automatically
+  // stamped with the current time and the lastSaved indicator is updated.
   const showSaveMessage = useCallback((message, type = 'info') => {
-    setSaveMessage({ text: message, type });
+    let text = message;
+    if (type === 'success') {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      text = `${message} — ${timeStr}`;
+      setLastSaved(now);
+    }
+    setSaveMessage({ text, type });
     setTimeout(() => setSaveMessage(''), 5000);
   }, []);
 
@@ -434,8 +443,11 @@ const AdminPanel = () => {
   };
 
   const saveBlog = async () => {
-    const updatedBlogs = blogs.map(blog => 
-      blog.id === editingBlog.id ? editingBlog : blog
+    // Stamp the edited blog with today's date so the "date" field always
+    // reflects the most-recent update rather than the original publish date.
+    const updatedBlog = { ...editingBlog, date: new Date().toISOString().split('T')[0] };
+    const updatedBlogs = blogs.map(blog =>
+      blog.id === updatedBlog.id ? updatedBlog : blog
     );
     setBlogs(updatedBlogs);
     setEditingBlogId(null);
@@ -937,6 +949,11 @@ const AdminPanel = () => {
 
         <div className="admin-sidebar-footer">
           {saving && <div className="saving-indicator">💾 Saving...</div>}
+          {lastSaved && !saving && (
+            <div className="last-saved-indicator">
+              ✅ Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          )}
           {SAVEABLE_TABS.has(activeTab) && (
             <button
               className="btn-save-all"
