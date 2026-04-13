@@ -146,6 +146,7 @@ jobs:
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_PUBLIC_KEY: ${{ secrets.REACT_APP_EMAILJS_PUBLIC_KEY }}
+          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
@@ -228,8 +229,17 @@ jobs:
           # the Node.js process enforces admin authentication in production.
           # Without this, server/index.js allows all admin requests when
           # process.env.ADMIN_SECRET is unset (open to unauthenticated writes).
+          # DATA_PATH (optional): when HOSTINGER_DATA_PATH secret is set, it
+          # tells the server to store admin-edited JSON files in a directory
+          # outside the repo checkout so they survive git pull/resets on deploy.
           server_env_file=$(mktemp)
           printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" > "$server_env_file"
+          # Append DATA_PATH only when the secret is non-empty; strip newlines
+          # so a stray newline in the secret value cannot inject extra env lines.
+          _DATA_PATH_CLEAN=$(printf '%s' "${_HOSTINGER_DATA_PATH}" | tr -d '\n\r')
+          if [ -n "$_DATA_PATH_CLEAN" ]; then
+            printf 'DATA_PATH=%s\n' "$_DATA_PATH_CLEAN" >> "$server_env_file"
+          fi
 
           for attempt in 1 2 3; do
             if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
