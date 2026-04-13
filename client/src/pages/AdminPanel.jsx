@@ -80,7 +80,7 @@ const AdminPanel = () => {
     if (body.persisted === false) {
       showSaveMessage(
         `⚠ ${successLabel} saved in memory only — NOT written to disk. ` +
-        'Changes will be lost on server restart. Add the HOSTINGER_DATA_PATH secret in GitHub → Settings → Secrets and variables → Actions to fix this.',
+        'Changes will be lost on server restart. Set DATA_PATH to fix this (or, on Hostinger deployments, set the HOSTINGER_DATA_PATH secret in GitHub → Settings → Secrets and variables → Actions).',
         'warning'
       );
     } else {

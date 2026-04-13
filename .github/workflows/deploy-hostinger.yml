@@ -242,9 +242,11 @@ jobs:
           # OUTSIDE the project root so that admin-saved JSON files survive
           # git pull, fresh clones, and server restarts on Hostinger.
           server_env_file=$(mktemp)
+          _DATA_PATH_SANITIZED=${_DATA_PATH//$'\r'/}
+          _DATA_PATH_SANITIZED=${_DATA_PATH_SANITIZED//$'\n'/}
           printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" > "$server_env_file"
-          if [ -n "${_DATA_PATH}" ]; then
-            printf 'DATA_PATH=%s\n' "${_DATA_PATH}" >> "$server_env_file"
+          if [ -n "${_DATA_PATH_SANITIZED}" ]; then
+            printf 'DATA_PATH=%s\n' "${_DATA_PATH_SANITIZED}" >> "$server_env_file"
           fi
 
           for attempt in 1 2 3; do
