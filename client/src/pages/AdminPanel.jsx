@@ -1985,7 +1985,7 @@ const AdminPanel = () => {
               <pre className="code-block">npm run dev:client</pre>
               <p><strong>Terminal 2 — Express backend (port 5000):</strong></p>
               <pre className="code-block">npm run server</pre>
-              <p>Both must be running simultaneously. The React dev server proxies <code>/api/*</code> requests to <code>localhost:5000</code> automatically.</p>
+              <p>Both must be running simultaneously. <code>client/.env.development</code> sets <code>REACT_APP_API_URL=http://localhost:5000</code>, so the admin panel sends API requests directly to the backend on port 5000.</p>
             </div>
 
             <div className="instruction-card warning">
