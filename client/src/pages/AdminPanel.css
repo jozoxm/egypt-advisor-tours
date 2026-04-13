@@ -110,6 +110,12 @@
   animation: pulse 1.5s infinite;
 }
 
+.last-saved-indicator {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 6px;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

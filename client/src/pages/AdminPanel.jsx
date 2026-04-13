@@ -27,6 +27,10 @@ const NAV_TABS = [
 // Tabs that have server-persisted data and show the "Save & Update" button.
 const SAVEABLE_TABS = new Set(['slideshow', 'tours', 'blogs', 'gallery', 'testimonials', 'settings', 'contact']);
 
+// Format a Date object as "HH:MM AM/PM" for save-confirmation messages.
+const formatSaveTime = (date) =>
+  date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tours, setTours] = useState([]);
@@ -53,38 +57,43 @@ const AdminPanel = () => {
     stats: []
   });
   const [saveMessage, setSaveMessage] = useState('');
+  const [lastSaved, setLastSaved] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Debounce timer ref for contact info auto-save
   const contactSaveTimer = useRef(null);
 
-  // Helper function to show messages
+  // Helper function to show messages; success messages are automatically
+  // stamped with the current time and the lastSaved indicator is updated.
   const showSaveMessage = useCallback((message, type = 'info') => {
-    setSaveMessage({ text: message, type });
+    let text = message;
+    if (type === 'success') {
+      const now = new Date();
+      text = `${message} — ${formatSaveTime(now)}`;
+      setLastSaved(now);
+    }
+    setSaveMessage({ text, type });
     setTimeout(() => setSaveMessage(''), 5000);
   }, []);
 
-  // Helper: read a successful (2xx) save response and show the right message.
-  // When the server writes to disk it returns { persisted: true }; when the
-  // filesystem write fails (permission error, read-only host) it returns
-  // { persisted: false } — still HTTP 200 — so the admin must be warned that
-  // the change lives only in memory and will be lost on the next server restart.
-  const handleSaveResponse = useCallback(async (response, successLabel) => {
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      showSaveMessage(errBody.error || `Failed to save ${successLabel}`, 'error');
-      return;
-    }
-    const body = await response.json().catch(() => ({}));
-    if (body.persisted === false) {
-      showSaveMessage(
-        `⚠ ${successLabel} saved in memory only — NOT written to disk. ` +
-        'Changes will be lost on server restart. Set DATA_PATH to fix this (or, on Hostinger deployments, set the HOSTINGER_DATA_PATH secret in GitHub → Settings → Secrets and variables → Actions).',
-        'warning'
-      );
+  // Shared helper: reads the JSON body from a save response, surfaces a warning
+  // when the server updated in-memory state but could not persist to disk
+  // (persisted === false), and shows an error for non-2xx responses.
+  const handleSaveResponse = useCallback(async (response, successMessage) => {
+    if (response.ok) {
+      const body = await response.json().catch(() => ({}));
+      if (body.persisted === false) {
+        showSaveMessage(
+          body.message || 'Saved in memory, but could not write to disk. Changes may be lost after a server restart.',
+          'error'
+        );
+      } else {
+        showSaveMessage(body.message || successMessage, 'success');
+      }
     } else {
-      showSaveMessage(`✓ ${successLabel} saved successfully!`, 'success');
+      const errBody = await response.json().catch(() => ({}));
+      showSaveMessage(errBody.error || errBody.message || 'Failed to save changes to server', 'error');
     }
   }, [showSaveMessage]);
 
@@ -272,7 +281,8 @@ const AdminPanel = () => {
           testimonials: testimonials
         }),
       });
-      await handleSaveResponse(response, 'Tours');
+
+      await handleSaveResponse(response, '✓ Tours saved successfully!');
     } catch (error) {
       console.error('Error saving tours:', error);
       showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
@@ -412,7 +422,8 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify(contactData),
       });
-      await handleSaveResponse(response, 'Contact info');
+
+      await handleSaveResponse(response, '✓ Contact info saved successfully!');
     } catch (error) {
       console.error('Error saving contact info:', error);
       showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
@@ -435,8 +446,11 @@ const AdminPanel = () => {
   };
 
   const saveBlog = async () => {
-    const updatedBlogs = blogs.map(blog => 
-      blog.id === editingBlog.id ? editingBlog : blog
+    // Stamp a lastModified date so editors can see when the post was last
+    // updated without disturbing the original publish date.
+    const updatedBlog = { ...editingBlog, lastModified: new Date().toISOString().split('T')[0] };
+    const updatedBlogs = blogs.map(blog =>
+      blog.id === updatedBlog.id ? updatedBlog : blog
     );
     setBlogs(updatedBlogs);
     setEditingBlogId(null);
@@ -481,7 +495,8 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ blogs: blogsData }),
       });
-      await handleSaveResponse(response, 'Blogs');
+
+      await handleSaveResponse(response, '✓ Blog saved successfully!');
     } catch (error) {
       console.error('Error saving blog:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -548,7 +563,8 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ gallery: galleryData }),
       });
-      await handleSaveResponse(response, 'Gallery');
+
+      await handleSaveResponse(response, '✓ Gallery saved successfully!');
     } catch (error) {
       console.error('Error saving gallery:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -584,7 +600,8 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ bookings: bookingsData }),
       });
-      await handleSaveResponse(response, 'Bookings');
+
+      await handleSaveResponse(response, '✓ Bookings updated successfully!');
     } catch (error) {
       console.error('Error saving bookings:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -678,7 +695,8 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ slides: slidesData }),
       });
-      await handleSaveResponse(response, 'Slideshow');
+
+      await handleSaveResponse(response, '✓ Slideshow saved successfully!');
     } catch (error) {
       console.error('Error saving slideshow:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -749,7 +767,7 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ tours, testimonials: testimonialsData }),
       });
-      await handleSaveResponse(response, 'Testimonials');
+      await handleSaveResponse(response, '✓ Testimonials saved successfully!');
     } catch (error) {
       console.error('Error saving testimonials:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -780,7 +798,7 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify(siteSettings),
       });
-      await handleSaveResponse(response, 'Site settings');
+      await handleSaveResponse(response, '✓ Site settings saved! Refresh the website to see your changes.');
     } catch (error) {
       console.error('Error saving site settings:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -934,6 +952,11 @@ const AdminPanel = () => {
 
         <div className="admin-sidebar-footer">
           {saving && <div className="saving-indicator">💾 Saving...</div>}
+          {lastSaved && !saving && (
+            <div className="last-saved-indicator">
+              ✅ Saved {formatSaveTime(lastSaved)}
+            </div>
+          )}
           {SAVEABLE_TABS.has(activeTab) && (
             <button
               className="btn-save-all"
