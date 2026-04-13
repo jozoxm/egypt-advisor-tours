@@ -27,6 +27,10 @@ const NAV_TABS = [
 // Tabs that have server-persisted data and show the "Save & Update" button.
 const SAVEABLE_TABS = new Set(['slideshow', 'tours', 'blogs', 'gallery', 'testimonials', 'settings', 'contact']);
 
+// Format a Date object as "HH:MM AM/PM" for save-confirmation messages.
+const formatSaveTime = (date) =>
+  date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [tours, setTours] = useState([]);
@@ -66,8 +70,7 @@ const AdminPanel = () => {
     let text = message;
     if (type === 'success') {
       const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      text = `${message} — ${timeStr}`;
+      text = `${message} — ${formatSaveTime(now)}`;
       setLastSaved(now);
     }
     setSaveMessage({ text, type });
@@ -443,9 +446,9 @@ const AdminPanel = () => {
   };
 
   const saveBlog = async () => {
-    // Stamp the edited blog with today's date so the "date" field always
-    // reflects the most-recent update rather than the original publish date.
-    const updatedBlog = { ...editingBlog, date: new Date().toISOString().split('T')[0] };
+    // Stamp a lastModified date so editors can see when the post was last
+    // updated without disturbing the original publish date.
+    const updatedBlog = { ...editingBlog, lastModified: new Date().toISOString().split('T')[0] };
     const updatedBlogs = blogs.map(blog =>
       blog.id === updatedBlog.id ? updatedBlog : blog
     );
@@ -951,7 +954,7 @@ const AdminPanel = () => {
           {saving && <div className="saving-indicator">💾 Saving...</div>}
           {lastSaved && !saving && (
             <div className="last-saved-indicator">
-              ✅ Saved {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              ✅ Saved {formatSaveTime(lastSaved)}
             </div>
           )}
           {SAVEABLE_TABS.has(activeTab) && (
