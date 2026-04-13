@@ -39,15 +39,6 @@
 #       ADMIN_SECRET                   a-long-random-string (protects /api writes)
 #       REACT_APP_ADMIN_SECRET         same-long-random-string (must match above)
 #
-#       Optional — strongly recommended for Hostinger to persist admin data
-#       across deployments (git pull preserves server/data/ but a fresh clone
-#       or Hostinger app reset would wipe it):
-#       HOSTINGER_DATA_PATH            /home/u123456789/egypt-advisor-data
-#                                      An absolute path OUTSIDE the project root.
-#                                      Admin-saved JSON files are stored here so
-#                                      they survive git pull, fresh clones, and
-#                                      server restarts.
-#
 #       Optional — only needed if you use EmailJS:
 #       REACT_APP_EMAILJS_SERVICE_ID
 #       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
@@ -155,7 +146,6 @@ jobs:
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_PUBLIC_KEY: ${{ secrets.REACT_APP_EMAILJS_PUBLIC_KEY }}
-          _DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
@@ -238,16 +228,8 @@ jobs:
           # the Node.js process enforces admin authentication in production.
           # Without this, server/index.js allows all admin requests when
           # process.env.ADMIN_SECRET is unset (open to unauthenticated writes).
-          # DATA_PATH (optional) points the server to a persistent directory
-          # OUTSIDE the project root so that admin-saved JSON files survive
-          # git pull, fresh clones, and server restarts on Hostinger.
           server_env_file=$(mktemp)
-          _DATA_PATH_SANITIZED=${_DATA_PATH//$'\r'/}
-          _DATA_PATH_SANITIZED=${_DATA_PATH_SANITIZED//$'\n'/}
           printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" > "$server_env_file"
-          if [ -n "${_DATA_PATH_SANITIZED}" ]; then
-            printf 'DATA_PATH=%s\n' "${_DATA_PATH_SANITIZED}" >> "$server_env_file"
-          fi
 
           for attempt in 1 2 3; do
             if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \

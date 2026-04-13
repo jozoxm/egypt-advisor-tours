@@ -65,29 +65,6 @@ const AdminPanel = () => {
     setTimeout(() => setSaveMessage(''), 5000);
   }, []);
 
-  // Helper: read a successful (2xx) save response and show the right message.
-  // When the server writes to disk it returns { persisted: true }; when the
-  // filesystem write fails (permission error, read-only host) it returns
-  // { persisted: false } — still HTTP 200 — so the admin must be warned that
-  // the change lives only in memory and will be lost on the next server restart.
-  const handleSaveResponse = useCallback(async (response, successLabel) => {
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      showSaveMessage(errBody.error || `Failed to save ${successLabel}`, 'error');
-      return;
-    }
-    const body = await response.json().catch(() => ({}));
-    if (body.persisted === false) {
-      showSaveMessage(
-        `⚠ ${successLabel} saved in memory only — NOT written to disk. ` +
-        'Changes will be lost on server restart. Set DATA_PATH to fix this (or, on Hostinger deployments, set the HOSTINGER_DATA_PATH secret in GitHub → Settings → Secrets and variables → Actions).',
-        'warning'
-      );
-    } else {
-      showSaveMessage(`✓ ${successLabel} saved successfully!`, 'success');
-    }
-  }, [showSaveMessage]);
-
   // Load data from server – each endpoint is handled independently so that a
   // single failing API call does not prevent the rest of the panel from loading.
   // If an API endpoint returns a non-OK response the panel falls back to the
@@ -272,7 +249,13 @@ const AdminPanel = () => {
           testimonials: testimonials
         }),
       });
-      await handleSaveResponse(response, 'Tours');
+
+      if (response.ok) {
+        showSaveMessage('✓ Tours saved successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save tours to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving tours:', error);
       showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
@@ -412,7 +395,13 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify(contactData),
       });
-      await handleSaveResponse(response, 'Contact info');
+
+      if (response.ok) {
+        showSaveMessage('✓ Contact info saved successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save contact info to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving contact info:', error);
       showSaveMessage('Failed to connect to server. Make sure the server is running.', 'error');
@@ -481,7 +470,13 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ blogs: blogsData }),
       });
-      await handleSaveResponse(response, 'Blogs');
+
+      if (response.ok) {
+        showSaveMessage('✓ Blog saved successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save blog to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving blog:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -548,7 +543,13 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ gallery: galleryData }),
       });
-      await handleSaveResponse(response, 'Gallery');
+
+      if (response.ok) {
+        showSaveMessage('✓ Gallery saved successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save gallery to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving gallery:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -584,7 +585,13 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ bookings: bookingsData }),
       });
-      await handleSaveResponse(response, 'Bookings');
+
+      if (response.ok) {
+        showSaveMessage('✓ Bookings updated successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save bookings to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving bookings:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -678,7 +685,13 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ slides: slidesData }),
       });
-      await handleSaveResponse(response, 'Slideshow');
+
+      if (response.ok) {
+        showSaveMessage('✓ Slideshow saved successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save slideshow to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving slideshow:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -749,7 +762,12 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify({ tours, testimonials: testimonialsData }),
       });
-      await handleSaveResponse(response, 'Testimonials');
+      if (response.ok) {
+        showSaveMessage('✓ Testimonials saved successfully!', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save testimonials to server', 'error');
+      }
     } catch (error) {
       console.error('Error saving testimonials:', error);
       showSaveMessage('Failed to connect to server.', 'error');
@@ -780,7 +798,12 @@ const AdminPanel = () => {
         headers: adminHeaders(),
         body: JSON.stringify(siteSettings),
       });
-      await handleSaveResponse(response, 'Site settings');
+      if (response.ok) {
+        showSaveMessage('✓ Site settings saved! Refresh the website to see your changes.', 'success');
+      } else {
+        const errBody = await response.json().catch(() => ({}));
+        showSaveMessage(errBody.error || 'Failed to save site settings', 'error');
+      }
     } catch (error) {
       console.error('Error saving site settings:', error);
       showSaveMessage('Failed to connect to server.', 'error');
