@@ -81,7 +81,7 @@ const AdminPanel = () => {
       }
     } else {
       const errBody = await response.json().catch(() => ({}));
-      showSaveMessage(errBody.error || errBody.message || successMessage.replace('✓ ', 'Failed to save ').replace('!', ''), 'error');
+      showSaveMessage(errBody.error || errBody.message || 'Failed to save changes to server', 'error');
     }
   }, [showSaveMessage]);
 
