@@ -25,7 +25,9 @@ WORKDIR /app
 # Copy the Next.js standalone output
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public 2>/dev/null || true
+# /app/public is optional (Payload does not require a public dir by default)
+# Use a shell conditional so the build succeeds even when the folder is absent.
+RUN if [ -d /app/public ]; then cp -r /app/public ./public; fi
 
 EXPOSE 3001
 

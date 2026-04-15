@@ -59,6 +59,9 @@ async function login() {
         method: 'POST',
         body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
     });
+    if (!data.token) {
+        throw new Error('Login succeeded but no token was returned. Check your Payload version or auth config.');
+    }
     return data.token;
 }
 
@@ -224,13 +227,14 @@ async function main() {
         const bookings = bookingsFile.bookings || bookingsFile || [];
         console.log(`[seed] Seeding ${bookings.length} bookings…`);
         for (const b of bookings) {
+            const rawDate = b.bookingDate || b.date;
             await createDoc('bookings', {
                 customerName:   b.customerName || b.name || '',
                 customerEmail:  b.customerEmail || b.email || '',
                 customerPhone:  b.customerPhone || b.phone || '',
                 tourId:         b.tourId || '',
                 tourName:       b.tourName || '',
-                bookingDate:    b.bookingDate || b.date ? new Date(b.bookingDate || b.date).toISOString() : undefined,
+                bookingDate:    rawDate ? new Date(rawDate).toISOString() : undefined,
                 numberOfPeople: b.numberOfPeople || 1,
                 priceCategory:  b.priceCategory || 'individual',
                 totalPrice:     String(b.totalPrice || ''),

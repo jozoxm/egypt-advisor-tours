@@ -35,7 +35,8 @@ const cmsProxyOptions = {
     target: CMS_URL,
     changeOrigin: true,
     on: {
-        error: (_err, _req, res) => {
+        error: (err, _req, res) => {
+            console.error('[CMS Proxy] Error connecting to CMS:', err.message);
             if (res && !res.headersSent) {
                 res.status(503).json({
                     error: 'The CMS admin panel is not available. Make sure the cms/ service is running.',
@@ -45,7 +46,11 @@ const cmsProxyOptions = {
     },
 };
 app.use('/admin', createProxyMiddleware(cmsProxyOptions));
-// Next.js static assets and HMR websocket (used by Payload's admin UI build)
+// Next.js static assets (JS bundles, CSS, fonts) and the HMR websocket are
+// served by the CMS Next.js process under /_next/*.  These are the build
+// artefacts for the Payload admin UI and contain no sensitive data, so
+// proxying them publicly is intentional and required for the admin panel to
+// load correctly in the browser.
 app.use('/_next', createProxyMiddleware(cmsProxyOptions));
 
 // ============================================

@@ -46,5 +46,5 @@ export default buildConfig({
   },
   // The CMS runs on its own port; the public-facing admin URL is the main
   // domain because Express proxies /admin → CMS.
-  serverURL: process.env.PAYLOAD_SERVER_URL || process.env.CMS_INTERNAL_URL || '',
+  serverURL: process.env.PAYLOAD_SERVER_URL || '',
 })
