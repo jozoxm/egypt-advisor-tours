@@ -16,8 +16,10 @@ const DestinationsPage = ({ onTailorTrip }) => {
   const { destinations, loading } = useData();
   const [selected, setSelected] = useState(null);
 
+  const getKey = (dest) => dest.id || dest.name;
+
   const sorted = [...destinations].sort((a, b) => (a.order || 0) - (b.order || 0));
-  const current = sorted.find((d) => d.id === selected || d.name === selected) || null;
+  const current = sorted.find((d) => getKey(d) === selected) || null;
 
   return (
     <section className="blogs">
@@ -94,12 +96,7 @@ const DestinationsPage = ({ onTailorTrip }) => {
 
       <div className="blogs-grid">
         {sorted.map((dest, idx) => (
-          <article
-            key={dest.id || idx}
-            className="blog-card"
-            style={{ cursor: 'pointer' }}
-            onClick={() => setSelected(dest.id || dest.name)}
-          >
+          <article key={getKey(dest) || idx} className="blog-card">
             {dest.imageUrl ? (
               <img
                 src={dest.imageUrl}
@@ -119,7 +116,7 @@ const DestinationsPage = ({ onTailorTrip }) => {
               <h3>{dest.name}</h3>
               {dest.tagline && <p className="blog-excerpt">{dest.tagline}</p>}
               <div className="blog-footer">
-                <button className="text-button" onClick={(e) => { e.stopPropagation(); setSelected(dest.id || dest.name); }}>
+                <button className="text-button" onClick={() => setSelected(getKey(dest))}>
                   Explore {dest.name} →
                 </button>
               </div>
