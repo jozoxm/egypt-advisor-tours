@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 import App from './App';
-import { DataProvider } from './context/DataContext';
 
 // AdminRoute is loaded lazily so it is excluded from the main bundle.
 // It is registered here (outside App) so /admin never mounts the public-site
@@ -24,14 +23,7 @@ root.render(
           }
         />
         {/* All other routes are handled by the public-site App layout */}
-        <Route
-          path="/*"
-          element={
-            <DataProvider>
-              <App />
-            </DataProvider>
-          }
-        />
+        <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
