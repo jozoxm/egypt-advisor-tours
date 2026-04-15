@@ -17,7 +17,10 @@
   "devDependencies": {
     "jest": "^30.3.0",
     "nodemon": "^3.0.1",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "cookie-parser": "^1.4.7",
+    "jsonwebtoken": "^9.0.3",
+    "helmet": "^8.1.0"
   },
   "author": "jozoxm",
   "license": "ISC",

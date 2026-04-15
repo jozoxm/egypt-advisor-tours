@@ -2,13 +2,18 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './AdminPanel.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
-const ADMIN_SECRET = process.env.REACT_APP_ADMIN_SECRET || '';
 
-// Build headers for all admin API requests.
-// REACT_APP_ADMIN_SECRET must match the server's ADMIN_SECRET env var.
+// All admin API requests send credentials (the httpOnly JWT cookie).
+// No client-side secret is needed — authentication is handled server-side.
 const adminHeaders = () => ({
   'Content-Type': 'application/json',
-  ...(ADMIN_SECRET ? { 'X-Admin-Secret': ADMIN_SECRET } : {}),
+});
+
+const adminFetchOptions = (method = 'GET', body) => ({
+  method,
+  headers: adminHeaders(),
+  credentials: 'include', // send the httpOnly JWT cookie
+  ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
 });
 
 const NAV_TABS = [
@@ -104,15 +109,15 @@ const AdminPanel = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = adminHeaders();
+      const fetchOpts = adminFetchOptions('GET');
       const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes, slideshowRes, settingsRes] = await Promise.all([
-        fetch(`${API_URL}/api/tours`, { headers }),
-        fetch(`${API_URL}/api/contact`, { headers }),
-        fetch(`${API_URL}/api/blogs`, { headers }),
-        fetch(`${API_URL}/api/gallery`, { headers }),
-        fetch(`${API_URL}/api/bookings`, { headers }),
-        fetch(`${API_URL}/api/slideshow`, { headers }),
-        fetch(`${API_URL}/api/settings`, { headers })
+        fetch(`${API_URL}/api/tours`, fetchOpts),
+        fetch(`${API_URL}/api/contact`, fetchOpts),
+        fetch(`${API_URL}/api/blogs`, fetchOpts),
+        fetch(`${API_URL}/api/gallery`, fetchOpts),
+        fetch(`${API_URL}/api/bookings`, fetchOpts),
+        fetch(`${API_URL}/api/slideshow`, fetchOpts),
+        fetch(`${API_URL}/api/settings`, fetchOpts)
       ]);
 
       // Tours & testimonials
@@ -273,14 +278,9 @@ const AdminPanel = () => {
   const saveToursToServer = async (toursData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/tours`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({
-          tours: toursData,
-          testimonials: testimonials
-        }),
-      });
+      const response = await fetch(`${API_URL}/api/tours`,
+        adminFetchOptions('POST', { tours: toursData, testimonials: testimonials })
+      );
 
       await handleSaveResponse(response, '✓ Tours saved successfully!');
     } catch (error) {
@@ -417,11 +417,9 @@ const AdminPanel = () => {
   const saveContactInfoToServer = async (contactData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/contact`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify(contactData),
-      });
+      const response = await fetch(`${API_URL}/api/contact`,
+        adminFetchOptions('POST', contactData)
+      );
 
       await handleSaveResponse(response, '✓ Contact info saved successfully!');
     } catch (error) {
@@ -490,11 +488,9 @@ const AdminPanel = () => {
   const saveBlogsToServer = async (blogsData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/blogs`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({ blogs: blogsData }),
-      });
+      const response = await fetch(`${API_URL}/api/blogs`,
+        adminFetchOptions('POST', { blogs: blogsData })
+      );
 
       await handleSaveResponse(response, '✓ Blog saved successfully!');
     } catch (error) {
@@ -558,11 +554,9 @@ const AdminPanel = () => {
   const saveGalleryToServer = async (galleryData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/gallery`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({ gallery: galleryData }),
-      });
+      const response = await fetch(`${API_URL}/api/gallery`,
+        adminFetchOptions('POST', { gallery: galleryData })
+      );
 
       await handleSaveResponse(response, '✓ Gallery saved successfully!');
     } catch (error) {
@@ -595,11 +589,9 @@ const AdminPanel = () => {
   const saveBookingsToServer = async (bookingsData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/bookings`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({ bookings: bookingsData }),
-      });
+      const response = await fetch(`${API_URL}/api/bookings`,
+        adminFetchOptions('POST', { bookings: bookingsData })
+      );
 
       await handleSaveResponse(response, '✓ Bookings updated successfully!');
     } catch (error) {
@@ -690,11 +682,9 @@ const AdminPanel = () => {
   const saveSlideshowToServer = async (slidesData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/slideshow`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({ slides: slidesData }),
-      });
+      const response = await fetch(`${API_URL}/api/slideshow`,
+        adminFetchOptions('POST', { slides: slidesData })
+      );
 
       await handleSaveResponse(response, '✓ Slideshow saved successfully!');
     } catch (error) {
@@ -762,11 +752,9 @@ const AdminPanel = () => {
   const saveTestimonialsToServer = async (testimonialsData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/tours`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify({ tours, testimonials: testimonialsData }),
-      });
+      const response = await fetch(`${API_URL}/api/tours`,
+        adminFetchOptions('POST', { tours, testimonials: testimonialsData })
+      );
       await handleSaveResponse(response, '✓ Testimonials saved successfully!');
     } catch (error) {
       console.error('Error saving testimonials:', error);
@@ -793,11 +781,9 @@ const AdminPanel = () => {
   const saveSiteSettingsToServer = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/settings`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        body: JSON.stringify(siteSettings),
-      });
+      const response = await fetch(`${API_URL}/api/settings`,
+        adminFetchOptions('POST', siteSettings)
+      );
       await handleSaveResponse(response, '✓ Site settings saved! Refresh the website to see your changes.');
     } catch (error) {
       console.error('Error saving site settings:', error);

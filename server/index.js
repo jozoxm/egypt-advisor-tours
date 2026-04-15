@@ -3,6 +3,9 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const app = express();
@@ -13,36 +16,93 @@ const PORT = process.env.PORT || 5000;
 // to work correctly behind Vercel's infrastructure.
 app.set('trust proxy', 1);
 
+// ============================================
+// SECURITY HEADERS (helmet)
+// ============================================
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdn.emailjs.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            connectSrc: ["'self'", "https://api.emailjs.com"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+        },
+    },
+    // Strict-Transport-Security is sent automatically by helmet
+    crossOriginEmbedderPolicy: false, // Allow Unsplash images
+}));
+
 // Enable CORS.
 // In production, restrict to the configured origin (CORS_ORIGIN env var) or the
 // live domain.  In development, allow all origins so the dev server on
 // localhost:3000 can call the API on localhost:5000.
-const corsOptions = process.env.CORS_ORIGIN
-    ? { origin: process.env.CORS_ORIGIN, optionsSuccessStatus: 200 }
-    : process.env.NODE_ENV === 'production'
-        ? { origin: 'https://egyptadvisortours.com', optionsSuccessStatus: 200 }
-        : undefined; // allow all origins in development
+const corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? 'https://egyptadvisortours.com' : undefined);
+const corsOptions = corsOrigin
+    ? { origin: corsOrigin, optionsSuccessStatus: 200, credentials: true }
+    : { credentials: true }; // allow all origins in development, but still send credentials
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // ============================================
-// AUTHENTICATION MIDDLEWARE
+// AUTHENTICATION — JWT-BASED ADMIN AUTH
 // ============================================
-// Set ADMIN_SECRET in your environment variables to protect admin endpoints.
-// Requests must include the header: X-Admin-Secret: <your-secret>
-// If ADMIN_SECRET is not set, all requests are allowed (useful for local dev).
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+// Set ADMIN_PASSWORD (and optionally ADMIN_USERNAME, default "admin") in your
+// environment to protect admin endpoints.  The client POSTs credentials to
+// /api/admin/login, which returns a short-lived JWT in an httpOnly cookie.
+// If ADMIN_PASSWORD is not set, all admin requests are allowed (local dev).
+//
+// The JWT is signed with ADMIN_SECRET (re-used as the signing key).
+// If only ADMIN_SECRET is set (legacy), that still works as the password check
+// so existing deployments continue to function without any env-var changes.
+
+const ADMIN_SECRET   = process.env.ADMIN_SECRET;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ADMIN_SECRET; // backward compat
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const JWT_SECRET     = ADMIN_SECRET || 'dev-jwt-secret-not-for-production';
+const JWT_EXPIRES_IN = '24h';
+
+const ADMIN_COOKIE_NAME = 'adminToken';
+
+// Strict rate-limiter for the login endpoint to slow brute-force attempts.
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later.' }
+});
 
 const requireAdminAuth = (req, res, next) => {
-    if (!ADMIN_SECRET) {
-        // No secret configured — open access (development mode)
+    if (!ADMIN_PASSWORD) {
+        // No password configured — open access (development mode)
         return next();
     }
-    const token = req.headers['x-admin-secret'] || '';
-    if (!token || token !== ADMIN_SECRET) {
-        return res.status(401).json({ error: 'Unauthorized: missing or invalid X-Admin-Secret header.' });
+
+    // Prefer the httpOnly JWT cookie (new path).
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (cookieToken) {
+        try {
+            jwt.verify(cookieToken, JWT_SECRET);
+            return next();
+        } catch {
+            return res.status(401).json({ error: 'Session expired. Please log in again.' });
+        }
     }
-    next();
+
+    // Backward-compat: also accept the legacy X-Admin-Secret header so that
+    // existing clients (e.g. still using the old REACT_APP_ADMIN_SECRET) keep
+    // working during a rolling upgrade.
+    const legacyToken = req.headers['x-admin-secret'] || '';
+    if (legacyToken && legacyToken === ADMIN_SECRET) {
+        return next();
+    }
+
+    return res.status(401).json({ error: 'Unauthorized: please log in at /admin.' });
 };
 
 // Rate-limit write (POST) endpoints to prevent abuse
@@ -339,6 +399,26 @@ function seedDataFiles() {
 seedDataFiles();
 console.log(`Data directory: ${DATA_DIR}`);
 
+// ============================================
+// STARTUP: VALIDATE JSON DATA FILES
+// ============================================
+// Warn at startup if any JSON data file exists but is malformed so that
+// the problem is immediately visible in the server logs rather than only
+// surfacing as a 500 error when the relevant API endpoint is first hit.
+function validateDataFiles() {
+    for (const [key, filePath] of Object.entries(JSON_FILES)) {
+        if (!fs.existsSync(filePath)) continue;
+        try {
+            JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (e) {
+            console.error(
+                `[WARN] Data file for "${key}" at "${filePath}" is malformed and will be ignored until fixed: ${e.message}`
+            );
+        }
+    }
+}
+validateDataFiles();
+
 app.get('/api', (req, res) => {
     res.json({
         message: 'Welcome to Egypt Advisor Tours API',
@@ -349,6 +429,71 @@ app.get('/api', (req, res) => {
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
+});
+
+// ============================================
+// ADMIN AUTH ENDPOINTS
+// ============================================
+
+// POST /api/admin/login
+// Body: { username?: string, password: string }
+// Sets an httpOnly JWT cookie on success.
+app.post('/api/admin/login', loginLimiter, (req, res) => {
+    if (!ADMIN_PASSWORD) {
+        // Dev mode — no password configured, issue a token anyway so the
+        // admin panel works without any setup.
+        const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        res.cookie(ADMIN_COOKIE_NAME, token, {
+            httpOnly: true,
+            sameSite: 'strict',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000,
+        });
+        return res.json({ success: true, message: 'Logged in (dev mode — no password required).' });
+    }
+
+    const { username = 'admin', password } = req.body || {};
+
+    if (
+        typeof username !== 'string' ||
+        typeof password !== 'string' ||
+        username.trim() !== ADMIN_USERNAME ||
+        password !== ADMIN_PASSWORD
+    ) {
+        return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+
+    const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    res.cookie(ADMIN_COOKIE_NAME, token, {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+    res.json({ success: true, message: 'Logged in successfully.' });
+});
+
+// GET /api/admin/verify — returns 200 if the session cookie is valid.
+app.get('/api/admin/verify', (req, res) => {
+    if (!ADMIN_PASSWORD) {
+        return res.json({ authenticated: true, devMode: true });
+    }
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (!cookieToken) {
+        return res.status(401).json({ authenticated: false });
+    }
+    try {
+        jwt.verify(cookieToken, JWT_SECRET);
+        return res.json({ authenticated: true });
+    } catch {
+        return res.status(401).json({ authenticated: false });
+    }
+});
+
+// POST /api/admin/logout — clears the session cookie.
+app.post('/api/admin/logout', (req, res) => {
+    res.clearCookie(ADMIN_COOKIE_NAME, { httpOnly: true, sameSite: 'strict' });
+    res.json({ success: true, message: 'Logged out.' });
 });
 
 // ============================================
@@ -526,6 +671,70 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
     }
 });
 
+// POST /api/bookings/customer — public endpoint that appends a single customer
+// booking record.  No admin auth required; the booking details are validated
+// and sanitized before being stored alongside admin-managed bookings.
+// Rate-limited to 20 requests per 15 minutes per IP to prevent spam.
+const customerBookingLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many booking requests, please try again later.' }
+});
+
+app.post('/api/bookings/customer', customerBookingLimiter, (req, res) => {
+    const err = validateObject(req.body);
+    if (err) return res.status(400).json({ error: err });
+
+    const { tourId, tourName, customerName, customerEmail, customerPhone,
+            numberOfPeople, bookingDate, bookingTime, specialRequests,
+            priceCategory, totalPrice } = req.body;
+
+    if (!customerName || !customerEmail || !tourId) {
+        return res.status(400).json({ error: 'customerName, customerEmail, and tourId are required.' });
+    }
+
+    try {
+        // Load existing bookings
+        if (!store.bookings) {
+            const data = readData('bookings', /export const bookings = (\[[\s\S]*?\]);/);
+            store.bookings = data
+                ? (data.bookings ? data : { bookings: data })
+                : { bookings: [] };
+        }
+
+        const existing = Array.isArray(store.bookings.bookings) ? store.bookings.bookings : [];
+
+        const newBooking = sanitize({
+            id: `booking-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            source: 'customer',
+            submittedAt: new Date().toISOString(),
+            tourId,
+            tourName:        tourName        || '',
+            customerName:    customerName    || '',
+            customerEmail:   customerEmail   || '',
+            customerPhone:   customerPhone   || '',
+            numberOfPeople:  numberOfPeople  || 1,
+            bookingDate:     bookingDate     || '',
+            bookingTime:     bookingTime     || '',
+            specialRequests: specialRequests || '',
+            priceCategory:   priceCategory   || 'individual',
+            totalPrice:      totalPrice      || '',
+            status: 'pending',
+        });
+
+        const updatedBookings = [...existing, newBooking];
+        store.bookings = { bookings: updatedBookings };
+        writeData('bookings', { bookings: updatedBookings });
+
+        res.status(201).json({ success: true, bookingId: newBooking.id, message: 'Booking received successfully.' });
+    } catch (error) {
+        console.error('Error saving customer booking:', error);
+        res.status(500).json({ error: 'Failed to save booking. Please try again.' });
+    }
+});
+
 // ============================================
 // SLIDESHOW API ENDPOINTS
 // ============================================
@@ -610,7 +819,7 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSy
     });
 }
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });
