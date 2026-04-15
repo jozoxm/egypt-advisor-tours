@@ -1,106 +1,86 @@
-# Deployment Guide — Hostinger
+# Deployment Instructions for Egypt Advisor Tours
 
-## Prerequisites
+This project is deployed to [Hostinger](https://www.hostinger.com/) at **https://egyptadvisortours.com** via an automated GitHub Actions workflow (`.github/workflows/deploy-hostinger.yml`). Every push to the `main` branch triggers an SSH-based deploy that pulls the latest code, rebuilds the React client, and restarts the Node.js app on the server.
 
-- A Hostinger Business/Cloud plan (Node.js support required)
-- SSH access enabled in hPanel
-- This repo pushed to GitHub
+> **Note:** Vercel GitHub deployments are explicitly disabled (`"github": { "enabled": false }` in `vercel.json` at the repo root). Do **not** attempt to deploy this project through Vercel's GitHub integration.
 
----
+## One-Time Setup (Hostinger + GitHub Actions)
 
-## One-time server setup
+Follow these steps once before the first automated deployment.
 
-### 1. Create the Node.js application in hPanel
+### 1. Configure a Node.js Application in Hostinger hPanel
 
-1. hPanel → **Websites** → egyptadvisortours.com → **Node.js**
-2. Set:
-   - Node.js version: **20** (LTS)
-   - Application root: e.g. `/home/u123456789/egyptadvisortours.com`
-   - Startup file: `index.js`
-3. Click **Create/Save**.
+1. Log in to [hPanel](https://hpanel.hostinger.com/).
+2. Go to **Websites → egyptadvisortours.com → Node.js**.
+3. Set:
+   - **Node.js version**: 18 (LTS) or higher
+   - **Application root**: the directory where the repo will be deployed, e.g. `/home/u123456789/egyptadvisortours.com`
+   - **Startup file**: `index.js`
+4. Click **Create / Save**.
 
-### 2. Enable SSH
+### 2. Enable SSH Access
 
-hPanel → **Advanced** → **SSH Access** → Enable.  
-Note your SSH hostname (e.g. `server123.web-hosting.com`) and port (usually `65002`).
+1. In hPanel, go to **Advanced → SSH Access → Enable**.
+2. Note your SSH **hostname** (e.g. `server123.web-hosting.com`), **username**, and **port** (usually `65002` on shared/business plans).
 
-### 3. Create a deploy SSH key pair
+### 3. Create a Deploy SSH Key Pair
+
+On your local machine:
 
 ```bash
 ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/hostinger_deploy
 ```
 
-Add the **public key** (`hostinger_deploy.pub`) to hPanel:  
-hPanel → **Advanced** → **SSH Access** → **Manage SSH Keys** → Add SSH Key.
+Add the **public key** (`~/.ssh/hostinger_deploy.pub`) to Hostinger:  
+**hPanel → Advanced → SSH Access → Manage SSH Keys → Add SSH Key**
 
-### 4. Add GitHub Secrets
+### 4. Add GitHub Repository Secrets
 
-Go to: **GitHub repo → Settings → Secrets and variables → Actions → New repository secret**
+Go to **GitHub → Settings → Secrets and variables → Actions → New repository secret** and add:
 
-| Secret | Value |
+| Secret name | Example / description |
 |---|---|
-| `HOSTINGER_SSH_HOST` | e.g. `server123.web-hosting.com` |
-| `HOSTINGER_SSH_PORT` | e.g. `65002` |
-| `HOSTINGER_SSH_USER` | e.g. `u123456789` |
-| `HOSTINGER_SSH_KEY` | Contents of `~/.ssh/hostinger_deploy` (private key) |
-| `HOSTINGER_APP_DIR` | e.g. `/home/u123456789/egyptadvisortours.com` |
-| `HOSTINGER_SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -p 65002 server123.web-hosting.com` |
-| `ADMIN_SECRET` | A long random string (JWT signing key) — generate at https://generate-secret.now.sh/32 |
-| `ADMIN_PASSWORD` | A secure password for the `/admin` login screen |
-| `ADMIN_USERNAME` | Login username (default: `admin` — optional) |
-| `HOSTINGER_DATA_PATH` | Absolute path for data files OUTSIDE the repo, e.g. `/home/u123456789/admin_data` (recommended) |
+| `HOSTINGER_SSH_HOST` | `server123.web-hosting.com` |
+| `HOSTINGER_SSH_PORT` | `65002` |
+| `HOSTINGER_SSH_USER` | `u123456789` |
+| `HOSTINGER_SSH_KEY` | Content of `~/.ssh/hostinger_deploy` (private key) |
+| `HOSTINGER_APP_DIR` | `/home/u123456789/egyptadvisortours.com` |
+| `HOSTINGER_SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -p <PORT> <HOST>` |
+| `ADMIN_SECRET` | A long random string that protects `/api` write endpoints |
 
-Optional EmailJS secrets (needed for booking/trip-tailor emails):
+**Optional** (only required if you use EmailJS):
 
-- `REACT_APP_EMAILJS_SERVICE_ID`
-- `REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID`
-- `REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID`
-- `REACT_APP_EMAILJS_PUBLIC_KEY`
+| Secret name |
+|---|
+| `REACT_APP_EMAILJS_SERVICE_ID` |
+| `REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID` |
+| `REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID` |
+| `REACT_APP_EMAILJS_PUBLIC_KEY` |
 
----
+**Optional** (persist admin edits across deploys):
 
-## How deployment works
+| Secret name | Description |
+|---|---|
+| `HOSTINGER_DATA_PATH` | Absolute path outside the repo checkout where JSON data files are stored (e.g. `/home/u123456789/app-data`). When set, admin saves survive `git pull` resets. |
 
-On every push to `main`, the GitHub Actions workflow (`.github/workflows/deploy-hostinger.yml`):
+## How Automated Deploys Work
 
-1. **Runs all tests** (server + client) — deploy is blocked if tests fail.
-2. SSHes into Hostinger and writes env vars to `.env` and `client/.env.production.local`.
-3. Runs `git pull origin main` on the server.
-4. Runs `npm install` (which also rebuilds the React client via `postinstall`).
-5. Restarts the Node.js app via `touch tmp/restart.txt`.
-6. Runs a **health check** — curls `https://egyptadvisortours.com/health` and fails the workflow if it returns non-200.
+After completing the one-time setup, every push to `main`:
 
----
+1. **Validates** all required secrets are present (fails fast if any are missing).
+2. **Bootstraps** the repository on the server if it is a first deploy (runs `git init`, `git fetch`, `git reset`).
+3. **Writes** build-time env vars (`REACT_APP_*`) to `client/.env.production.local` and the runtime `ADMIN_SECRET` to `.env` on the server.
+4. **Pulls** the latest code (`git pull origin main`).
+5. **Installs** dependencies (`npm install`), which triggers the `postinstall` hook that builds the React client via `scripts/build-client.js`.
+6. **Removes** the temporary build env file.
+7. **Restarts** the Node.js application (via `touch tmp/restart.txt` for Passenger, or PM2).
 
-## Persistent data directory (important!)
+The live site is available at **https://egyptadvisortours.com** once the workflow completes.
 
-Admin-edited JSON files should live **outside** the repo checkout so `git pull` does not wipe them on each deploy.
+## Manual Redeploy
 
-Set `HOSTINGER_DATA_PATH` (GitHub Secret) to an absolute path such as `/home/u123456789/admin_data`.
+To trigger a deploy without a code change (e.g. after updating GitHub Secrets):
 
-The server reads `DATA_PATH` from `.env` and uses that directory for all data files.
+- Go to **GitHub → Actions → Deploy to Hostinger → Run workflow**.
 
----
-
-## Nightly data backup
-
-A scheduled GitHub Actions workflow (`.github/workflows/backup-data.yml`) runs at 03:00 UTC daily. It SSHes into Hostinger, downloads all JSON data files, and commits them to the `data-backup` branch.
-
-To enable, create the `data-backup` branch once:
-```bash
-git checkout --orphan data-backup
-git commit --allow-empty -m "init"
-git push origin data-backup
-```
-
----
-
-## Manual deploy (without GitHub Actions)
-
-```bash
-ssh -p 65002 u123456789@server123.web-hosting.com
-cd /home/u123456789/egyptadvisortours.com
-git pull origin main
-npm install --production=false
-touch tmp/restart.txt
-```
+> **Reminder:** Changing only GitHub Secrets does **not** automatically rebuild the React bundle. You must also push a code change or run `npm install` manually on the server so the new env values are embedded.
