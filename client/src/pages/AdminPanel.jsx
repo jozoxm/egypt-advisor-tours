@@ -3,11 +3,17 @@ import './AdminPanel.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
-// Headers for all admin API requests.
-// Authentication is handled via an httpOnly session cookie set by
-// POST /api/admin/login — no secret is stored in the client bundle.
+// All admin API requests send credentials (the httpOnly JWT cookie).
+// No client-side secret is needed — authentication is handled server-side.
 const adminHeaders = () => ({
   'Content-Type': 'application/json',
+});
+
+const adminFetchOptions = (method = 'GET', body) => ({
+  method,
+  headers: adminHeaders(),
+  credentials: 'include', // send the httpOnly JWT cookie
+  ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
 });
 
 const NAV_TABS = [
@@ -32,12 +38,6 @@ const formatSaveTime = (date) =>
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  // Login state
-  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = checking
-  const [loginSecret, setLoginSecret] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loggingIn, setLoggingIn] = useState(false);
-
   const [tours, setTours] = useState([]);
   const [testimonials, setTestimonials] = useState([]);
   const [contactInfo, setContactInfo] = useState({});
@@ -109,8 +109,7 @@ const AdminPanel = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = adminHeaders();
-      const fetchOpts = { headers, credentials: 'include' };
+      const fetchOpts = adminFetchOptions('GET');
       const [toursRes, contactRes, blogsRes, galleryRes, bookingsRes, slideshowRes, settingsRes] = await Promise.all([
         fetch(`${API_URL}/api/tours`, fetchOpts),
         fetch(`${API_URL}/api/contact`, fetchOpts),
@@ -212,58 +211,16 @@ const AdminPanel = () => {
     setLoading(false);
   }, [showSaveMessage]);
 
-  // Check session on mount; load data only when authenticated.
+  // Load data on mount
   useEffect(() => {
-    fetch(`${API_URL}/api/admin/verify`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => setIsAuthenticated(!!data.authenticated))
-      .catch(() => setIsAuthenticated(false));
-  }, []);
-
-  // Load data on mount (after session is confirmed)
-  useEffect(() => {
-    if (isAuthenticated) loadData();
-  }, [isAuthenticated, loadData]);
+    loadData();
+  }, [loadData]);
 
   // Clear the contact debounce timer on unmount to prevent state updates
   // being called on an already-unmounted component.
   useEffect(() => {
     return () => clearTimeout(contactSaveTimer.current);
   }, []);
-
-  // Login: send the admin secret to the server; on success a session cookie is set.
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoggingIn(true);
-    setLoginError('');
-    try {
-      const res = await fetch(`${API_URL}/api/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ secret: loginSecret }),
-      });
-      if (res.ok) {
-        setLoginSecret('');
-        setIsAuthenticated(true);
-      } else {
-        const body = await res.json().catch(() => ({}));
-        setLoginError(body.error || 'Invalid admin secret. Please try again.');
-      }
-    } catch {
-      setLoginError('Could not reach the server. Please try again.');
-    }
-    setLoggingIn(false);
-  };
-
-  // Logout: clear the session cookie on the server.
-  const handleLogout = async () => {
-    await fetch(`${API_URL}/api/admin/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(() => {});
-    setIsAuthenticated(false);
-  };
 
   // Handle tour editing
   const startEditTour = (tour) => {
@@ -321,15 +278,9 @@ const AdminPanel = () => {
   const saveToursToServer = async (toursData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/tours`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({
-          tours: toursData,
-          testimonials: testimonials
-        }),
-      });
+      const response = await fetch(`${API_URL}/api/tours`,
+        adminFetchOptions('POST', { tours: toursData, testimonials: testimonials })
+      );
 
       await handleSaveResponse(response, '✓ Tours saved successfully!');
     } catch (error) {
@@ -466,12 +417,9 @@ const AdminPanel = () => {
   const saveContactInfoToServer = async (contactData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/contact`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify(contactData),
-      });
+      const response = await fetch(`${API_URL}/api/contact`,
+        adminFetchOptions('POST', contactData)
+      );
 
       await handleSaveResponse(response, '✓ Contact info saved successfully!');
     } catch (error) {
@@ -540,12 +488,9 @@ const AdminPanel = () => {
   const saveBlogsToServer = async (blogsData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/blogs`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({ blogs: blogsData }),
-      });
+      const response = await fetch(`${API_URL}/api/blogs`,
+        adminFetchOptions('POST', { blogs: blogsData })
+      );
 
       await handleSaveResponse(response, '✓ Blog saved successfully!');
     } catch (error) {
@@ -609,12 +554,9 @@ const AdminPanel = () => {
   const saveGalleryToServer = async (galleryData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/gallery`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({ gallery: galleryData }),
-      });
+      const response = await fetch(`${API_URL}/api/gallery`,
+        adminFetchOptions('POST', { gallery: galleryData })
+      );
 
       await handleSaveResponse(response, '✓ Gallery saved successfully!');
     } catch (error) {
@@ -647,12 +589,9 @@ const AdminPanel = () => {
   const saveBookingsToServer = async (bookingsData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/bookings`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({ bookings: bookingsData }),
-      });
+      const response = await fetch(`${API_URL}/api/bookings`,
+        adminFetchOptions('POST', { bookings: bookingsData })
+      );
 
       await handleSaveResponse(response, '✓ Bookings updated successfully!');
     } catch (error) {
@@ -743,12 +682,9 @@ const AdminPanel = () => {
   const saveSlideshowToServer = async (slidesData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/slideshow`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({ slides: slidesData }),
-      });
+      const response = await fetch(`${API_URL}/api/slideshow`,
+        adminFetchOptions('POST', { slides: slidesData })
+      );
 
       await handleSaveResponse(response, '✓ Slideshow saved successfully!');
     } catch (error) {
@@ -816,12 +752,9 @@ const AdminPanel = () => {
   const saveTestimonialsToServer = async (testimonialsData) => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/tours`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify({ tours, testimonials: testimonialsData }),
-      });
+      const response = await fetch(`${API_URL}/api/tours`,
+        adminFetchOptions('POST', { tours, testimonials: testimonialsData })
+      );
       await handleSaveResponse(response, '✓ Testimonials saved successfully!');
     } catch (error) {
       console.error('Error saving testimonials:', error);
@@ -848,12 +781,9 @@ const AdminPanel = () => {
   const saveSiteSettingsToServer = async () => {
     setSaving(true);
     try {
-      const response = await fetch(`${API_URL}/api/settings`, {
-        method: 'POST',
-        headers: adminHeaders(),
-        credentials: 'include',
-        body: JSON.stringify(siteSettings),
-      });
+      const response = await fetch(`${API_URL}/api/settings`,
+        adminFetchOptions('POST', siteSettings)
+      );
       await handleSaveResponse(response, '✓ Site settings saved! Refresh the website to see your changes.');
     } catch (error) {
       console.error('Error saving site settings:', error);
@@ -975,56 +905,6 @@ const AdminPanel = () => {
           <div className="admin-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p>Loading data...</p>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show a loading spinner while the session check is in progress.
-  if (isAuthenticated === null) {
-    return (
-      <div className="admin-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <p>Checking session…</p>
-      </div>
-    );
-  }
-
-  // Show the login form when not authenticated.
-  if (!isAuthenticated) {
-    return (
-      <div className="admin-panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f8f9fa' }}>
-        <div style={{ background: '#fff', padding: '2.5rem', borderRadius: '12px', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', maxWidth: '380px', width: '100%' }}>
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <span style={{ fontSize: '3rem' }}>🔐</span>
-            <h2 style={{ margin: '0.5rem 0 0.25rem' }}>Admin Login</h2>
-            <p style={{ color: '#666', margin: 0 }}>Egypt Advisor Tours</p>
-          </div>
-          <form onSubmit={handleLogin}>
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>
-                Admin Secret
-              </label>
-              <input
-                type="password"
-                value={loginSecret}
-                onChange={e => setLoginSecret(e.target.value)}
-                placeholder="Enter your admin secret"
-                required
-                autoFocus
-                style={{ width: '100%', padding: '0.65rem 0.9rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' }}
-              />
-            </div>
-            {loginError && (
-              <p style={{ color: '#dc2626', marginBottom: '1rem', fontSize: '0.9rem' }}>{loginError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={loggingIn}
-              style={{ width: '100%', padding: '0.75rem', background: '#d4a017', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: loggingIn ? 'not-allowed' : 'pointer' }}
-            >
-              {loggingIn ? 'Signing in…' : 'Sign In'}
-            </button>
-          </form>
         </div>
       </div>
     );
@@ -2108,9 +1988,9 @@ const AdminPanel = () => {
                   Restart the React app after any <code>.env</code> change.
                 </li>
                 <li>
-                  <strong>Session expired or not logged in</strong> — the admin panel requires a valid server session.
-                  If you see a <strong>401 Unauthorized</strong> error, log in again at <code>/admin</code>.
-                  Sessions are stored in an httpOnly cookie and expire automatically.
+                  <strong>Session expired or not logged in</strong> — if you were logged in but saves are now failing
+                  with a 401 error, your session cookie has expired (sessions last 24 hours). Log out and
+                  log back in at <code>/admin</code>. Your browser must accept cookies from this site.
                 </li>
               </ol>
             </div>
