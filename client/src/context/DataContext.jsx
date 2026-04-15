@@ -18,9 +18,9 @@ export const DataProvider = ({ children }) => {
   // Per-resource loading flags so the UI can show skeletons independently.
   const [loading, setLoading] = useState({
     tours: true,
-    contact: false,
-    blogs: false,
-    settings: false,
+    contact: true,
+    blogs: true,
+    settings: true,
   });
 
   useEffect(() => {
@@ -44,7 +44,8 @@ export const DataProvider = ({ children }) => {
         if (!isMounted || !data) return;
         setContactInfo(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLoading((l) => ({ ...l, contact: false })); });
 
     // Blogs
     fetch(`${API_URL}/api/blogs`)
@@ -53,7 +54,8 @@ export const DataProvider = ({ children }) => {
         if (!isMounted || !data || !data.blogs) return;
         setBlogs(data.blogs);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLoading((l) => ({ ...l, blogs: false })); });
 
     // Site settings
     fetch(`${API_URL}/api/settings`)
@@ -62,7 +64,8 @@ export const DataProvider = ({ children }) => {
         if (!isMounted || !data || !data.hero) return;
         setSiteSettings(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLoading((l) => ({ ...l, settings: false })); });
 
     return () => { isMounted = false; };
   }, []);

@@ -14,20 +14,25 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
-      <DataProvider>
-        <Routes>
-          <Route
-            path="/admin"
-            element={
-              <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
-                <AdminRoute />
-              </Suspense>
-            }
-          />
-          {/* All other routes are handled by the public-site App layout */}
-          <Route path="/*" element={<App />} />
-        </Routes>
-      </DataProvider>
+      <Routes>
+        <Route
+          path="/admin"
+          element={
+            <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
+              <AdminRoute />
+            </Suspense>
+          }
+        />
+        {/* All other routes are handled by the public-site App layout */}
+        <Route
+          path="/*"
+          element={
+            <DataProvider>
+              <App />
+            </DataProvider>
+          }
+        />
+      </Routes>
     </BrowserRouter>
   </React.StrictMode>
 );

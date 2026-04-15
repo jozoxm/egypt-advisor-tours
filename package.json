@@ -17,7 +17,7 @@
     "test": "npm test --prefix client",
     "test:server": "npm test --prefix server",
     "test:client": "npm test --prefix client",
-    "test:all": "npm test --prefix client -- --watchAll=false --passWithNoTests && npm test --prefix server -- --watchAll=false --forceExit",
+    "test:all": "npm test --prefix client -- --watchAll=false --passWithNoTests && npm test --prefix server -- --watchAll=false",
     "dev:client": "npm start --prefix client",
     "dev:server": "npm run dev --prefix server",
     "dev": "npm run dev:server"

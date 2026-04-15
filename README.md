@@ -70,13 +70,6 @@ docker-compose up --build  # starts the app on http://localhost:5000
 2. Run `npm run test:all` locally before opening a PR
 3. CI runs the full test suite before deploying
 
-
-```bash
-git pull origin copilot/remove-video-from-hero
-cd client && npm install && cd ..
-npm run build
-```
-
 ---
 
 ## 🚨 CAN'T SEE THE ADMIN BUTTON?

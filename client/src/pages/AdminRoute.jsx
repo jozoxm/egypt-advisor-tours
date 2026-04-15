@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLogin from './AdminLogin';
 import './AdminLogin.css';
@@ -13,7 +13,7 @@ function AdminRoute() {
   const navigate = useNavigate();
   const [authState, setAuthState] = useState('checking'); // 'checking' | 'authenticated' | 'unauthenticated'
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/admin/verify`, {
         credentials: 'include',
@@ -26,12 +26,11 @@ function AdminRoute() {
     } catch {
       setAuthState('unauthenticated');
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkAuth();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [checkAuth]);
 
   const handleLogout = async () => {
     await fetch(`${API_URL}/api/admin/logout`, {
