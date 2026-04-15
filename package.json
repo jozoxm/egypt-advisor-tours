@@ -5,9 +5,10 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "install:all": "npm install && npm install --prefix client && npm install --prefix server",
+    "install:all": "npm install && npm install --prefix client && npm install --prefix server && npm install --prefix cms",
     "install:client": "npm install --prefix client",
     "install:server": "npm install --prefix server",
+    "install:cms": "npm install --prefix cms",
     "postinstall": "node scripts/build-client.js",
     "start": "node index.js",
     "server": "npm start --prefix server",
@@ -16,9 +17,13 @@
     "build": "node scripts/build-client.js",
     "test": "npm test --prefix client",
     "test:server": "npm test --prefix server",
-    "test:all": "npm test --prefix client -- --watchAll=false && npm test --prefix server -- --watchAll=false --passWithNoTests",
+    "test:client": "npm test --prefix client",
+    "test:all": "npm test --prefix client -- --watchAll=false --passWithNoTests && npm test --prefix server -- --watchAll=false",
     "dev:client": "npm start --prefix client",
-    "dev:server": "npm run dev --prefix server"
+    "dev:server": "npm run dev --prefix server",
+    "dev:cms": "npm run dev --prefix cms",
+    "build:cms": "npm run build --prefix cms",
+    "dev": "npm run dev:server"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
@@ -26,7 +31,9 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.3.2",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "http-proxy-middleware": "^3.0.5",
+    "jsonwebtoken": "^9.0.3"
   },
   "engines": {
     "node": ">=18.0.0"

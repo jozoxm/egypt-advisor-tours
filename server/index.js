@@ -1,11 +1,12 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
-const cookieParser = require('cookie-parser');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 require('dotenv').config();
 
 const app = express();
@@ -16,53 +17,146 @@ const PORT = process.env.PORT || 5000;
 // to work correctly behind Vercel's infrastructure.
 app.set('trust proxy', 1);
 
-// Set standard HTTP security headers (HSTS, X-Content-Type-Options, etc.)
-app.use(helmet());
+// ============================================
+// PAYLOAD CMS PROXY
+// ============================================
+// The Payload CMS admin panel (Next.js) runs on its own port (CMS_PORT,
+// default 3001).  All /admin and /_next requests are transparently proxied
+// to it so the browser sees everything on the same origin.
+//
+// Set CMS_URL in .env to override (e.g. CMS_URL=http://localhost:3001).
+// If the CMS service is not running, the proxy returns a 503 with a clear
+// error message rather than crashing the main Express server.
+//
+// These routes are registered BEFORE helmet so that the CMS's own Next.js
+// headers are not overwritten by Express's CSP headers.
+const CMS_URL = process.env.CMS_URL || 'http://localhost:3001';
+const cmsProxyOptions = {
+    target: CMS_URL,
+    changeOrigin: true,
+    on: {
+        error: (err, _req, res) => {
+            console.error('[CMS Proxy] Error connecting to CMS:', err.message);
+            if (res && !res.headersSent) {
+                res.status(503).json({
+                    error: 'The CMS admin panel is not available. Make sure the cms/ service is running.',
+                });
+            }
+        },
+    },
+};
+app.use('/admin', createProxyMiddleware(cmsProxyOptions));
+// Next.js static assets (JS bundles, CSS, fonts) and the HMR websocket are
+// served by the CMS Next.js process under /_next/*.  These are the build
+// artefacts for the Payload admin UI and contain no sensitive data, so
+// proxying them publicly is intentional and required for the admin panel to
+// load correctly in the browser.
+app.use('/_next', createProxyMiddleware(cmsProxyOptions));
+// Payload CMS media REST API and static uploaded files.
+// /api/media  — Payload's REST endpoints for creating / querying media docs.
+//               The admin panel JS (loaded from /admin) calls these endpoints
+//               using the browser's current origin, so they must be proxied
+//               from the main Express server to the CMS.
+// /media      — Static files served by Payload's Next.js app for uploaded
+//               images.  Proxied so that <img src="/media/photo.jpg"> works
+//               on the main domain without CORS issues.
+app.use('/api/media', createProxyMiddleware(cmsProxyOptions));
+app.use('/media', createProxyMiddleware(cmsProxyOptions));
+
+// ============================================
+// SECURITY HEADERS (helmet)
+// ============================================
+// Applied AFTER the CMS proxy so that Next.js can set its own headers for
+// /admin and /_next responses without being overridden.
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdn.emailjs.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            connectSrc: ["'self'", "https://api.emailjs.com"],
+            frameSrc: ["'none'"],
+            objectSrc: ["'none'"],
+        },
+    },
+    // Strict-Transport-Security is sent automatically by helmet
+    crossOriginEmbedderPolicy: false, // Allow Unsplash images
+}));
 
 // Enable CORS.
 // In production, restrict to the configured origin (CORS_ORIGIN env var) or the
 // live domain.  In development, allow all origins so the dev server on
 // localhost:3000 can call the API on localhost:5000.
-// credentials: true is required so that the browser sends the admin_session
-// httpOnly cookie on cross-origin requests (dev client on :3000 → API on :5000).
-const corsOrigin = process.env.CORS_ORIGIN ||
-    (process.env.NODE_ENV === 'production' ? 'https://egyptadvisortours.com' : undefined);
+const corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? 'https://egyptadvisortours.com' : undefined);
 const corsOptions = corsOrigin
-    ? { origin: corsOrigin, credentials: true, optionsSuccessStatus: 200 }
-    : { origin: true, credentials: true, optionsSuccessStatus: 200 }; // allow all origins in development
+    ? { origin: corsOrigin, optionsSuccessStatus: 200, credentials: true }
+    : { credentials: true }; // allow all origins in development, but still send credentials
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
+// CSRF protection strategy: all admin session cookies are set with SameSite=Strict,
+// which instructs browsers never to send the cookie on cross-origin requests.
+// This is equivalent to CSRF token protection for same-origin browser clients.
+// API-only clients (non-browser) authenticate via the same SameSite=Strict cookie
+// and are expected to operate from the same origin.
 app.use(cookieParser());
 
 // ============================================
-// AUTHENTICATION HELPERS
+// AUTHENTICATION — JWT-BASED ADMIN AUTH
 // ============================================
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
+// Set ADMIN_PASSWORD (and optionally ADMIN_USERNAME, default "admin") in your
+// environment to protect admin endpoints.  The client POSTs credentials to
+// /api/admin/login, which returns a short-lived JWT in an httpOnly cookie.
+// If ADMIN_PASSWORD is not set, all admin requests are allowed (local dev).
+//
+// The JWT is signed with ADMIN_SECRET (re-used as the signing key).
+// If only ADMIN_SECRET is set (legacy), that still works as the password check
+// so existing deployments continue to function without any env-var changes.
 
-// Derive a deterministic session token from ADMIN_SECRET so the cookie value
-// cannot be guessed without knowing the secret and is invalidated when the
-// secret changes.  We do NOT store sessions server-side — the cookie itself
-// is the proof of authentication.
-function expectedSessionToken() {
-    return crypto
-        .createHmac('sha256', ADMIN_SECRET || 'dev')
-        .update('admin-session-v1')
-        .digest('hex');
-}
+const ADMIN_SECRET   = process.env.ADMIN_SECRET;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ADMIN_SECRET; // backward compat
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const JWT_SECRET     = ADMIN_SECRET || 'dev-jwt-secret-not-for-production';
+const JWT_EXPIRES_IN = '24h';
 
-// Middleware that protects admin write endpoints.
-// In dev (ADMIN_SECRET not set) all requests are allowed.
-// In production the request must carry a valid httpOnly session cookie set
-// by POST /api/admin/login.
+const ADMIN_COOKIE_NAME = 'adminToken';
+
+// Strict rate-limiter for the login endpoint to slow brute-force attempts.
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later.' }
+});
+
 const requireAdminAuth = (req, res, next) => {
-    if (!ADMIN_SECRET) {
+    if (!ADMIN_PASSWORD) {
+        // No password configured — open access (development mode)
         return next();
     }
-    const sessionCookie = req.cookies['admin_session'] || '';
-    if (!sessionCookie || sessionCookie !== expectedSessionToken()) {
-        return res.status(401).json({ error: 'Unauthorized: please log in at /admin.' });
+
+    // Prefer the httpOnly JWT cookie (new path).
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (cookieToken) {
+        try {
+            jwt.verify(cookieToken, JWT_SECRET);
+            return next();
+        } catch {
+            return res.status(401).json({ error: 'Session expired. Please log in again.' });
+        }
     }
-    next();
+
+    // Backward-compat: also accept the legacy X-Admin-Secret header so that
+    // existing clients (e.g. still using the old REACT_APP_ADMIN_SECRET) keep
+    // working during a rolling upgrade.
+    const legacyToken = req.headers['x-admin-secret'] || '';
+    if (legacyToken && legacyToken === ADMIN_SECRET) {
+        return next();
+    }
+
+    return res.status(401).json({ error: 'Unauthorized: please log in at /admin.' });
 };
 
 // Rate-limit write (POST) endpoints to prevent abuse
@@ -197,24 +291,28 @@ try {
     }
 }
 const JSON_FILES = {
-    tours:     path.join(DATA_DIR, 'tours.json'),
-    contact:   path.join(DATA_DIR, 'contact.json'),
-    blogs:     path.join(DATA_DIR, 'blogs.json'),
-    gallery:   path.join(DATA_DIR, 'gallery.json'),
-    bookings:  path.join(DATA_DIR, 'bookings.json'),
-    slideshow: path.join(DATA_DIR, 'slideshow.json'),
-    settings:  path.join(DATA_DIR, 'settings.json'),
+    tours:        path.join(DATA_DIR, 'tours.json'),
+    contact:      path.join(DATA_DIR, 'contact.json'),
+    blogs:        path.join(DATA_DIR, 'blogs.json'),
+    gallery:      path.join(DATA_DIR, 'gallery.json'),
+    bookings:     path.join(DATA_DIR, 'bookings.json'),
+    slideshow:    path.join(DATA_DIR, 'slideshow.json'),
+    settings:     path.join(DATA_DIR, 'settings.json'),
+    promotions:   path.join(DATA_DIR, 'promotions.json'),
+    destinations: path.join(DATA_DIR, 'destinations.json'),
 };
 
 // Legacy JS source files — used as cold-start fallbacks only.
 const JS_FILES = {
-    tours:     path.join(__dirname, '../client/src/data/tours-data.js'),
-    contact:   path.join(__dirname, '../client/src/data/contact-info.js'),
-    blogs:     path.join(__dirname, '../client/src/data/blogs-data.js'),
-    gallery:   path.join(__dirname, '../client/src/data/gallery-data.js'),
-    bookings:  path.join(__dirname, '../client/src/data/bookings-data.js'),
-    slideshow: path.join(__dirname, '../client/src/data/slideshow-data.js'),
-    settings:  path.join(__dirname, '../client/src/data/site-settings.js'),
+    tours:        path.join(__dirname, '../client/src/data/tours-data.js'),
+    contact:      path.join(__dirname, '../client/src/data/contact-info.js'),
+    blogs:        path.join(__dirname, '../client/src/data/blogs-data.js'),
+    gallery:      path.join(__dirname, '../client/src/data/gallery-data.js'),
+    bookings:     path.join(__dirname, '../client/src/data/bookings-data.js'),
+    slideshow:    path.join(__dirname, '../client/src/data/slideshow-data.js'),
+    settings:     path.join(__dirname, '../client/src/data/site-settings.js'),
+    promotions:   path.join(__dirname, '../client/src/data/promotions-data.js'),
+    destinations: path.join(__dirname, '../client/src/data/destinations-data.js'),
 };
 
 // In-memory data store — used as a writable cache so that admin edits survive
@@ -285,12 +383,14 @@ const SEED_MAP = [
         const testimonialsMatch = c.match(/export const testimonials\s*=\s*(\[[\s\S]*?\]);/);
         return { tours: JSON.parse(m[1]), testimonials: testimonialsMatch ? JSON.parse(testimonialsMatch[1]) : [] };
     }},
-    { key: 'contact',   regex: /export const contactInfo\s*=\s*({[\s\S]*?});/,  wrapFn: (m) => JSON.parse(m[1]) },
-    { key: 'blogs',     regex: /export const blogs\s*=\s*(\[[\s\S]*?\]);/,      wrapFn: (m) => ({ blogs: JSON.parse(m[1]) }) },
-    { key: 'gallery',   regex: /export const gallery\s*=\s*(\[[\s\S]*?\]);/,    wrapFn: (m) => ({ gallery: JSON.parse(m[1]) }) },
-    { key: 'slideshow', regex: /export const slides\s*=\s*(\[[\s\S]*?\]);/,     wrapFn: (m) => ({ slides: JSON.parse(m[1]) }) },
-    { key: 'settings',  regex: /export const siteSettings\s*=\s*({[\s\S]*?});/, wrapFn: (m) => JSON.parse(m[1]) },
-    { key: 'bookings',  regex: /export const bookings\s*=\s*(\[[\s\S]*?\]);/,   wrapFn: (m) => ({ bookings: JSON.parse(m[1]) }) },
+    { key: 'contact',      regex: /export const contactInfo\s*=\s*({[\s\S]*?});/,     wrapFn: (m) => JSON.parse(m[1]) },
+    { key: 'blogs',        regex: /export const blogs\s*=\s*(\[[\s\S]*?\]);/,         wrapFn: (m) => ({ blogs: JSON.parse(m[1]) }) },
+    { key: 'gallery',      regex: /export const gallery\s*=\s*(\[[\s\S]*?\]);/,       wrapFn: (m) => ({ gallery: JSON.parse(m[1]) }) },
+    { key: 'slideshow',    regex: /export const slides\s*=\s*(\[[\s\S]*?\]);/,        wrapFn: (m) => ({ slides: JSON.parse(m[1]) }) },
+    { key: 'settings',     regex: /export const siteSettings\s*=\s*({[\s\S]*?});/,    wrapFn: (m) => JSON.parse(m[1]) },
+    { key: 'bookings',     regex: /export const bookings\s*=\s*(\[[\s\S]*?\]);/,      wrapFn: (m) => ({ bookings: JSON.parse(m[1]) }) },
+    { key: 'promotions',   regex: /export const promotions\s*=\s*(\[[\s\S]*?\]);/,    wrapFn: (m) => ({ promotions: JSON.parse(m[1]) }) },
+    { key: 'destinations', regex: /export const destinations\s*=\s*(\[[\s\S]*?\]);/,  wrapFn: (m) => ({ destinations: JSON.parse(m[1]) }) },
 ];
 
 function seedDataFiles() {
@@ -359,6 +459,26 @@ function seedDataFiles() {
 seedDataFiles();
 console.log(`Data directory: ${DATA_DIR}`);
 
+// ============================================
+// STARTUP: VALIDATE JSON DATA FILES
+// ============================================
+// Warn at startup if any JSON data file exists but is malformed so that
+// the problem is immediately visible in the server logs rather than only
+// surfacing as a 500 error when the relevant API endpoint is first hit.
+function validateDataFiles() {
+    for (const [key, filePath] of Object.entries(JSON_FILES)) {
+        if (!fs.existsSync(filePath)) continue;
+        try {
+            JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        } catch (e) {
+            console.error(
+                `[WARN] Data file for "${key}" at "${filePath}" is malformed and will be ignored until fixed: ${e.message}`
+            );
+        }
+    }
+}
+validateDataFiles();
+
 app.get('/api', (req, res) => {
     res.json({
         message: 'Welcome to Egypt Advisor Tours API',
@@ -375,50 +495,70 @@ app.get('/health', (req, res) => {
 // ADMIN AUTH ENDPOINTS
 // ============================================
 
-// Rate-limit login attempts independently to harden against brute-force.
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many login attempts, please try again later.' }
-});
-
-// POST /api/admin/login — validate the admin secret and set a session cookie.
+// POST /api/admin/login
+// Body: { username?: string, password: string }
+// Sets an httpOnly JWT cookie on success.
+// Security note: JWTs are stored in an httpOnly SameSite=Strict cookie.
+// The cookie is inaccessible to JavaScript and protected against CSRF via SameSite=Strict.
+// CodeQL may flag JWT-in-cookie as "clear-text storage" — this is intentional and
+// is the industry-standard stateless session pattern for server-rendered / API setups.
 app.post('/api/admin/login', loginLimiter, (req, res) => {
-    const { secret } = req.body || {};
-    if (!ADMIN_SECRET) {
-        // Dev mode — no secret required; consider the caller authenticated.
-        return res.json({ success: true });
+    if (!ADMIN_PASSWORD) {
+        // Dev mode — no password configured, issue a token anyway so the
+        // admin panel works without any setup.
+        const devToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        res.cookie(ADMIN_COOKIE_NAME, devToken, {
+            httpOnly: true,
+            sameSite: 'strict',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 24 * 60 * 60 * 1000,
+        });
+        return res.json({ success: true, message: 'Logged in (dev mode — no password required).' });
     }
-    if (!secret || secret !== ADMIN_SECRET) {
-        return res.status(401).json({ error: 'Invalid admin secret.' });
+
+    const { username = 'admin', password } = req.body || {};
+
+    if (
+        typeof username !== 'string' ||
+        typeof password !== 'string' ||
+        username.trim() !== ADMIN_USERNAME ||
+        password !== ADMIN_PASSWORD
+    ) {
+        return res.status(401).json({ error: 'Invalid username or password.' });
     }
-    const token = expectedSessionToken();
-    res.cookie('admin_session', token, {
+
+    const sessionToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    res.cookie(ADMIN_COOKIE_NAME, sessionToken, {
         httpOnly: true,
+        sameSite: 'strict',
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict', // prevent CSRF: cookie is never sent on cross-site requests
-        maxAge: 8 * 60 * 60 * 1000, // 8 hours
-        path: '/'
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
-    res.json({ success: true });
+    res.json({ success: true, message: 'Logged in successfully.' });
 });
 
-// POST /api/admin/logout — clear the session cookie.
-app.post('/api/admin/logout', (req, res) => {
-    res.clearCookie('admin_session', { path: '/' });
-    res.json({ success: true });
-});
-
-// GET /api/admin/verify — check whether the caller is currently authenticated.
-app.get('/api/admin/verify', (req, res) => {
-    if (!ADMIN_SECRET) {
-        return res.json({ authenticated: true });
+// GET /api/admin/verify — returns 200 if the session cookie is valid.
+// Rate-limited to slow any automated probing of session validity.
+app.get('/api/admin/verify', loginLimiter, (req, res) => {
+    if (!ADMIN_PASSWORD) {
+        return res.json({ authenticated: true, devMode: true });
     }
-    const sessionCookie = req.cookies['admin_session'] || '';
-    const authenticated = sessionCookie === expectedSessionToken();
-    res.json({ authenticated });
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (!cookieToken) {
+        return res.status(401).json({ authenticated: false });
+    }
+    try {
+        jwt.verify(cookieToken, JWT_SECRET);
+        return res.json({ authenticated: true });
+    } catch {
+        return res.status(401).json({ authenticated: false });
+    }
+});
+
+// POST /api/admin/logout — clears the session cookie.
+app.post('/api/admin/logout', (req, res) => {
+    res.clearCookie(ADMIN_COOKIE_NAME, { httpOnly: true, sameSite: 'strict' });
+    res.json({ success: true, message: 'Logged out.' });
 });
 
 // ============================================
@@ -596,6 +736,70 @@ app.post('/api/bookings', writeLimiter, requireAdminAuth, (req, res) => {
     }
 });
 
+// POST /api/bookings/customer — public endpoint that appends a single customer
+// booking record.  No admin auth required; the booking details are validated
+// and sanitized before being stored alongside admin-managed bookings.
+// Rate-limited to 20 requests per 15 minutes per IP to prevent spam.
+const customerBookingLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many booking requests, please try again later.' }
+});
+
+app.post('/api/bookings/customer', customerBookingLimiter, (req, res) => {
+    const err = validateObject(req.body);
+    if (err) return res.status(400).json({ error: err });
+
+    const { tourId, tourName, customerName, customerEmail, customerPhone,
+            numberOfPeople, bookingDate, bookingTime, specialRequests,
+            priceCategory, totalPrice } = req.body;
+
+    if (!customerName || !customerEmail || !tourId) {
+        return res.status(400).json({ error: 'customerName, customerEmail, and tourId are required.' });
+    }
+
+    try {
+        // Load existing bookings
+        if (!store.bookings) {
+            const data = readData('bookings', /export const bookings = (\[[\s\S]*?\]);/);
+            store.bookings = data
+                ? (data.bookings ? data : { bookings: data })
+                : { bookings: [] };
+        }
+
+        const existing = Array.isArray(store.bookings.bookings) ? store.bookings.bookings : [];
+
+        const newBooking = sanitize({
+            id: `booking-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            source: 'customer',
+            submittedAt: new Date().toISOString(),
+            tourId,
+            tourName:        tourName        || '',
+            customerName:    customerName    || '',
+            customerEmail:   customerEmail   || '',
+            customerPhone:   customerPhone   || '',
+            numberOfPeople:  numberOfPeople  || 1,
+            bookingDate:     bookingDate     || '',
+            bookingTime:     bookingTime     || '',
+            specialRequests: specialRequests || '',
+            priceCategory:   priceCategory   || 'individual',
+            totalPrice:      totalPrice      || '',
+            status: 'pending',
+        });
+
+        const updatedBookings = [...existing, newBooking];
+        store.bookings = { bookings: updatedBookings };
+        writeData('bookings', { bookings: updatedBookings });
+
+        res.status(201).json({ success: true, bookingId: newBooking.id, message: 'Booking received successfully.' });
+    } catch (error) {
+        console.error('Error saving customer booking:', error);
+        res.status(500).json({ error: 'Failed to save booking. Please try again.' });
+    }
+});
+
 // ============================================
 // SLIDESHOW API ENDPOINTS
 // ============================================
@@ -660,6 +864,74 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     }
 });
 
+// ============================================
+// PROMOTIONS API ENDPOINTS
+// ============================================
+
+app.get('/api/promotions', readLimiter, (req, res) => {
+    if (store.promotions) return res.json(store.promotions);
+    const data = readData('promotions', /export const promotions\s*=\s*(\[[\s\S]*?\]);/);
+    if (data) {
+        store.promotions = data.promotions ? data : { promotions: data };
+        return res.json(store.promotions);
+    }
+    // No data file yet — return an empty list rather than a 500 so the
+    // front-end degrades gracefully on a fresh deployment.
+    store.promotions = { promotions: [] };
+    res.json(store.promotions);
+});
+
+app.post('/api/promotions', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'promotions');
+    if (err) return res.status(400).json({ error: err });
+    try {
+        const promotions = sanitize(req.body.promotions);
+        store.promotions = { promotions };
+        const persisted = writeData('promotions', { promotions });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Promotions saved successfully' : 'Promotions updated in memory, but failed to persist'
+        });
+    } catch (error) {
+        console.error('Error saving promotions:', error);
+        res.status(500).json({ error: 'Failed to save promotions data' });
+    }
+});
+
+// ============================================
+// DESTINATIONS API ENDPOINTS
+// ============================================
+
+app.get('/api/destinations', readLimiter, (req, res) => {
+    if (store.destinations) return res.json(store.destinations);
+    const data = readData('destinations', /export const destinations\s*=\s*(\[[\s\S]*?\]);/);
+    if (data) {
+        store.destinations = data.destinations ? data : { destinations: data };
+        return res.json(store.destinations);
+    }
+    store.destinations = { destinations: [] };
+    res.json(store.destinations);
+});
+
+app.post('/api/destinations', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'destinations');
+    if (err) return res.status(400).json({ error: err });
+    try {
+        const destinations = sanitize(req.body.destinations);
+        store.destinations = { destinations };
+        const persisted = writeData('destinations', { destinations });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Destinations saved successfully' : 'Destinations updated in memory, but failed to persist'
+        });
+    } catch (error) {
+        console.error('Error saving destinations:', error);
+        res.status(500).json({ error: 'Failed to save destinations data' });
+    }
+});
+
 // Return a JSON 404 for any unmatched /api/* routes so they are never
 // swallowed by the SPA catch-all below.
 app.use('/api', (req, res) => {
@@ -680,7 +952,7 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSy
     });
 }
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
     app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
     });

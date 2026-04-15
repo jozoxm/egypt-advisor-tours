@@ -1,0 +1,55 @@
+# docker-compose.yml — local development environment matching production.
+#
+# Usage:
+#   cp .env.example .env         # fill in ADMIN_SECRET, PAYLOAD_SECRET, etc.
+#   docker-compose up --build    # starts the full stack on http://localhost:5000
+#                                # Payload admin UI: http://localhost:5000/admin
+#
+# Services:
+#   app  — Express API + React static files  (port 5000)
+#   cms  — Payload CMS Next.js admin panel   (port 3001, proxied at /admin)
+#
+# The `data` volume is shared between both services so the SQLite database and
+# JSON data files survive container restarts.
+
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATA_PATH=/data
+      - CMS_URL=http://cms:3001
+    env_file:
+      - .env
+    volumes:
+      - app_data:/data
+    depends_on:
+      - cms
+    restart: unless-stopped
+
+  cms:
+    build:
+      context: ./cms
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - CMS_PORT=3001
+      - DATABASE_PATH=/data/payload.db
+    env_file:
+      - .env
+    volumes:
+      - app_data:/data
+    restart: unless-stopped
+
+volumes:
+  app_data:
+    driver: local

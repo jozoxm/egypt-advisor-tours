@@ -1,10 +1,13 @@
 # Dependencies
 node_modules/
+cms/node_modules/
 
 # Build outputs
 /build
-client/build/
+/client/build
 /server/dist
+/cms/.next
+/cms/dist
 
 # Environment variables
 .env
@@ -38,6 +41,15 @@ coverage/
 # hosts) never overwrite live admin data when pulling a new deployment.
 # The server seeds them from client/src/data/*.js on first startup.
 server/data/*.json
+
+# Payload CMS — generated files and database
+cms/payload-types.ts
+data/payload.db
+data/payload.db-shm
+data/payload.db-wal
+
+# Payload CMS — uploaded media files (written at runtime, not tracked in git)
+/media/
 
 # Temporary files
 *.tmp
