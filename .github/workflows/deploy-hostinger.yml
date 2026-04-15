@@ -66,6 +66,9 @@ on:
       - main
   workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
 
+permissions:
+  contents: read   # only read access needed; no push/write in this workflow
+
 env:
   # Opt in to Node.js 24 now; avoids deprecation warnings from actions/checkout
   # that will become hard errors when GitHub removes Node.js 20 support.

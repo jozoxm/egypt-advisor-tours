@@ -26,6 +26,9 @@ on:
     - cron: '0 3 * * *'   # 03:00 UTC every day
   workflow_dispatch:        # allow manual trigger
 
+permissions:
+  contents: write   # needed to push to data-backup branch
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
