@@ -2110,7 +2110,7 @@ const AdminPanel = () => {
                 <li>
                   <strong>Session expired or not logged in</strong> — the admin panel requires a valid server session.
                   If you see a <strong>401 Unauthorized</strong> error, log in again at <code>/admin</code>.
-                  Sessions last 8 hours and are stored in an httpOnly cookie.
+                  Sessions are stored in an httpOnly cookie and expire automatically.
                 </li>
               </ol>
             </div>

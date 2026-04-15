@@ -398,7 +398,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     res.cookie('admin_session', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: 'strict', // prevent CSRF: cookie is never sent on cross-site requests
         maxAge: 8 * 60 * 60 * 1000, // 8 hours
         path: '/'
     });
