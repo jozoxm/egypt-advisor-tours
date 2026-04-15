@@ -1,0 +1,31 @@
+{
+  "name": "egypt-advisor-cms",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port ${CMS_PORT:-3001}",
+    "build": "next build",
+    "start": "next start --port ${CMS_PORT:-3001}",
+    "generate:types": "payload generate:types",
+    "generate:importmap": "payload generate:importMap"
+  },
+  "dependencies": {
+    "next": "16.2.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "payload": "3.82.1",
+    "@payloadcms/db-sqlite": "3.82.1",
+    "@payloadcms/richtext-lexical": "3.82.1",
+    "@payloadcms/next": "3.82.1",
+    "graphql": "^16.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

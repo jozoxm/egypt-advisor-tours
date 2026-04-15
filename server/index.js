@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 require('dotenv').config();
 
 const app = express();
@@ -17,8 +18,41 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 
 // ============================================
+// PAYLOAD CMS PROXY
+// ============================================
+// The Payload CMS admin panel (Next.js) runs on its own port (CMS_PORT,
+// default 3001).  All /admin and /_next requests are transparently proxied
+// to it so the browser sees everything on the same origin.
+//
+// Set CMS_URL in .env to override (e.g. CMS_URL=http://localhost:3001).
+// If the CMS service is not running, the proxy returns a 503 with a clear
+// error message rather than crashing the main Express server.
+//
+// These routes are registered BEFORE helmet so that the CMS's own Next.js
+// headers are not overwritten by Express's CSP headers.
+const CMS_URL = process.env.CMS_URL || 'http://localhost:3001';
+const cmsProxyOptions = {
+    target: CMS_URL,
+    changeOrigin: true,
+    on: {
+        error: (_err, _req, res) => {
+            if (res && !res.headersSent) {
+                res.status(503).json({
+                    error: 'The CMS admin panel is not available. Make sure the cms/ service is running.',
+                });
+            }
+        },
+    },
+};
+app.use('/admin', createProxyMiddleware(cmsProxyOptions));
+// Next.js static assets and HMR websocket (used by Payload's admin UI build)
+app.use('/_next', createProxyMiddleware(cmsProxyOptions));
+
+// ============================================
 // SECURITY HEADERS (helmet)
 // ============================================
+// Applied AFTER the CMS proxy so that Next.js can set its own headers for
+// /admin and /_next responses without being overridden.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
