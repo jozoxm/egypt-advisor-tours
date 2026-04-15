@@ -12,6 +12,8 @@ import { Slideshow } from './collections/Slideshow'
 import { Bookings } from './collections/Bookings'
 import { Testimonials } from './collections/Testimonials'
 import { FAQs } from './collections/FAQs'
+import { Promotions } from './collections/Promotions'
+import { Destinations } from './collections/Destinations'
 import { SiteSettings } from './globals/SiteSettings'
 import { ContactInfo } from './globals/ContactInfo'
 
@@ -32,7 +34,7 @@ export default buildConfig({
       titleSuffix: '— Egypt Advisor Tours',
     },
   },
-  collections: [Users, Tours, Blogs, Gallery, Slideshow, Bookings, Testimonials, FAQs],
+  collections: [Users, Tours, Blogs, Gallery, Slideshow, Bookings, Testimonials, FAQs, Promotions, Destinations],
   globals: [SiteSettings, ContactInfo],
   editor: lexicalEditor(),
   db: sqliteAdapter({
