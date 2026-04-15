@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const fs = require('fs');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
@@ -12,6 +13,9 @@ const PORT = process.env.PORT || 5000;
 // req.ip reflects the real client IP.  This is required for the rate-limiter
 // to work correctly behind Vercel's infrastructure.
 app.set('trust proxy', 1);
+
+// Set standard HTTP security headers (HSTS, X-Content-Type-Options, etc.)
+app.use(helmet());
 
 // Enable CORS.
 // In production, restrict to the configured origin (CORS_ORIGIN env var) or the
