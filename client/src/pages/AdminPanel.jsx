@@ -1988,11 +1988,9 @@ const AdminPanel = () => {
                   Restart the React app after any <code>.env</code> change.
                 </li>
                 <li>
-                  <strong>Admin secret mismatch</strong> — if your server has <code>ADMIN_SECRET</code> set, the React app
-                  must send the same value via <code>REACT_APP_ADMIN_SECRET</code>.
-                  Add it to a <strong>gitignored</strong> <code>client/.env.development.local</code> file:
-                  <pre className="code-block">REACT_APP_ADMIN_SECRET=your_secret_here</pre>
-                  Then restart the React app. The value must exactly match the server's <code>ADMIN_SECRET</code>.
+                  <strong>Session expired or not logged in</strong> — if you were logged in but saves are now failing
+                  with a 401 error, your session cookie has expired (sessions last 24 hours). Log out and
+                  log back in at <code>/admin</code>. Your browser must accept cookies from this site.
                 </li>
               </ol>
             </div>

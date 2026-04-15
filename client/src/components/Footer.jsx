@@ -35,6 +35,9 @@ const Footer = () => {
       </div>
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} Egypt Advisor Tours. All rights reserved.</p>
+        <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', opacity: 0.6 }}>
+          <Link to="/admin" style={{ color: 'inherit', textDecoration: 'none' }}>Admin</Link>
+        </p>
       </div>
     </footer>
   );
