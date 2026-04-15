@@ -3,6 +3,8 @@ import { tours as defaultTours, testimonials as defaultTestimonials } from '../d
 import { contactInfo as defaultContactInfo } from '../data/contact-info';
 import { blogs as defaultBlogs } from '../data/blogs-data';
 import { siteSettings as defaultSiteSettings } from '../data/site-settings';
+import { promotions as defaultPromotions } from '../data/promotions-data';
+import { destinations as defaultDestinations } from '../data/destinations-data';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -14,6 +16,8 @@ export const DataProvider = ({ children }) => {
   const [contactInfo, setContactInfo]   = useState(defaultContactInfo);
   const [blogs, setBlogs]               = useState(defaultBlogs);
   const [siteSettings, setSiteSettings] = useState(defaultSiteSettings);
+  const [promotions, setPromotions]     = useState(defaultPromotions);
+  const [destinations, setDestinations] = useState(defaultDestinations);
 
   // Per-resource loading flags so the UI can show skeletons independently.
   const [loading, setLoading] = useState({
@@ -21,6 +25,8 @@ export const DataProvider = ({ children }) => {
     contact: true,
     blogs: true,
     settings: true,
+    promotions: true,
+    destinations: true,
   });
 
   useEffect(() => {
@@ -67,12 +73,32 @@ export const DataProvider = ({ children }) => {
       .catch(() => {})
       .finally(() => { if (isMounted) setLoading((l) => ({ ...l, settings: false })); });
 
+    // Promotions
+    fetch(`${API_URL}/api/promotions`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !data) return;
+        if (Array.isArray(data.promotions)) setPromotions(data.promotions);
+      })
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLoading((l) => ({ ...l, promotions: false })); });
+
+    // Destinations
+    fetch(`${API_URL}/api/destinations`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !data) return;
+        if (Array.isArray(data.destinations)) setDestinations(data.destinations);
+      })
+      .catch(() => {})
+      .finally(() => { if (isMounted) setLoading((l) => ({ ...l, destinations: false })); });
+
     return () => { isMounted = false; };
   }, []);
 
   return (
     <DataContext.Provider
-      value={{ tours, testimonials, contactInfo, blogs, siteSettings, loading }}
+      value={{ tours, testimonials, contactInfo, blogs, siteSettings, promotions, destinations, loading }}
     >
       {children}
     </DataContext.Provider>

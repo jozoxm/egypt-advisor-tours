@@ -6,6 +6,8 @@ import BlogsPage from './pages/BlogsPage';
 import TourDetail from './pages/TourDetail';
 import HomePage from './pages/HomePage';
 import ToursPage from './pages/ToursPage';
+import PromotionsPage from './pages/PromotionsPage';
+import DestinationsPage from './pages/DestinationsPage';
 import TailorTripModal from './components/TailorTripModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import useTitle from './hooks/useTitle';
@@ -139,6 +141,8 @@ useEffect(() => {
               </NavLink>
             </li>
             <li><NavLink to="/blogs" onClick={() => { setMenuOpen(false); }}>Blogs</NavLink></li>
+            <li><NavLink to="/destinations" onClick={() => { setMenuOpen(false); }}>Destinations</NavLink></li>
+            <li><NavLink to="/special-offers" onClick={() => { setMenuOpen(false); }}>Special Offers</NavLink></li>
             <li><NavLink to="/about" onClick={() => { setMenuOpen(false); }}>About</NavLink></li>
           </ul>
             <button 
@@ -190,6 +194,10 @@ useEffect(() => {
 
         <Route path="/blogs" element={<ErrorBoundary><BlogsPage onTailorTrip={scrollToTripTailor} blogs={blogs} /></ErrorBoundary>} />
 
+        <Route path="/destinations" element={<ErrorBoundary><DestinationsPage onTailorTrip={scrollToTripTailor} /></ErrorBoundary>} />
+
+        <Route path="/special-offers" element={<ErrorBoundary><PromotionsPage onTailorTrip={scrollToTripTailor} /></ErrorBoundary>} />
+
         <Route path="/about" element={<ErrorBoundary><About /></ErrorBoundary>} />
 
         <Route path="/tours/:id" element={<ErrorBoundary><TourDetail /></ErrorBoundary>} />
@@ -234,6 +242,8 @@ useEffect(() => {
                 </Link>
               </li>
               <li><Link to="/blogs">Blogs</Link></li>
+              <li><Link to="/destinations">Destinations</Link></li>
+              <li><Link to="/special-offers">Special Offers</Link></li>
               <li><Link to="/about">About Us</Link></li>
             </ul>
           </div>

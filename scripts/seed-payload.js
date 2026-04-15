@@ -291,6 +291,52 @@ async function main() {
         console.warn('[seed] contact.json not found — skipping contact info.');
     }
 
+    // ── Promotions ─────────────────────────────────────────────────────────
+    const promotionsFile = readJsonFile('promotions.json');
+    if (promotionsFile) {
+        const promos = promotionsFile.promotions || promotionsFile || [];
+        console.log(`[seed] Seeding ${promos.length} promotions…`);
+        for (const p of promos) {
+            await createDoc('promotions', {
+                title:       p.title || '',
+                discount:    p.discount || '',
+                badgeText:   p.badgeText || '🔥 Special Offer',
+                imageUrl:    p.imageUrl || '',
+                validFrom:   p.validFrom  ? new Date(p.validFrom).toISOString()  : undefined,
+                validUntil:  p.validUntil ? new Date(p.validUntil).toISOString() : undefined,
+                featured:    Boolean(p.featured),
+                active:      p.active !== false,
+            }, token);
+        }
+    } else {
+        console.warn('[seed] promotions.json not found — skipping promotions.');
+    }
+
+    // ── Destinations ───────────────────────────────────────────────────────
+    const destinationsFile = readJsonFile('destinations.json');
+    if (destinationsFile) {
+        const dests = destinationsFile.destinations || destinationsFile || [];
+        console.log(`[seed] Seeding ${dests.length} destinations…`);
+        for (const d of dests) {
+            await createDoc('destinations', {
+                name:            d.name || '',
+                region:          d.region || 'lower-egypt',
+                tagline:         d.tagline || '',
+                imageUrl:        d.imageUrl || '',
+                bestTimeToVisit: d.bestTimeToVisit || '',
+                highlights:      (d.highlights || []).map(h => ({
+                    emoji:       h.emoji || '',
+                    title:       h.title || '',
+                    description: h.description || '',
+                })),
+                featured: Boolean(d.featured),
+                order:    d.order || 0,
+            }, token);
+        }
+    } else {
+        console.warn('[seed] destinations.json not found — skipping destinations.');
+    }
+
     console.log('\n[seed] ✅ Seed complete!');
     if (DRY_RUN) console.log('[seed] (Dry run — nothing was actually written.)');
 }

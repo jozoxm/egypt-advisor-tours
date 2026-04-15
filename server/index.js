@@ -281,24 +281,28 @@ try {
     }
 }
 const JSON_FILES = {
-    tours:     path.join(DATA_DIR, 'tours.json'),
-    contact:   path.join(DATA_DIR, 'contact.json'),
-    blogs:     path.join(DATA_DIR, 'blogs.json'),
-    gallery:   path.join(DATA_DIR, 'gallery.json'),
-    bookings:  path.join(DATA_DIR, 'bookings.json'),
-    slideshow: path.join(DATA_DIR, 'slideshow.json'),
-    settings:  path.join(DATA_DIR, 'settings.json'),
+    tours:        path.join(DATA_DIR, 'tours.json'),
+    contact:      path.join(DATA_DIR, 'contact.json'),
+    blogs:        path.join(DATA_DIR, 'blogs.json'),
+    gallery:      path.join(DATA_DIR, 'gallery.json'),
+    bookings:     path.join(DATA_DIR, 'bookings.json'),
+    slideshow:    path.join(DATA_DIR, 'slideshow.json'),
+    settings:     path.join(DATA_DIR, 'settings.json'),
+    promotions:   path.join(DATA_DIR, 'promotions.json'),
+    destinations: path.join(DATA_DIR, 'destinations.json'),
 };
 
 // Legacy JS source files — used as cold-start fallbacks only.
 const JS_FILES = {
-    tours:     path.join(__dirname, '../client/src/data/tours-data.js'),
-    contact:   path.join(__dirname, '../client/src/data/contact-info.js'),
-    blogs:     path.join(__dirname, '../client/src/data/blogs-data.js'),
-    gallery:   path.join(__dirname, '../client/src/data/gallery-data.js'),
-    bookings:  path.join(__dirname, '../client/src/data/bookings-data.js'),
-    slideshow: path.join(__dirname, '../client/src/data/slideshow-data.js'),
-    settings:  path.join(__dirname, '../client/src/data/site-settings.js'),
+    tours:        path.join(__dirname, '../client/src/data/tours-data.js'),
+    contact:      path.join(__dirname, '../client/src/data/contact-info.js'),
+    blogs:        path.join(__dirname, '../client/src/data/blogs-data.js'),
+    gallery:      path.join(__dirname, '../client/src/data/gallery-data.js'),
+    bookings:     path.join(__dirname, '../client/src/data/bookings-data.js'),
+    slideshow:    path.join(__dirname, '../client/src/data/slideshow-data.js'),
+    settings:     path.join(__dirname, '../client/src/data/site-settings.js'),
+    promotions:   path.join(__dirname, '../client/src/data/promotions-data.js'),
+    destinations: path.join(__dirname, '../client/src/data/destinations-data.js'),
 };
 
 // In-memory data store — used as a writable cache so that admin edits survive
@@ -369,12 +373,14 @@ const SEED_MAP = [
         const testimonialsMatch = c.match(/export const testimonials\s*=\s*(\[[\s\S]*?\]);/);
         return { tours: JSON.parse(m[1]), testimonials: testimonialsMatch ? JSON.parse(testimonialsMatch[1]) : [] };
     }},
-    { key: 'contact',   regex: /export const contactInfo\s*=\s*({[\s\S]*?});/,  wrapFn: (m) => JSON.parse(m[1]) },
-    { key: 'blogs',     regex: /export const blogs\s*=\s*(\[[\s\S]*?\]);/,      wrapFn: (m) => ({ blogs: JSON.parse(m[1]) }) },
-    { key: 'gallery',   regex: /export const gallery\s*=\s*(\[[\s\S]*?\]);/,    wrapFn: (m) => ({ gallery: JSON.parse(m[1]) }) },
-    { key: 'slideshow', regex: /export const slides\s*=\s*(\[[\s\S]*?\]);/,     wrapFn: (m) => ({ slides: JSON.parse(m[1]) }) },
-    { key: 'settings',  regex: /export const siteSettings\s*=\s*({[\s\S]*?});/, wrapFn: (m) => JSON.parse(m[1]) },
-    { key: 'bookings',  regex: /export const bookings\s*=\s*(\[[\s\S]*?\]);/,   wrapFn: (m) => ({ bookings: JSON.parse(m[1]) }) },
+    { key: 'contact',      regex: /export const contactInfo\s*=\s*({[\s\S]*?});/,     wrapFn: (m) => JSON.parse(m[1]) },
+    { key: 'blogs',        regex: /export const blogs\s*=\s*(\[[\s\S]*?\]);/,         wrapFn: (m) => ({ blogs: JSON.parse(m[1]) }) },
+    { key: 'gallery',      regex: /export const gallery\s*=\s*(\[[\s\S]*?\]);/,       wrapFn: (m) => ({ gallery: JSON.parse(m[1]) }) },
+    { key: 'slideshow',    regex: /export const slides\s*=\s*(\[[\s\S]*?\]);/,        wrapFn: (m) => ({ slides: JSON.parse(m[1]) }) },
+    { key: 'settings',     regex: /export const siteSettings\s*=\s*({[\s\S]*?});/,    wrapFn: (m) => JSON.parse(m[1]) },
+    { key: 'bookings',     regex: /export const bookings\s*=\s*(\[[\s\S]*?\]);/,      wrapFn: (m) => ({ bookings: JSON.parse(m[1]) }) },
+    { key: 'promotions',   regex: /export const promotions\s*=\s*(\[[\s\S]*?\]);/,    wrapFn: (m) => ({ promotions: JSON.parse(m[1]) }) },
+    { key: 'destinations', regex: /export const destinations\s*=\s*(\[[\s\S]*?\]);/,  wrapFn: (m) => ({ destinations: JSON.parse(m[1]) }) },
 ];
 
 function seedDataFiles() {
@@ -845,6 +851,74 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
     } catch (error) {
         console.error('Error saving site settings:', error);
         res.status(500).json({ error: 'Failed to save site settings' });
+    }
+});
+
+// ============================================
+// PROMOTIONS API ENDPOINTS
+// ============================================
+
+app.get('/api/promotions', readLimiter, (req, res) => {
+    if (store.promotions) return res.json(store.promotions);
+    const data = readData('promotions', /export const promotions\s*=\s*(\[[\s\S]*?\]);/);
+    if (data) {
+        store.promotions = data.promotions ? data : { promotions: data };
+        return res.json(store.promotions);
+    }
+    // No data file yet — return an empty list rather than a 500 so the
+    // front-end degrades gracefully on a fresh deployment.
+    store.promotions = { promotions: [] };
+    res.json(store.promotions);
+});
+
+app.post('/api/promotions', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'promotions');
+    if (err) return res.status(400).json({ error: err });
+    try {
+        const promotions = sanitize(req.body.promotions);
+        store.promotions = { promotions };
+        const persisted = writeData('promotions', { promotions });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Promotions saved successfully' : 'Promotions updated in memory, but failed to persist'
+        });
+    } catch (error) {
+        console.error('Error saving promotions:', error);
+        res.status(500).json({ error: 'Failed to save promotions data' });
+    }
+});
+
+// ============================================
+// DESTINATIONS API ENDPOINTS
+// ============================================
+
+app.get('/api/destinations', readLimiter, (req, res) => {
+    if (store.destinations) return res.json(store.destinations);
+    const data = readData('destinations', /export const destinations\s*=\s*(\[[\s\S]*?\]);/);
+    if (data) {
+        store.destinations = data.destinations ? data : { destinations: data };
+        return res.json(store.destinations);
+    }
+    store.destinations = { destinations: [] };
+    res.json(store.destinations);
+});
+
+app.post('/api/destinations', writeLimiter, requireAdminAuth, (req, res) => {
+    const err = validateArray(req.body, 'destinations');
+    if (err) return res.status(400).json({ error: err });
+    try {
+        const destinations = sanitize(req.body.destinations);
+        store.destinations = { destinations };
+        const persisted = writeData('destinations', { destinations });
+        res.json({
+            success: true,
+            persisted,
+            message: persisted ? 'Destinations saved successfully' : 'Destinations updated in memory, but failed to persist'
+        });
+    } catch (error) {
+        console.error('Error saving destinations:', error);
+        res.status(500).json({ error: 'Failed to save destinations data' });
     }
 });
 
