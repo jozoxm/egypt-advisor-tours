@@ -47,7 +47,6 @@ Go to **GitHub → Settings → Secrets and variables → Actions → New reposi
 | `HOSTINGER_APP_DIR` | `/home/u123456789/egyptadvisortours.com` |
 | `HOSTINGER_SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -p <PORT> <HOST>` |
 | `ADMIN_SECRET` | A long random string that protects `/api` write endpoints |
-| `REACT_APP_ADMIN_SECRET` | Same value as `ADMIN_SECRET` (embedded in the React build) |
 
 **Optional** (only required if you use EmailJS):
 

@@ -1,21 +1,24 @@
 #!/bin/bash
 
-# Automatic Merge Conflict Resolution Script
-# This accepts all incoming changes from the branch
+# Merge Conflict Resolution Guide
+# ================================
+# This script resolves common merge conflicts by accepting incoming changes.
+# Review each file before accepting so you do not accidentally overwrite work.
+# After running this script you MUST review the result and commit manually.
 
 echo "========================================"
-echo "MERGE CONFLICT AUTO-RESOLVER"
+echo "MERGE CONFLICT RESOLVER"
 echo "========================================"
 echo ""
-echo "This script will accept all incoming changes"
-echo "from the copilot/remove-video-from-hero branch."
+echo "This script will accept incoming ('theirs') changes for the files listed below."
+echo "Review each file with 'git diff' or your editor before accepting."
 echo ""
 echo "Files to be resolved:"
 echo "- README.md"
 echo "- client/src/App.js"
 echo "- client/public/Gold Logo.png"
 echo ""
-read -p "Press Enter to continue..."
+read -p "Press Enter to continue, or Ctrl+C to abort..."
 
 echo ""
 echo "Resolving conflicts..."
@@ -47,21 +50,17 @@ git add client/src/App.js 2>/dev/null
 git add "client/public/Gold Logo.png" 2>/dev/null
 
 echo ""
-echo "Committing merge..."
-git commit -m "Resolve merge conflicts - accept incoming changes"
-
-echo ""
 echo "========================================"
-echo "CONFLICT RESOLUTION COMPLETE!"
+echo "CONFLICTS STAGED — ACTION REQUIRED"
 echo "========================================"
 echo ""
-echo "Next steps:"
-echo "1. Run: ./refresh-admin.sh"
-echo "2. Start servers:"
+echo "Review the staged changes with: git diff --cached"
+echo "Then commit manually when you are satisfied:"
+echo "  git commit -m 'Resolve merge conflicts'"
+echo ""
+echo "Next steps after committing:"
+echo "1. Start servers:"
 echo "   Terminal 1: npm run start:server"
 echo "   Terminal 2: npm run start:client"
-echo "3. Hard refresh browser: Ctrl+Shift+R (3 times)"
-echo "4. Check console for: Version 1.0.1"
-echo ""
-echo "See START-HERE.md for complete instructions."
+echo "2. Hard refresh browser: Ctrl+Shift+R"
 echo ""

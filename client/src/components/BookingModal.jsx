@@ -6,8 +6,9 @@ import './BookingModal.css';
 // ============================================================
 // EmailJS Configuration
 // Sign up at https://www.emailjs.com (free up to 200 emails/month)
-// Then set these environment variables in your Vercel project settings
-// or in a .env.production file (never commit secrets to git).
+// Then set these environment variables in your hosting provider's
+// environment-variable settings or in a local .env.production.local file
+// (never commit secrets to git).
 // ============================================================
 const EMAILJS_SERVICE_ID  = process.env.REACT_APP_EMAILJS_SERVICE_ID  || '';
 const EMAILJS_TEMPLATE_ID = process.env.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID || '';

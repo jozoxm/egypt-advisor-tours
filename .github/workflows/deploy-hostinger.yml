@@ -37,7 +37,6 @@
 #                                      Run once locally and paste the output as
 #                                      the secret value to pin the server key.
 #       ADMIN_SECRET                   a-long-random-string (protects /api writes)
-#       REACT_APP_ADMIN_SECRET         same-long-random-string (must match above)
 #
 #       Optional — only needed if you use EmailJS:
 #       REACT_APP_EMAILJS_SERVICE_ID
@@ -89,7 +88,6 @@ jobs:
           _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
         run: |
           missing=()
           [ -z "$_HOST" ]                 && missing+=("HOSTINGER_SSH_HOST")
@@ -99,7 +97,6 @@ jobs:
           [ -z "$_DIR" ]                  && missing+=("HOSTINGER_APP_DIR")
           [ -z "$_KNOWN_HOSTS" ]          && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
           [ -z "$_ADMIN_SECRET" ]         && missing+=("ADMIN_SECRET")
-          [ -z "$_REACT_APP_ADMIN_SECRET" ] && missing+=("REACT_APP_ADMIN_SECRET")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
@@ -141,7 +138,6 @@ jobs:
       - name: Write client env vars to server
         env:
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
@@ -200,8 +196,7 @@ jobs:
           # Save content to a secure temp file first so the retry loop can
           # re-read it on each attempt (stdin pipe would be consumed after first try).
           env_file=$(mktemp)
-          printf '%s\n%s\n%s\n%s\n%s\n' \
-            "REACT_APP_ADMIN_SECRET=${_REACT_APP_ADMIN_SECRET}" \
+          printf '%s\n%s\n%s\n%s\n' \
             "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
             "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \

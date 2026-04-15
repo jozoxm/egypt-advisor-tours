@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
@@ -21,30 +23,44 @@ app.use(helmet());
 // In production, restrict to the configured origin (CORS_ORIGIN env var) or the
 // live domain.  In development, allow all origins so the dev server on
 // localhost:3000 can call the API on localhost:5000.
-const corsOptions = process.env.CORS_ORIGIN
-    ? { origin: process.env.CORS_ORIGIN, optionsSuccessStatus: 200 }
-    : process.env.NODE_ENV === 'production'
-        ? { origin: 'https://egyptadvisortours.com', optionsSuccessStatus: 200 }
-        : undefined; // allow all origins in development
+// credentials: true is required so that the browser sends the admin_session
+// httpOnly cookie on cross-origin requests (dev client on :3000 → API on :5000).
+const corsOrigin = process.env.CORS_ORIGIN ||
+    (process.env.NODE_ENV === 'production' ? 'https://egyptadvisortours.com' : undefined);
+const corsOptions = corsOrigin
+    ? { origin: corsOrigin, credentials: true, optionsSuccessStatus: 200 }
+    : { origin: true, credentials: true, optionsSuccessStatus: 200 }; // allow all origins in development
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // ============================================
-// AUTHENTICATION MIDDLEWARE
+// AUTHENTICATION HELPERS
 // ============================================
-// Set ADMIN_SECRET in your environment variables to protect admin endpoints.
-// Requests must include the header: X-Admin-Secret: <your-secret>
-// If ADMIN_SECRET is not set, all requests are allowed (useful for local dev).
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
+// Derive a deterministic session token from ADMIN_SECRET so the cookie value
+// cannot be guessed without knowing the secret and is invalidated when the
+// secret changes.  We do NOT store sessions server-side — the cookie itself
+// is the proof of authentication.
+function expectedSessionToken() {
+    return crypto
+        .createHmac('sha256', ADMIN_SECRET || 'dev')
+        .update('admin-session-v1')
+        .digest('hex');
+}
+
+// Middleware that protects admin write endpoints.
+// In dev (ADMIN_SECRET not set) all requests are allowed.
+// In production the request must carry a valid httpOnly session cookie set
+// by POST /api/admin/login.
 const requireAdminAuth = (req, res, next) => {
     if (!ADMIN_SECRET) {
-        // No secret configured — open access (development mode)
         return next();
     }
-    const token = req.headers['x-admin-secret'] || '';
-    if (!token || token !== ADMIN_SECRET) {
-        return res.status(401).json({ error: 'Unauthorized: missing or invalid X-Admin-Secret header.' });
+    const sessionCookie = req.cookies['admin_session'] || '';
+    if (!sessionCookie || sessionCookie !== expectedSessionToken()) {
+        return res.status(401).json({ error: 'Unauthorized: please log in at /admin.' });
     }
     next();
 };
@@ -353,6 +369,56 @@ app.get('/api', (req, res) => {
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
+});
+
+// ============================================
+// ADMIN AUTH ENDPOINTS
+// ============================================
+
+// Rate-limit login attempts independently to harden against brute-force.
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts, please try again later.' }
+});
+
+// POST /api/admin/login — validate the admin secret and set a session cookie.
+app.post('/api/admin/login', loginLimiter, (req, res) => {
+    const { secret } = req.body || {};
+    if (!ADMIN_SECRET) {
+        // Dev mode — no secret required; consider the caller authenticated.
+        return res.json({ success: true });
+    }
+    if (!secret || secret !== ADMIN_SECRET) {
+        return res.status(401).json({ error: 'Invalid admin secret.' });
+    }
+    const token = expectedSessionToken();
+    res.cookie('admin_session', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 8 * 60 * 60 * 1000, // 8 hours
+        path: '/'
+    });
+    res.json({ success: true });
+});
+
+// POST /api/admin/logout — clear the session cookie.
+app.post('/api/admin/logout', (req, res) => {
+    res.clearCookie('admin_session', { path: '/' });
+    res.json({ success: true });
+});
+
+// GET /api/admin/verify — check whether the caller is currently authenticated.
+app.get('/api/admin/verify', (req, res) => {
+    if (!ADMIN_SECRET) {
+        return res.json({ authenticated: true });
+    }
+    const sessionCookie = req.cookies['admin_session'] || '';
+    const authenticated = sessionCookie === expectedSessionToken();
+    res.json({ authenticated });
 });
 
 // ============================================
