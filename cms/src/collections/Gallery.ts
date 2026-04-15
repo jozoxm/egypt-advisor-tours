@@ -24,7 +24,17 @@ export const Gallery: CollectionConfig = {
       name: 'imageUrl',
       type: 'text',
       label: 'Image URL',
-      required: true,
+      required: false,
+      admin: { description: 'External URL to the image (leave blank if uploading below).' },
+    },
+    {
+      name: 'photo',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Image (upload)',
+      admin: {
+        description: 'Upload a gallery image directly. Takes precedence over Image URL when both are set.',
+      },
     },
     {
       name: 'category',

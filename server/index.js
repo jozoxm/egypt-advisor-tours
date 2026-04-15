@@ -52,6 +52,16 @@ app.use('/admin', createProxyMiddleware(cmsProxyOptions));
 // proxying them publicly is intentional and required for the admin panel to
 // load correctly in the browser.
 app.use('/_next', createProxyMiddleware(cmsProxyOptions));
+// Payload CMS media REST API and static uploaded files.
+// /api/media  — Payload's REST endpoints for creating / querying media docs.
+//               The admin panel JS (loaded from /admin) calls these endpoints
+//               using the browser's current origin, so they must be proxied
+//               from the main Express server to the CMS.
+// /media      — Static files served by Payload's Next.js app for uploaded
+//               images.  Proxied so that <img src="/media/photo.jpg"> works
+//               on the main domain without CORS issues.
+app.use('/api/media', createProxyMiddleware(cmsProxyOptions));
+app.use('/media', createProxyMiddleware(cmsProxyOptions));
 
 // ============================================
 // SECURITY HEADERS (helmet)

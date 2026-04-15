@@ -5,6 +5,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { sqliteAdapter } from '@payloadcms/db-sqlite'
 
 import { Users } from './collections/Users'
+import { Media } from './collections/Media'
 import { Tours } from './collections/Tours'
 import { Blogs } from './collections/Blogs'
 import { Gallery } from './collections/Gallery'
@@ -34,7 +35,7 @@ export default buildConfig({
       titleSuffix: '— Egypt Advisor Tours',
     },
   },
-  collections: [Users, Tours, Blogs, Gallery, Slideshow, Bookings, Testimonials, FAQs, Promotions, Destinations],
+  collections: [Users, Media, Tours, Blogs, Gallery, Slideshow, Bookings, Testimonials, FAQs, Promotions, Destinations],
   globals: [SiteSettings, ContactInfo],
   editor: lexicalEditor(),
   db: sqliteAdapter({

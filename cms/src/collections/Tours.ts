@@ -32,7 +32,16 @@ export const Tours: CollectionConfig = {
       name: 'photoUrl',
       type: 'text',
       label: 'Photo URL',
-      admin: { description: 'Full URL to the tour hero image.' },
+      admin: { description: 'External URL to the tour hero image (leave blank if uploading below).' },
+    },
+    {
+      name: 'photo',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Photo (upload)',
+      admin: {
+        description: 'Upload a tour image directly. Takes precedence over Photo URL when both are set.',
+      },
     },
     {
       name: 'image',

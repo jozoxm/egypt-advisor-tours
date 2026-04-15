@@ -45,6 +45,15 @@ export const Blogs: CollectionConfig = {
       admin: { description: 'Fallback emoji, e.g. 🗺️' },
     },
     {
+      name: 'coverImage',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Cover Image (upload)',
+      admin: {
+        description: 'Upload a blog cover image. Shown instead of the emoji when set.',
+      },
+    },
+    {
       name: 'category',
       type: 'select',
       label: 'Category',

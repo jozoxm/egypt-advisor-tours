@@ -48,6 +48,9 @@ data/payload.db
 data/payload.db-shm
 data/payload.db-wal
 
+# Payload CMS — uploaded media files (written at runtime, not tracked in git)
+/media/
+
 # Temporary files
 *.tmp
 *.temp

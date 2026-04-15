@@ -20,8 +20,17 @@ export const Slideshow: CollectionConfig = {
       name: 'image',
       type: 'text',
       label: 'Image URL',
-      required: true,
-      admin: { description: 'Full URL to the slide background image.' },
+      required: false,
+      admin: { description: 'External URL to the slide background image (leave blank if uploading below).' },
+    },
+    {
+      name: 'photo',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Image (upload)',
+      admin: {
+        description: 'Upload a slide image directly. Takes precedence over Image URL when both are set.',
+      },
     },
     {
       name: 'gradient',

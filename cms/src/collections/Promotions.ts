@@ -59,11 +59,16 @@ export const Promotions: CollectionConfig = {
       name: 'imageUrl',
       type: 'text',
       label: 'Image URL',
-      // imageUrl is stored as a URL string for consistency with the Tours,
-      // Gallery, and Slideshow collections which also use external URL strings.
-      // All images in this project are hosted externally (Unsplash, CDN) and
-      // the site does not currently use Payload's upload/media management.
-      admin: { description: 'Optional hero image for the promotion card (external URL).' },
+      admin: { description: 'Optional hero image for the promotion card (external URL). Leave blank if uploading below.' },
+    },
+    {
+      name: 'photo',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Image (upload)',
+      admin: {
+        description: 'Upload a promotion image directly. Takes precedence over Image URL when both are set.',
+      },
     },
     {
       name: 'validFrom',
