@@ -254,12 +254,17 @@ jobs:
           rm -f "$server_env_file"
 
       # ── 4b. Pull latest code, build, and restart the app ─────────────
-      #    The postinstall hook (scripts/build-client.js) runs on every
-      #    `npm install` and builds the React frontend unconditionally
-      #    (unless SKIP_CLIENT_BUILD=1 or NODE_ENV=development is set).
+      #    Two npm install passes are run after git pull:
+      #      1. Root `npm install` — installs root-level deps and triggers
+      #         the postinstall hook (scripts/build-client.js) that rebuilds
+      #         the React frontend (unless SKIP_CLIENT_BUILD=1 / NODE_ENV=development).
+      #      2. `npm install --prefix server` — installs server-specific deps
+      #         (e.g. cookie-parser, helmet) that live only in server/package.json.
+      #         Without this step the server will fail on startup after any
+      #         server/package.json change with MODULE_NOT_FOUND errors.
       #    NOTE: If you change only GitHub Secrets (not code), you must also
-      #    push a code change to trigger a rebuild, or run npm install manually
-      #    on the server to pick up the new env values.
+      #    push a code change to trigger a rebuild, or run both install commands
+      #    manually on the server to pick up the new env values.
       - name: Pull & restart on Hostinger
         run: |
           # Strip any accidental whitespace/newlines from secret values to prevent
@@ -278,8 +283,10 @@ jobs:
                cd '$DEPLOY_DIR'
                echo '--- pulling latest code ---'
                git pull origin main
-               echo '--- installing dependencies (triggers client build if needed) ---'
+               echo '--- installing root dependencies (triggers client build) ---'
                npm install --production=false
+               echo '--- installing server dependencies ---'
+               npm install --prefix server --production=false
                echo '--- removing temporary build env file ---'
                rm -f client/.env.production.local
                echo '--- restarting Node.js app ---'
