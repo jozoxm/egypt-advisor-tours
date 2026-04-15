@@ -39,19 +39,14 @@ export const Promotions: CollectionConfig = {
       },
     },
     {
-      name: 'tourId',
-      type: 'text',
-      label: 'Linked Tour ID',
+      name: 'tour',
+      type: 'relationship',
+      relationTo: 'tours',
+      label: 'Linked Tour',
       admin: {
         description:
-          'Optional. Enter the slug/ID of a tour to link this promotion to a specific tour page.',
+          'Optional. Link this promotion to a specific tour. The tour name will be displayed automatically.',
       },
-    },
-    {
-      name: 'tourName',
-      type: 'text',
-      label: 'Linked Tour Name',
-      admin: { description: 'Display name of the linked tour (shown alongside the discount).' },
     },
     {
       name: 'badgeText',
@@ -64,7 +59,11 @@ export const Promotions: CollectionConfig = {
       name: 'imageUrl',
       type: 'text',
       label: 'Image URL',
-      admin: { description: 'Optional hero image for the promotion card.' },
+      // imageUrl is stored as a URL string for consistency with the Tours,
+      // Gallery, and Slideshow collections which also use external URL strings.
+      // All images in this project are hosted externally (Unsplash, CDN) and
+      // the site does not currently use Payload's upload/media management.
+      admin: { description: 'Optional hero image for the promotion card (external URL).' },
     },
     {
       name: 'validFrom',

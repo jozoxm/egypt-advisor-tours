@@ -54,7 +54,9 @@ export const Destinations: CollectionConfig = {
       name: 'imageUrl',
       type: 'text',
       label: 'Hero Image URL',
-      admin: { description: 'Main image shown on the destination card and page.' },
+      // imageUrl is stored as a URL string for consistency with Tours, Gallery,
+      // and Slideshow collections which also use external URL strings.
+      admin: { description: 'Main image shown on the destination card and page (external URL).' },
     },
     {
       name: 'highlights',
