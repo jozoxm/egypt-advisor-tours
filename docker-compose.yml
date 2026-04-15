@@ -12,8 +12,6 @@
 # The `data` volume is shared between both services so the SQLite database and
 # JSON data files survive container restarts.
 
-version: "3.9"
-
 services:
   app:
     build:
