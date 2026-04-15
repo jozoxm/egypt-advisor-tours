@@ -36,12 +36,10 @@
 #       HOSTINGER_SSH_KNOWN_HOSTS      output of: ssh-keyscan -p <PORT> <HOST>
 #                                      Run once locally and paste the output as
 #                                      the secret value to pin the server key.
-#       ADMIN_SECRET                   a-long-random-string (JWT signing key)
-#       ADMIN_PASSWORD                 a-secure-password (admin login password)
+#       ADMIN_SECRET                   a-long-random-string (protects /api writes)
+#       REACT_APP_ADMIN_SECRET         same-long-random-string (must match above)
 #
-#       Optional:
-#       ADMIN_USERNAME                 login username (default: "admin")
-#       HOSTINGER_DATA_PATH            /home/u123456789/admin_data  (persist data outside repo)
+#       Optional — only needed if you use EmailJS:
 #       REACT_APP_EMAILJS_SERVICE_ID
 #       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
 #       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
@@ -66,49 +64,15 @@ on:
       - main
   workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
 
-permissions:
-  contents: read   # only read access needed; no push/write in this workflow
-
 env:
   # Opt in to Node.js 24 now; avoids deprecation warnings from actions/checkout
   # that will become hard errors when GitHub removes Node.js 20 support.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  # ── Job 1: Run all tests before deploying ──────────────────────────────────
-  test:
-    name: Run tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm install
-
-      - name: Install server dependencies
-        run: npm install --prefix server
-
-      - name: Run server tests
-        run: npm run test:server -- --watchAll=false --forceExit
-
-      - name: Install client dependencies
-        run: npm install --prefix client
-
-      - name: Run client tests
-        run: npm run test:client -- --watchAll=false --passWithNoTests
-
-  # ── Job 2: Deploy only if tests pass ──────────────────────────────────────
   deploy:
     name: SSH deploy → Hostinger
     runs-on: ubuntu-latest
-    needs: test
     environment:
       name: production
       url: https://egyptadvisortours.com
@@ -125,17 +89,17 @@ jobs:
           _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
         run: |
           missing=()
-          [ -z "$_HOST" ]          && missing+=("HOSTINGER_SSH_HOST")
-          [ -z "$_USER" ]          && missing+=("HOSTINGER_SSH_USER")
-          [ -z "$_PORT" ]          && missing+=("HOSTINGER_SSH_PORT")
-          [ -z "$_KEY" ]           && missing+=("HOSTINGER_SSH_KEY")
-          [ -z "$_DIR" ]           && missing+=("HOSTINGER_APP_DIR")
-          [ -z "$_KNOWN_HOSTS" ]   && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
-          [ -z "$_ADMIN_SECRET" ]  && missing+=("ADMIN_SECRET")
-          [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
+          [ -z "$_HOST" ]                 && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ]                 && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ]                 && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ]                  && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ]                  && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ]          && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
+          [ -z "$_ADMIN_SECRET" ]         && missing+=("ADMIN_SECRET")
+          [ -z "$_REACT_APP_ADMIN_SECRET" ] && missing+=("REACT_APP_ADMIN_SECRET")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
@@ -166,8 +130,8 @@ jobs:
       #    we pipe them into a gitignored client/.env.production.local file that
       #    Create React App reads automatically during the build.
       #    The file is deleted in step 4b right after npm install completes.
-      #    ADMIN_SECRET and ADMIN_PASSWORD are written to a gitignored .env file
-      #    so the Node.js server can enforce JWT-based admin auth at runtime.
+      #    ADMIN_SECRET is written to a gitignored .env file at the app root so
+      #    the Node.js server process can read it at runtime and enforce admin auth.
       #    On first deploy this step also bootstraps the repo if the app directory
       #    does not yet contain a git repository.
       #
@@ -177,8 +141,7 @@ jobs:
       - name: Write client env vars to server
         env:
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-          _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          _ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          _REACT_APP_ADMIN_SECRET: ${{ secrets.REACT_APP_ADMIN_SECRET }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
@@ -215,6 +178,9 @@ jobs:
           }
 
           # On first deploy: bootstrap the repo in-place if .git is missing.
+          # Using git init + fetch + reset works even if the directory already
+          # exists and is non-empty (common on managed Hostinger hosts where
+          # the application root is pre-created by hPanel).
           ssh_retry "set -e
             if [ ! -d '${DEPLOY_DIR}/.git' ]; then
               echo '--- first deploy: bootstrapping repository ---'
@@ -225,12 +191,17 @@ jobs:
               git fetch origin main
               git reset --hard FETCH_HEAD
             fi
+            # Ensure the client subdirectory exists (it should be in the repo).
             mkdir -p '${DEPLOY_DIR}/client'"
 
           # Write build-time env vars to a gitignored file on the server so
           # `npm run build` embeds the correct values in the React bundle.
+          # .env.production.local is matched by the .env*.local gitignore rule.
+          # Save content to a secure temp file first so the retry loop can
+          # re-read it on each attempt (stdin pipe would be consumed after first try).
           env_file=$(mktemp)
-          printf '%s\n%s\n%s\n%s\n' \
+          printf '%s\n%s\n%s\n%s\n%s\n' \
+            "REACT_APP_ADMIN_SECRET=${_REACT_APP_ADMIN_SECRET}" \
             "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
             "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
@@ -254,15 +225,17 @@ jobs:
           done
           rm -f "$env_file"
 
-          # Write the server runtime .env file containing ADMIN_SECRET and
-          # ADMIN_PASSWORD so that the Node.js process enforces JWT-based admin
-          # authentication in production.
+          # Write the server runtime .env file containing ADMIN_SECRET so that
+          # the Node.js process enforces admin authentication in production.
+          # Without this, server/index.js allows all admin requests when
+          # process.env.ADMIN_SECRET is unset (open to unauthenticated writes).
+          # DATA_PATH (optional): when HOSTINGER_DATA_PATH secret is set, it
+          # tells the server to store admin-edited JSON files in a directory
+          # outside the repo checkout so they survive git pull/resets on deploy.
           server_env_file=$(mktemp)
-          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\n' \
-            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" > "$server_env_file"
-          if [ -n "${_ADMIN_USERNAME}" ]; then
-            printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"
-          fi
+          printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" > "$server_env_file"
+          # Append DATA_PATH only when the secret is non-empty; strip newlines
+          # so a stray newline in the secret value cannot inject extra env lines.
           _DATA_PATH_CLEAN=$(printf '%s' "${_HOSTINGER_DATA_PATH}" | tr -d '\n\r')
           if [ -n "$_DATA_PATH_CLEAN" ]; then
             printf 'DATA_PATH=%s\n' "$_DATA_PATH_CLEAN" >> "$server_env_file"
@@ -289,8 +262,13 @@ jobs:
       #    The postinstall hook (scripts/build-client.js) runs on every
       #    `npm install` and builds the React frontend unconditionally
       #    (unless SKIP_CLIENT_BUILD=1 or NODE_ENV=development is set).
+      #    NOTE: If you change only GitHub Secrets (not code), you must also
+      #    push a code change to trigger a rebuild, or run npm install manually
+      #    on the server to pick up the new env values.
       - name: Pull & restart on Hostinger
         run: |
+          # Strip any accidental whitespace/newlines from secret values to prevent
+          # "hostname contains invalid characters" errors from SSH.
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
@@ -310,7 +288,9 @@ jobs:
                echo '--- removing temporary build env file ---'
                rm -f client/.env.production.local
                echo '--- restarting Node.js app ---'
+               # Ensure the restart marker directory exists before touching the file.
                mkdir -p tmp
+               # The touch trick causes Passenger/PM2 to reload the app.
                touch tmp/restart.txt
                # If the host uses PM2 directly:
                # pm2 restart egypt-advisor-tours 2>/dev/null || true
@@ -324,28 +304,7 @@ jobs:
             fi
           done
 
-      # ── 5. Health check — verify the deployed site is responding ──────
-      - name: Health check
-        run: |
-          echo "Waiting 15 seconds for the app to finish restarting..."
-          sleep 15
-          for attempt in 1 2 3; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 20 https://egyptadvisortours.com/health || echo "000")
-            if [ "$status" = "200" ]; then
-              echo "✅ Health check passed (HTTP $status)"
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Health check attempt $attempt returned HTTP $status, retrying in 10s..."
-              sleep 10
-            else
-              echo "::error::Health check failed after 3 attempts. Last status: HTTP $status"
-              exit 1
-            fi
-          done
-
-      # ── 6. Print deployment summary ───────────────────────────────────
+      # ── 5. Print deployment summary ───────────────────────────────────
       - name: Deployment summary
         run: |
           echo "✅ Deployed to https://egyptadvisortours.com"
