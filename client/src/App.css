@@ -26,6 +26,36 @@ body {
   min-height: 100vh;
 }
 
+/* Error boundary fallback */
+.error-boundary-fallback {
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.error-boundary-content {
+  text-align: center;
+  max-width: 400px;
+}
+
+.error-boundary-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.error-boundary-content h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-dark);
+}
+
+.error-boundary-content p {
+  color: var(--text-light);
+  margin-bottom: 1.5rem;
+}
+
 /* Admin panel lazy-load placeholder */
 .admin-loading {
   display: flex;

@@ -1,28 +1,74 @@
 # Egypt Advisor Tours
 
-## 🟢 Ready to Go Live?
+A full-stack tour-operator website built with React (frontend) and Express/Node.js (backend), deployed on Hostinger.
 
 **Live site:** [https://egyptadvisortours.com](https://egyptadvisortours.com)
 
-**Auto-deploy to Hostinger** is configured via GitHub Actions (`.github/workflows/deploy-hostinger.yml`).
-Every push to `main` automatically pulls the latest code to the Hostinger server, rebuilds the React client if needed, and restarts the Node.js app.
+---
 
-> **One-time setup required:** See the comment block at the top of `.github/workflows/deploy-hostinger.yml` for the full checklist — SSH key creation, GitHub Secrets to add, and hPanel Node.js app setup.
+## Quick start (local development)
 
-👉 **[HOSTINGER-DEPLOYMENT.md](docs/HOSTINGER-DEPLOYMENT.md)** — Full step-by-step guide for Hostinger Shared Hosting and VPS, including manual upload instructions.
+```bash
+# 1. Clone the repo
+git clone https://github.com/jozoxm/egypt-advisor-tours.git
+cd egypt-advisor-tours
+
+# 2. Copy and fill in environment variables
+cp .env.example .env
+
+# 3. Install all dependencies (also builds the React client)
+npm install
+
+# 4. Start the server (API + serves the React build)
+npm start
+```
+
+Or run frontend and backend in parallel for hot-reload during development:
+
+```bash
+# Terminal 1 – Express API
+npm run dev          # starts server on http://localhost:5000
+
+# Terminal 2 – React dev server (proxies /api/* to :5000)
+cd client && npm start
+```
+
+### Docker (optional)
+
+```bash
+cp .env.example .env      # fill in secrets
+docker-compose up --build  # starts the app on http://localhost:5000
+```
 
 ---
 
-## 🚨 WINDOWS BUILD ERROR?
+## Documentation
 
-**Getting "'CI' is not recognized" error?** See **[BUILD-WINDOWS-FIX.md](BUILD-WINDOWS-FIX.md)**
+| Document | Description |
+|---|---|
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local setup, project structure, adding features |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Hostinger deploy guide, GitHub Secrets, env vars |
+| [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md) | Using the admin panel to manage content |
+| [docs/SECURITY.md](docs/SECURITY.md) | Auth model, secrets, security checklist |
 
-**Quick Fix:**
-```bash
-git pull origin copilot/remove-video-from-hero
-cd client && npm install && cd ..
-npm run build
-```
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, React Router 6, EmailJS |
+| Backend | Node.js 20, Express 4, JWT auth, Helmet |
+| Data | JSON files on disk (server/data/), seeded from static JS on startup |
+| Deploy | Hostinger Node.js hosting, GitHub Actions |
+
+---
+
+## Contributing
+
+1. Create a feature branch off `main`
+2. Run `npm run test:all` locally before opening a PR
+3. CI runs the full test suite before deploying
 
 ---
 
