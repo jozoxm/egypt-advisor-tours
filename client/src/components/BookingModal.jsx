@@ -6,26 +6,13 @@ import './BookingModal.css';
 // ============================================================
 // EmailJS Configuration
 // Sign up at https://www.emailjs.com (free up to 200 emails/month)
-// Then set these environment variables in your hosting panel.
+// Then set these environment variables in your hosting provider's
+// environment-variable settings or in a local .env.production.local file
+// (never commit secrets to git).
 // ============================================================
 const EMAILJS_SERVICE_ID  = process.env.REACT_APP_EMAILJS_SERVICE_ID  || '';
 const EMAILJS_TEMPLATE_ID = process.env.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID || '';
 const EMAILJS_PUBLIC_KEY  = process.env.REACT_APP_EMAILJS_PUBLIC_KEY  || '';
-
-const API_URL = process.env.REACT_APP_API_URL || '';
-
-// Persist a booking record to the server (best-effort, non-blocking).
-async function persistBookingToServer(bookingData) {
-  try {
-    await fetch(`${API_URL}/api/bookings/customer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bookingData),
-    });
-  } catch {
-    // Server persistence is best-effort; email confirmation is still sent.
-  }
-}
 
 const BookingModal = ({ tour, onClose }) => {
   const [formData, setFormData] = useState({
@@ -90,21 +77,6 @@ const BookingModal = ({ tour, onClose }) => {
       price_category: categoryLabel,
       total_price: totalPrice,
     };
-
-    // Always persist the booking to the server (best-effort, non-blocking).
-    persistBookingToServer({
-      tourId:          tour.id,
-      tourName:        tour.name,
-      customerName:    formData.customerName,
-      customerEmail:   formData.customerEmail,
-      customerPhone:   formData.customerPhone,
-      numberOfPeople:  formData.numberOfPeople,
-      bookingDate:     formData.bookingDate,
-      bookingTime:     formData.bookingTime,
-      specialRequests: formData.specialRequests,
-      priceCategory:   categoryLabel,
-      totalPrice,
-    });
 
     if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
       // EmailJS not yet configured — direct the user to contact us by other means
