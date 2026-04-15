@@ -56,7 +56,7 @@ To update a booking status: open the Bookings tab → find the booking → use t
 
 Place your logo file at `client/public/Gold Logo.png`.  
 The logo is served from `https://egyptadvisortours.com/Gold Logo.png?v=5`.  
-After replacing the file, increment the `?v=` query string in `Navbar.jsx` and `AdminRoute.jsx` to bust browser caches.
+After replacing the file, increment the `?v=` query string everywhere that URL is referenced to bust browser caches. Known locations currently include `Navbar.jsx`, `AdminRoute.jsx`, `App.js`, and `AdminLogin.jsx`. Before finishing a logo update, run a repo-wide search for `Gold Logo.png?v=` and update every match so no stale references remain.
 
 ---
 

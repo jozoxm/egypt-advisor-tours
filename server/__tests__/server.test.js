@@ -2,8 +2,9 @@
  * Integration tests for server/index.js
  *
  * These tests spin up the real Express application (with real middleware)
- * against a temporary DATA_DIR so no actual data files are read or written.
- * The tests cover all public and admin-protected API endpoints.
+ * against a temporary DATA_PATH directory so no actual data files are read or written.
+ * The tests cover a representative subset of public and admin-protected API endpoints;
+ * not every endpoint is exercised.
  */
 
 const request = require('supertest');
