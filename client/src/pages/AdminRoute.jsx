@@ -26,7 +26,7 @@ function AdminRoute() {
     } catch {
       setAuthState('unauthenticated');
     }
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     checkAuth();
