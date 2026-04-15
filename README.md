@@ -74,7 +74,7 @@ docker-compose up --build  # starts the app on http://localhost:5000
 
 ## 🚨 CAN'T SEE THE ADMIN BUTTON?
 
-**Follow these steps RIGHT NOW:** [REFRESH-ADMIN-BUTTON.md](REFRESH-ADMIN-BUTTON.md)
+**Follow these steps RIGHT NOW:** [docs/ADMIN-GUIDE.md](docs/ADMIN-GUIDE.md)
 
 **Quick Fix:**
 ```bash
