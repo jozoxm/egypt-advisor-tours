@@ -1,100 +1,80 @@
-# Security
+# Security Guide
 
-This document describes the authentication model, secret management, and security
-controls implemented in this codebase.
+## Authentication model
 
----
+Admin endpoints are protected by a **JWT-based session cookie**:
 
-## Admin Authentication
+1. Admin visits `/admin` — browser requests `GET /api/admin/verify`.
+2. If no valid session, the login page (`AdminLogin.jsx`) is shown.
+3. Admin submits username + password to `POST /api/admin/login`.
+4. Server validates against `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars, then issues a **JWT** signed with `ADMIN_SECRET`.
+5. The JWT is stored in an **httpOnly, SameSite=Strict cookie** — it is never accessible from JavaScript.
+6. All subsequent admin API calls automatically include the cookie (via `credentials: 'include'`).
+7. Session expires after **24 hours**.
 
-Admin access is protected by a **cookie-based session** issued by the Express server.
+### Legacy backward compat
 
-### Login flow
-
-1. The operator navigates to `/admin` in the browser.  
-   If no valid session cookie exists the React client renders the login form.
-2. The login form POSTs `{ password }` to `POST /api/admin/login`.
-3. The server derives a deterministic session token:
-
-   ```
-   HMAC-SHA256(ADMIN_SECRET, "admin-session-v1")  →  hex string
-   ```
-
-4. If the password matches `ADMIN_SECRET` the server sets an **httpOnly, Secure,
-   SameSite=Strict** cookie named `admin_session` containing the token above, then
-   responds `{ ok: true }`.
-5. Subsequent write requests include the cookie automatically.  The
-   `requireAdminAuth` middleware validates `req.cookies.admin_session` against the
-   expected token on every protected endpoint.
-6. `POST /api/admin/logout` clears the `admin_session` cookie and redirects to `/`.
-
-### Development mode
-
-When `ADMIN_SECRET` is **not** set (local development), `requireAdminAuth` passes
-all requests without a cookie check so that the API is usable without credentials.
+The server also accepts the `X-Admin-Secret` header (old mechanism) so existing tooling isn't immediately broken. This should be removed once all clients have migrated to cookie auth.
 
 ---
 
-## Required Environment Variables
+## Secret management
 
-| Variable       | Required in production | Description                                                  |
-|----------------|------------------------|--------------------------------------------------------------|
-| `ADMIN_SECRET` | ✅ Yes                  | Strong random secret used to derive and validate the session cookie. Rotate to invalidate all existing sessions immediately. |
-| `PORT`         | Optional               | HTTP port the server listens on (default: 5000).             |
-| `CORS_ORIGIN`  | Optional               | Allowed CORS origin (default: `https://egyptadvisortours.com` in production, all origins in development). |
-| `DATA_PATH`    | Optional               | Absolute path to the JSON data directory; must be outside the project root. Falls back to `server/data` then `/tmp`. |
+| Secret | Where it lives | Purpose |
+|---|---|---|
+| `ADMIN_SECRET` | Server `.env` (runtime) | JWT signing key |
+| `ADMIN_PASSWORD` | Server `.env` (runtime) | Admin login password |
+| `ADMIN_USERNAME` | Server `.env` (runtime) | Admin login username |
+| EmailJS keys | Client build env (`client/.env.production.local`) | Email sending |
 
-Set these in `.env` locally (never commit the file) and in your host's environment
-variable settings (e.g. Hostinger Node.js app → Environment Variables panel).
-
----
-
-## Rate Limiting
-
-All endpoints are protected by `express-rate-limit`:
-
-- **Write endpoints** (POST/PUT/DELETE): 100 requests per 15 minutes per IP.
-- **Read endpoints** (GET): 300 requests per 15 minutes per IP.
-
-Exceeding the limit returns HTTP 429 with `{ "error": "Too many requests, please try again later." }`.
+**Rules:**
+- **Never** commit `.env` or `client/.env.production.local` to git (both are gitignored).
+- Rotate `ADMIN_SECRET` and `ADMIN_PASSWORD` if you suspect they are compromised.
+- All secrets are injected at deploy time by GitHub Actions from GitHub Secrets.
 
 ---
 
-## HTTP Security Headers
+## HTTP security headers (Helmet.js)
 
-`helmet` is applied globally and sets:
+The server uses [Helmet](https://helmetjs.github.io/) to set secure HTTP response headers:
 
-- `Strict-Transport-Security` (HSTS)
-- `X-Content-Type-Options: nosniff`
-- `X-Frame-Options: SAMEORIGIN`
-- `X-XSS-Protection: 0` (modern browsers use CSP instead)
-- Content-Security-Policy (Helmet defaults)
-
----
-
-## CSRF Considerations
-
-The `admin_session` cookie is set with `SameSite=Strict`, which prevents it from
-being sent on cross-site form submissions or navigations, providing strong CSRF
-protection without a separate token.
+- `Content-Security-Policy` — restricts resource origins
+- `Strict-Transport-Security` — enforces HTTPS
+- `X-Frame-Options` — prevents clickjacking
+- `X-Content-Type-Options` — prevents MIME sniffing
+- `Referrer-Policy`
 
 ---
 
-## Secret Rotation
+## Rate limiting
 
-To invalidate all active sessions immediately, update `ADMIN_SECRET` in the server
-environment and restart the process.  Because the session token is derived from the
-secret via HMAC, all existing cookies become invalid instantly.
+| Endpoint | Limit |
+|---|---|
+| `POST /api/admin/login` | 20 requests / 15 min per IP |
+| `POST /api/bookings/customer` | 20 requests / 15 min per IP |
+| All other POST endpoints | 100 requests / 15 min per IP |
+| All GET endpoints | 300 requests / 15 min per IP |
 
 ---
 
-## Dependency Updates
+## CSRF protection
 
-Run `npm audit` (root, client, and server workspaces) regularly to check for known
-vulnerabilities:
+Cookie auth uses `SameSite=Strict`, which prevents cross-site requests from including the session cookie. No separate CSRF token is required for this setup.
+
+---
+
+## Dependency security
+
+Before adding any new npm package, check for known vulnerabilities:
 
 ```bash
 npm audit
-npm audit --prefix client
-npm audit --prefix server
 ```
+
+The GitHub Actions workflow also runs `npm audit` automatically.
+
+---
+
+## Reporting a vulnerability
+
+Please email the maintainer directly rather than opening a public issue.
