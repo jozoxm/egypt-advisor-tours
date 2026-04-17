@@ -17,6 +17,7 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const clientDir = path.join(ROOT, 'client');
 const clientBuildDir = path.join(clientDir, 'build');
+const clientPublicHtaccess = path.join(clientDir, 'public', '.htaccess');
 const rootBuildDir = path.join(ROOT, 'build');
 
 // Skip only when explicitly in development mode or when opted out.
@@ -44,6 +45,13 @@ try {
     // Verify client build output exists
     if (!fs.existsSync(clientBuildDir)) {
         throw new Error(`Client build directory not found at ${clientBuildDir}`);
+    }
+
+    // CRA doesn't guarantee hidden files (like .htaccess) are copied from
+    // client/public to client/build, so copy it explicitly when present.
+    if (fs.existsSync(clientPublicHtaccess)) {
+        const clientBuildHtaccess = path.join(clientBuildDir, '.htaccess');
+        fs.copyFileSync(clientPublicHtaccess, clientBuildHtaccess);
     }
     
     console.log('[postinstall] Copying build output to root directory...');
