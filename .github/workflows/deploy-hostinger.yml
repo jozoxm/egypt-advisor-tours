@@ -151,7 +151,7 @@ jobs:
           [ -z "$_ADMIN_SECRET" ]  && missing+=("ADMIN_SECRET")
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
           [ -z "$_PAYLOAD_SECRET" ] && missing+=("PAYLOAD_SECRET")
-          [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH (set this secret as HOSTINGER_DATA_PATH)")
+          [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH (absolute writable directory path on the server)")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
@@ -435,11 +435,15 @@ jobs:
                   grep -q '^PAYLOAD_SERVER_URL=' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing in cms/.env.local'; exit 1; }
                   grep -q '^PAYLOAD_SECRET=' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing in cms/.env.local'; exit 1; }
                   grep -q '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing in cms/.env.local'; exit 1; }
+                  DATABASE_PATH_COUNT=\$(grep -c '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local')
+                  if [ \"\$DATABASE_PATH_COUNT\" -gt 1 ]; then
+                    echo \"::warning::Multiple DATABASE_PATH entries found in cms/.env.local; using the last one\"
+                  fi
                   DATABASE_PATH_VALUE=\$(sed -n 's/^DATABASE_PATH=//p' '${DEPLOY_DIR}/cms/.env.local' | tail -n 1)
                   DB_DIR=\$(dirname \"\$DATABASE_PATH_VALUE\")
                   mkdir -p \"\$DB_DIR\"
                   DB_WRITE_TEST=\"\$DB_DIR/.payload-write-test-\$\$.tmp\"
-                  touch \"\$DB_WRITE_TEST\" 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR\"; exit 1; }
+                  touch \"\$DB_WRITE_TEST\" 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR. Ensure it exists and is writable by the deploy user.\"; exit 1; }
                   rm -f \"\$DB_WRITE_TEST\"
                   sleep 5
                   if command -v pm2 >/dev/null 2>&1; then
@@ -476,12 +480,13 @@ jobs:
           run_check() {
             local url="$1"
             local label="$2"
+            local mode="$3"
             local status
             for attempt in 1 2 3; do
               status=$(curl -s -o /dev/null -w "%{http_code}" \
                 --max-time 20 "$url" || echo "000")
-              case "$status" in
-                2??|3??)
+              case "$mode:$status" in
+                strict:2??|redirect-ok:2??|redirect-ok:3??)
                   echo "✅ ${label} check passed (HTTP $status)"
                   return 0
                   ;;
@@ -495,8 +500,8 @@ jobs:
               fi
             done
           }
-          run_check "https://egyptadvisortours.com/health" "API health"
-          run_check "https://egyptadvisortours.com/admin" "Admin health"
+          run_check "https://egyptadvisortours.com/health" "API health" "strict"
+          run_check "https://egyptadvisortours.com/admin" "Admin health" "redirect-ok"
 
       - name: CMS diagnostics on failure
         if: failure()
