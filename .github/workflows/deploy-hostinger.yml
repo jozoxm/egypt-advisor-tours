@@ -4,18 +4,26 @@
 #
 # SETUP CHECKLIST (one-time, done by the repo owner):
 #
-#  1. Enable SSH access for your Hostinger account:
+#  1. In Hostinger hPanel, set up a Node.js application:
+#       hPanel → Websites → egyptadvisortours.com → Node.js
+#       • Node.js version : 18 (LTS) or higher
+#       • Application root : the folder where this repo is deployed, e.g.
+#                            /home/u123456789/egyptadvisortours.com
+#       • Startup file     : index.js
+#       • Click "Create" / "Save"
+#
+#  2. Enable SSH access for your Hostinger account:
 #       hPanel → Advanced → SSH Access → Enable
 #       Note your SSH hostname (e.g. server123.web-hosting.com), username,
 #       and port (usually 65002 on Hostinger shared/business plans).
 #
-#  2. Generate a dedicated SSH key-pair on your local machine:
+#  3. Generate a dedicated SSH key-pair on your local machine:
 #       ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/hostinger_deploy
 #     Add the PUBLIC key (~/.ssh/hostinger_deploy.pub) to Hostinger:
 #       hPanel → Advanced → SSH Access → Manage SSH Keys → Add SSH Key
-#     Copy the PRIVATE key (~/.ssh/hostinger_deploy) content for step 3.
+#     Copy the PRIVATE key (~/.ssh/hostinger_deploy) content for step 4.
 #
-#  3. Add the following GitHub Secrets to this repository:
+#  4. Add the following GitHub Secrets to this repository:
 #       GitHub → Settings → Secrets and variables → Actions → New repository secret
 #
 #       Secret name                    Example value
@@ -43,19 +51,11 @@
 #       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
 #       REACT_APP_EMAILJS_PUBLIC_KEY
 #
-#  4. Configure a Node.js / Passenger application in hPanel so that
-#     `touch tmp/restart.txt` restarts the Express server:
-#       hPanel → Websites → Manage → Node.js → Create Node.js App
-#         Application root:  /home/<user>/egyptadvisortours.com
-#         Application URL:   your domain
-#         Application mode:  Production
-#         Application startup file:  index.js
-#     Save, then come back and click "Run NPM Install" at least once.
-#     (Node.js version installation is bootstrapped automatically by the
-#     deploy workflow if nvm/Node are absent.)
-#
-#  5. No manual repository clone required on first deploy.  HOSTINGER_APP_DIR
-#     is cloned automatically if it does not yet contain a git repository.
+#  5. No manual repository clone is required on first deploy.
+#     The workflow will bootstrap HOSTINGER_APP_DIR automatically and clone
+#     the repository there if it does not already exist.
+#     Make sure HOSTINGER_APP_DIR points to the folder you configured as the
+#     Node.js application root in hPanel.
 #
 #  NOTE — Payload CMS (the /admin panel) runs as a separate Next.js process
 #     on port 3001 and is proxied by the main Express server.  The deploy
@@ -354,32 +354,14 @@ jobs:
 
           for attempt in 1 2 3; do
             ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-              "set -eo pipefail
+              "set -e
                trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
 
-               # ── Ensure nvm + Node.js are available ────────────────────────
+               # ── Load nvm so node/npm are in PATH ──────────────────────────
                # Non-interactive SSH sessions do not source .bashrc/.bash_profile,
                # so nvm (and therefore node/npm) is not on PATH by default.
-               # Load nvm explicitly in this deploy session; if it has never been
-               # installed, bootstrap it and Node.js 20 now.
                export NVM_DIR=\"\$HOME/.nvm\"
-               if [ ! -s \"\$NVM_DIR/nvm.sh\" ]; then
-                 echo '--- nvm not found: installing nvm v0.39.7 ---'
-                 curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                 # Persist the nvm loader to ~/.bash_profile for future login/manual
-                 # shells. Non-interactive SSH commands like this deploy step still
-                 # need to source nvm explicitly unless they invoke a login shell.
-                 if ! grep -qF 'NVM_DIR' \"\$HOME/.bash_profile\" 2>/dev/null; then
-                   printf '\\nexport NVM_DIR=\"\$HOME/.nvm\"\\n[ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"\\n' >> \"\$HOME/.bash_profile\"
-                 fi
-               fi
                [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
-               # If node is still absent (nvm was present but no version installed), install now.
-               if ! command -v node >/dev/null 2>&1; then
-                 echo '--- Node.js not found: installing Node.js 20 via nvm ---'
-                 nvm install 20
-                 nvm alias default 20
-               fi
                # Fallback: add common system npm locations (cPanel / Hostinger)
                command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
                # Confirm npm is available — fail fast with a clear message if not.
@@ -428,7 +410,7 @@ jobs:
                    nohup npm run start --prefix '${DEPLOY_DIR}/cms' \
                      > '${DEPLOY_DIR}/cms.log' 2>&1 </dev/null &
                    echo \$! > '${DEPLOY_DIR}/cms.pid'
-                   echo \"CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))\"
+                   echo "CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))"
                  fi
                else
                  echo '::warning::CMS install/build failed — /admin will show an error page until the next successful deploy'
