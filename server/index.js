@@ -45,6 +45,8 @@ const cmsProxyOptions = {
     changeOrigin: true,
     // Only proxy requests that belong to the CMS; everything else falls
     // through to the next middleware (helmet, static files, API routes, etc.).
+    // Note: http-proxy-middleware strips query strings from `pathname` before
+    // calling pathFilter, so startsWith checks are safe against ?foo=bar.
     pathFilter: (pathname) => {
         const cmsPaths = ['/admin', '/_next', '/api/media', '/media'];
         return cmsPaths.some((p) => pathname === p || pathname.startsWith(p + '/'));

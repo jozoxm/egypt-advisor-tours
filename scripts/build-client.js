@@ -47,8 +47,11 @@ try {
         throw new Error(`Client build directory not found at ${clientBuildDir}`);
     }
 
-    // CRA doesn't guarantee hidden files (like .htaccess) are copied from
-    // client/public to client/build, so copy it explicitly when present.
+    // CRA copies everything from public/ to build/, but for clarity and to
+    // guard against any tooling change, we explicitly copy .htaccess too.
+    // The file tells Apache (Hostinger/Phusion Passenger) not to rewrite
+    // /admin, /_next, /api, and /media to index.html, ensuring those paths
+    // reach the Node.js proxy layer instead of the React SPA fallback.
     if (fs.existsSync(clientPublicHtaccess)) {
         const clientBuildHtaccess = path.join(clientBuildDir, '.htaccess');
         fs.copyFileSync(clientPublicHtaccess, clientBuildHtaccess);
