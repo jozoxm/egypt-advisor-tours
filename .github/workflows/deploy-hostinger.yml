@@ -369,6 +369,10 @@ jobs:
 
                cd '${DEPLOY_DIR}'
 
+               echo '--- resetting local tracked changes before pull ---'
+               git reset --hard HEAD
+               rm -f cms/package-lock.json
+
                echo '--- pulling latest code ---'
                git pull origin main
 
