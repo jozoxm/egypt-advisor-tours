@@ -432,14 +432,21 @@ jobs:
                     echo '::error::cms/.env.local not found after deploy'
                     exit 1
                   fi
-                  grep -q '^PAYLOAD_SERVER_URL=' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing in cms/.env.local'; exit 1; }
-                  grep -q '^PAYLOAD_SECRET=' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing in cms/.env.local'; exit 1; }
-                  grep -q '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing in cms/.env.local'; exit 1; }
+                  grep -Eq '^PAYLOAD_SERVER_URL=.+$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^PAYLOAD_SECRET=.+$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^DATABASE_PATH=.+$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing or empty in cms/.env.local'; exit 1; }
                   DATABASE_PATH_COUNT=\$(grep -c '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local')
                   if [ \"\$DATABASE_PATH_COUNT\" -gt 1 ]; then
                     echo \"::warning::Multiple DATABASE_PATH entries found in cms/.env.local; using the last one\"
                   fi
                   DATABASE_PATH_VALUE=\$(sed -n 's/^DATABASE_PATH=//p' '${DEPLOY_DIR}/cms/.env.local' | tail -n 1)
+                  case \"\$DATABASE_PATH_VALUE\" in
+                    /*) ;;
+                    *) echo \"::error::DATABASE_PATH must be an absolute path in production: \$DATABASE_PATH_VALUE\"; exit 1 ;;
+                  esac
+                  case \"\$DATABASE_PATH_VALUE\" in
+                    *..*) echo \"::error::DATABASE_PATH contains unsafe traversal segments: \$DATABASE_PATH_VALUE\"; exit 1 ;;
+                  esac
                   DB_DIR=\$(dirname \"\$DATABASE_PATH_VALUE\")
                   mkdir -p \"\$DB_DIR\"
                   DB_WRITE_TEST=\"\$DB_DIR/.payload-write-test-\$\$.tmp\"
@@ -486,7 +493,7 @@ jobs:
               status=$(curl -s -o /dev/null -w "%{http_code}" \
                 --max-time 20 "$url" || echo "000")
               case "$mode:$status" in
-                strict:2??|redirect-ok:2??|redirect-ok:3??)
+                strict:2[0-9][0-9]|redirect-ok:2[0-9][0-9]|redirect-ok:3[0-9][0-9])
                   echo "✅ ${label} check passed (HTTP $status)"
                   return 0
                   ;;
