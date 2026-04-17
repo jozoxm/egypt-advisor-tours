@@ -356,6 +356,17 @@ jobs:
             ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
                trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
+
+               # ── Load nvm so node/npm are in PATH ──────────────────────────
+               # Non-interactive SSH sessions do not source .bashrc/.bash_profile,
+               # so nvm (and therefore node/npm) is not on PATH by default.
+               export NVM_DIR=\"\$HOME/.nvm\"
+               [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+               # Fallback: add common system npm locations (cPanel / Hostinger)
+               command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
+               # Confirm npm is available — fail fast with a clear message if not.
+               npm --version || { echo '::error::npm not found. Check Node.js setup on Hostinger.'; exit 1; }
+
                cd '${DEPLOY_DIR}'
 
                echo '--- pulling latest code ---'
