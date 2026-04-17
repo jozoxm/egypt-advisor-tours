@@ -45,15 +45,10 @@ const cmsProxyOptions = {
     changeOrigin: true,
     // Only proxy requests that belong to the CMS; everything else falls
     // through to the next middleware (helmet, static files, API routes, etc.).
-    pathFilter: (pathname) =>
-        pathname === '/admin' ||
-        pathname.startsWith('/admin/') ||
-        pathname === '/_next' ||
-        pathname.startsWith('/_next/') ||
-        pathname === '/api/media' ||
-        pathname.startsWith('/api/media/') ||
-        pathname === '/media' ||
-        pathname.startsWith('/media/'),
+    pathFilter: (pathname) => {
+        const cmsPaths = ['/admin', '/_next', '/api/media', '/media'];
+        return cmsPaths.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    },
     on: {
         error: (err, _req, res) => {
             console.error('[CMS Proxy] Error connecting to CMS:', err.message);
