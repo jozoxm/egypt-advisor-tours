@@ -17,7 +17,6 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const clientDir = path.join(ROOT, 'client');
 const clientBuildDir = path.join(clientDir, 'build');
-const clientPublicHtaccess = path.join(clientDir, 'public', '.htaccess');
 const rootBuildDir = path.join(ROOT, 'build');
 
 // Skip only when explicitly in development mode or when opted out.
@@ -46,16 +45,6 @@ try {
     if (!fs.existsSync(clientBuildDir)) {
         throw new Error(`Client build directory not found at ${clientBuildDir}`);
     }
-
-    // The .htaccess file tells Apache (Hostinger/Phusion Passenger) not to
-    // rewrite /admin, /_next, /api, and /media to index.html, ensuring those
-    // paths reach the Node.js proxy layer instead of the React SPA fallback.
-    // It is required for correct production routing — fail fast if missing.
-    if (!fs.existsSync(clientPublicHtaccess)) {
-        throw new Error(`Required Apache routing file not found at ${clientPublicHtaccess}. This file is required for production routing.`);
-    }
-    const clientBuildHtaccess = path.join(clientBuildDir, '.htaccess');
-    fs.copyFileSync(clientPublicHtaccess, clientBuildHtaccess);
     
     console.log('[postinstall] Copying build output to root directory...');
     
