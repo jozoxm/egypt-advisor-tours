@@ -138,6 +138,8 @@ jobs:
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          _PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
           missing=()
           [ -z "$_HOST" ]          && missing+=("HOSTINGER_SSH_HOST")
@@ -148,11 +150,35 @@ jobs:
           [ -z "$_KNOWN_HOSTS" ]   && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
           [ -z "$_ADMIN_SECRET" ]  && missing+=("ADMIN_SECRET")
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
+          [ -z "$_PAYLOAD_SECRET" ] && missing+=("PAYLOAD_SECRET")
+          [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH (absolute writable directory path on the server)")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             echo "Add them at: Settings → Secrets and variables → Actions"
             exit 1
           fi
+          # Validate HOSTINGER_DATA_PATH format: must start with '/' and contain no whitespace
+          case "$_HOSTINGER_DATA_PATH" in
+            /*) ;;
+            *) echo "::error::HOSTINGER_DATA_PATH must be an absolute path (start with /): '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
+          esac
+          case "$_HOSTINGER_DATA_PATH" in
+            *[[:space:]]*) echo "::error::HOSTINGER_DATA_PATH must not contain whitespace: '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
+          esac
+
+          if [ "$_HOSTINGER_DATA_PATH" != "${_HOSTINGER_DATA_PATH#"${_HOSTINGER_DATA_PATH%%[![:space:]]*}"}" ] || \
+             [ "$_HOSTINGER_DATA_PATH" != "${_HOSTINGER_DATA_PATH%"${_HOSTINGER_DATA_PATH##*[![:space:]]}"}" ]; then
+            echo "::error::HOSTINGER_DATA_PATH must not contain leading or trailing whitespace"
+            exit 1
+          fi
+
+          case "$_HOSTINGER_DATA_PATH" in
+            /*) ;;
+            *)
+              echo "::error::HOSTINGER_DATA_PATH must be an absolute path starting with /"
+              exit 1
+              ;;
+          esac
 
       # ── 1. Check out code (needed only to verify the workflow itself) ──
       - name: Checkout repository
@@ -395,11 +421,11 @@ jobs:
                # If the host also supports PM2 for the main process:
                # pm2 restart egypt-advisor-tours 2>/dev/null || true
 
-               echo '--- installing CMS dependencies and building (Payload admin panel) ---'
-               if npm install --prefix cms --production=false \
-                  && npm run build --prefix cms; then
-                 echo '--- starting CMS service ---'
-                 if command -v pm2 >/dev/null 2>&1; then
+                echo '--- installing CMS dependencies and building (Payload admin panel) ---'
+                if npm install --prefix cms --production=false \
+                   && npm run build --prefix cms; then
+                  echo '--- starting CMS service ---'
+                  if command -v pm2 >/dev/null 2>&1; then
                    # When PM2 is available, stop by process name — no need
                    # for pkill or a PID file.
                    if pm2 describe egypt-cms >/dev/null 2>&1; then
@@ -408,26 +434,63 @@ jobs:
                      pm2 start npm --name egypt-cms -- run start --prefix '${DEPLOY_DIR}/cms'
                    fi
                    pm2 save 2>/dev/null || true
-                 else
-                   # Nohup fallback: stop the previous instance via the saved
-                   # PID file only — avoids any broad pkill pattern.
-                   if [ -f '${DEPLOY_DIR}/cms.pid' ]; then
-                     kill \$(cat '${DEPLOY_DIR}/cms.pid') 2>/dev/null || true
+                  else
+                    # Nohup fallback: stop the previous instance via the saved
+                    # PID file only — avoids any broad pkill pattern.
+                    if [ -f '${DEPLOY_DIR}/cms.pid' ]; then
+                      kill \$(cat '${DEPLOY_DIR}/cms.pid') 2>/dev/null || true
                      rm -f '${DEPLOY_DIR}/cms.pid'
                      sleep 2
                    fi
                    # Redirect stdin from /dev/null so the process is fully
                    # detached from the terminal.
-                   nohup npm run start --prefix '${DEPLOY_DIR}/cms' \
-                     > '${DEPLOY_DIR}/cms.log' 2>&1 </dev/null &
-                   echo \$! > '${DEPLOY_DIR}/cms.pid'
-                   echo \"CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))\"
-                 fi
-               else
-                 echo '::warning::CMS install/build failed — /admin will show an error page until the next successful deploy'
-               fi
+                    nohup npm run start --prefix '${DEPLOY_DIR}/cms' \
+                      > '${DEPLOY_DIR}/cms.log' 2>&1 </dev/null &
+                    echo \$! > '${DEPLOY_DIR}/cms.pid'
+                    echo \"CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))\"
+                  fi
+                  echo '--- verifying CMS runtime/env wiring ---'
+                  if [ ! -f '${DEPLOY_DIR}/cms/.env.local' ]; then
+                    echo '::error::cms/.env.local not found after deploy'
+                    exit 1
+                  fi
+                  grep -Eq '^PAYLOAD_SERVER_URL=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^PAYLOAD_SECRET=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^DATABASE_PATH=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing or empty in cms/.env.local'; exit 1; }
+                  DATABASE_PATH_COUNT=\$(grep -c '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local')
+                  if [ \"\$DATABASE_PATH_COUNT\" -gt 1 ]; then
+                    echo \"::warning::Multiple DATABASE_PATH entries found in cms/.env.local; using the last one\"
+                  fi
+                  DATABASE_PATH_VALUE=\$(sed -n 's/^DATABASE_PATH=//p' '${DEPLOY_DIR}/cms/.env.local' | tail -n 1)
+                  DATABASE_PATH_VALUE=\$(printf '%s' \"\$DATABASE_PATH_VALUE\" | sed -e 's/^\"//' -e 's/\"$//')
+                  case \"\$DATABASE_PATH_VALUE\" in
+                    /*) ;;
+                    *) echo \"::error::DATABASE_PATH must be an absolute path in production: \$DATABASE_PATH_VALUE\"; exit 1 ;;
+                  esac
+                  DATABASE_PATH_VALUE=\$(readlink -f \"\$DATABASE_PATH_VALUE\" 2>/dev/null || realpath \"\$DATABASE_PATH_VALUE\" 2>/dev/null || echo \"\$DATABASE_PATH_VALUE\")
+                  DB_DIR=\$(dirname \"\$DATABASE_PATH_VALUE\")
+                  mkdir -p \"\$DB_DIR\"
+                  DB_WRITE_TEST=\$(mktemp \"\$DB_DIR/.payload-write-test.XXXXXX\") 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR. Ensure it exists and is writable by the deploy user.\"; exit 1; }
+                  rm -f \"\$DB_WRITE_TEST\"
+                  sleep 5
+                  if command -v pm2 >/dev/null 2>&1; then
+                    pm2 describe egypt-cms >/dev/null 2>&1 || { echo '::error::PM2 process egypt-cms is not running'; pm2 logs egypt-cms --lines 120 --nostream || true; exit 1; }
+                  else
+                    if [ ! -f '${DEPLOY_DIR}/cms.pid' ]; then
+                      echo '::error::cms.pid not found after CMS start'
+                      tail -n 120 '${DEPLOY_DIR}/cms.log' || true
+                      exit 1
+                    fi
+                    CMS_PID=\$(cat '${DEPLOY_DIR}/cms.pid')
+                    kill -0 \"\$CMS_PID\" 2>/dev/null || { echo \"::error::CMS process is not running (PID \$CMS_PID)\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
+                    ps -p \"\$CMS_PID\" -o args= | grep -Fq \"${DEPLOY_DIR}/cms\" || { echo \"::error::PID \$CMS_PID is not the CMS process\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
+                  fi
+                else
+                  echo '::error::CMS install/build failed — see logs above for Next.js/Payload build errors'
+                  exit 1
+                fi
 
-               echo '--- deploy complete ---'" && break
+                echo '--- deploy complete ---'" && break
             if [ "$attempt" -lt 3 ]; then
               echo "Pull & restart attempt $attempt failed, retrying in 10s..."
               sleep 10
@@ -442,21 +505,58 @@ jobs:
         run: |
           echo "Waiting 15 seconds for the app to finish restarting..."
           sleep 15
-          for attempt in 1 2 3; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 20 https://egyptadvisortours.com/health || echo "000")
-            if [ "$status" = "200" ]; then
-              echo "✅ Health check passed (HTTP $status)"
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Health check attempt $attempt returned HTTP $status, retrying in 10s..."
-              sleep 10
-            else
-              echo "::error::Health check failed after 3 attempts. Last status: HTTP $status"
-              exit 1
-            fi
-          done
+          run_check() {
+            local url="$1"
+            local label="$2"
+            local mode="$3"
+            local status
+            for attempt in 1 2 3; do
+              status=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 20 "$url" || echo "000")
+              case "$mode:$status" in
+                strict:2[0-9][0-9]|redirect-ok:2[0-9][0-9]|redirect-ok:3[0-9][0-9])
+                  echo "✅ ${label} check passed (HTTP $status)"
+                  return 0
+                  ;;
+              esac
+              if [ "$attempt" -lt 3 ]; then
+                echo "${label} check attempt $attempt returned HTTP $status, retrying in 10s..."
+                sleep 10
+              else
+                echo "::error::${label} check failed after 3 attempts. Last status: HTTP $status"
+                return 1
+              fi
+            done
+          }
+          run_check "https://egyptadvisortours.com/health" "API health" "strict"
+          run_check "https://egyptadvisortours.com/admin" "Admin health" "redirect-ok"
+
+      - name: CMS diagnostics on failure
+        if: failure()
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+            "set +e
+             echo '--- cms/.env.local keys (values hidden) ---'
+             if [ -f '${DEPLOY_DIR}/cms/.env.local' ]; then
+               cut -d '=' -f 1 '${DEPLOY_DIR}/cms/.env.local' | sed '/^$/d'
+             else
+               echo 'cms/.env.local missing'
+             fi
+             echo '--- pm2 describe egypt-cms ---'
+             if command -v pm2 >/dev/null 2>&1; then
+               pm2 describe egypt-cms || true
+               echo '--- pm2 logs egypt-cms (tail) ---'
+               pm2 logs egypt-cms --lines 120 --nostream || true
+             else
+               echo 'pm2 not installed on host'
+             fi
+             echo '--- cms.log tail ---'
+             tail -n 120 '${DEPLOY_DIR}/cms.log' || true"
 
       # ── 6. Print deployment summary ───────────────────────────────────
       - name: Deployment summary
