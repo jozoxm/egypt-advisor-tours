@@ -22,7 +22,7 @@ export const Slideshow: CollectionConfig = {
       label: 'Image URL',
       required: false,
       admin: { description: 'External URL to the slide background image (leave blank if uploading below).' },
-      validate: (value, { data }: { data: Record<string, unknown> }) => {
+      validate: (value: string | null | undefined, { data }: { data: Record<string, unknown> }) => {
         // At least one image source (URL string or uploaded file) is required.
         if (!value && !data?.photo) {
           return 'Please provide either an Image URL or upload an image.'
