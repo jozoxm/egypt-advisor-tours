@@ -22,10 +22,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package manifests and built output; reinstall prod-only deps so the
-# image stays lean while still being able to run `next start`.
+# Copy package manifests and built output; install prod-only deps in this
+# stage so the image stays lean while still being able to run `next start`.
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
+RUN npm ci --production
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/next.config.mjs ./
 
