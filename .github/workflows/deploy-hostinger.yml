@@ -157,6 +157,14 @@ jobs:
             echo "Add them at: Settings → Secrets and variables → Actions"
             exit 1
           fi
+          # Validate HOSTINGER_DATA_PATH format: must start with '/' and contain no whitespace
+          case "$_HOSTINGER_DATA_PATH" in
+            /*) ;;
+            *) echo "::error::HOSTINGER_DATA_PATH must be an absolute path (start with /): '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
+          esac
+          case "$_HOSTINGER_DATA_PATH" in
+            *[[:space:]]*) echo "::error::HOSTINGER_DATA_PATH must not contain whitespace: '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
+          esac
 
       # ── 1. Check out code (needed only to verify the workflow itself) ──
       - name: Checkout repository
@@ -445,7 +453,7 @@ jobs:
                     /*) ;;
                     *) echo \"::error::DATABASE_PATH must be an absolute path in production: \$DATABASE_PATH_VALUE\"; exit 1 ;;
                   esac
-                  DATABASE_PATH_VALUE=\$(readlink -m \"\$DATABASE_PATH_VALUE\")
+                  DATABASE_PATH_VALUE=\$(readlink -f \"\$DATABASE_PATH_VALUE\" 2>/dev/null || realpath \"\$DATABASE_PATH_VALUE\" 2>/dev/null || echo \"\$DATABASE_PATH_VALUE\")
                   DB_DIR=\$(dirname \"\$DATABASE_PATH_VALUE\")
                   mkdir -p \"\$DB_DIR\"
                   DB_WRITE_TEST=\$(mktemp \"\$DB_DIR/.payload-write-test.XXXXXX\") 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR. Ensure it exists and is writable by the deploy user.\"; exit 1; }
@@ -461,7 +469,7 @@ jobs:
                     fi
                     CMS_PID=\$(cat '${DEPLOY_DIR}/cms.pid')
                     kill -0 \"\$CMS_PID\" 2>/dev/null || { echo \"::error::CMS process is not running (PID \$CMS_PID)\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
-                    ps -p \"\$CMS_PID\" -o args= | grep -q \"${DEPLOY_DIR}/cms\" || { echo \"::error::PID \$CMS_PID is not the CMS process\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
+                    ps -p \"\$CMS_PID\" -o args= | grep -Fq \"${DEPLOY_DIR}/cms\" || { echo \"::error::PID \$CMS_PID is not the CMS process\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
                   fi
                 else
                   echo '::error::CMS install/build failed — see logs above for Next.js/Payload build errors'
