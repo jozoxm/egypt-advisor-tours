@@ -166,6 +166,20 @@ jobs:
             *[[:space:]]*) echo "::error::HOSTINGER_DATA_PATH must not contain whitespace: '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
           esac
 
+          if [ "$_HOSTINGER_DATA_PATH" != "${_HOSTINGER_DATA_PATH#"${_HOSTINGER_DATA_PATH%%[![:space:]]*}"}" ] || \
+             [ "$_HOSTINGER_DATA_PATH" != "${_HOSTINGER_DATA_PATH%"${_HOSTINGER_DATA_PATH##*[![:space:]]}"}" ]; then
+            echo "::error::HOSTINGER_DATA_PATH must not contain leading or trailing whitespace"
+            exit 1
+          fi
+
+          case "$_HOSTINGER_DATA_PATH" in
+            /*) ;;
+            *)
+              echo "::error::HOSTINGER_DATA_PATH must be an absolute path starting with /"
+              exit 1
+              ;;
+          esac
+
       # ── 1. Check out code (needed only to verify the workflow itself) ──
       - name: Checkout repository
         uses: actions/checkout@v4
