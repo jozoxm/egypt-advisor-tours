@@ -21,19 +21,37 @@ app.set('trust proxy', 1);
 // PAYLOAD CMS PROXY
 // ============================================
 // The Payload CMS admin panel (Next.js) runs on its own port (CMS_PORT,
-// default 3001).  All /admin and /_next requests are transparently proxied
-// to it so the browser sees everything on the same origin.
+// default 3001).  Requests for /admin, /_next, /api/media, and /media are
+// transparently proxied to it so the browser sees everything on the same
+// origin.
+//
+// IMPORTANT: the proxy is mounted at root ('/') with a pathFilter instead of
+// using separate app.use('/admin', proxy) calls.  When mounted at a subpath,
+// Express strips the matched prefix from req.url before passing it to the
+// proxy middleware — so /admin would be forwarded to the CMS as / (triggering
+// an infinite redirect loop) and /_next/static/... would lose its /_next
+// prefix (causing genuine 404s for JS bundles).  Mounting at root with
+// pathFilter preserves the full path end-to-end.
 //
 // Set CMS_URL in .env to override (e.g. CMS_URL=http://localhost:3001).
 // If the CMS service is not running, the proxy returns a 503 with a clear
 // error message rather than crashing the main Express server.
 //
-// These routes are registered BEFORE helmet so that the CMS's own Next.js
-// headers are not overwritten by Express's CSP headers.
+// Registered BEFORE helmet so that the CMS's own Next.js headers are not
+// overwritten by Express's CSP headers.
 const CMS_URL = process.env.CMS_URL || 'http://localhost:3001';
+// Path prefixes that must be forwarded to the CMS process.  Defined at
+// module level so the constant is not reallocated on every request.
+const CMS_PROXY_PATHS = ['/admin', '/_next', '/api/media', '/media'];
 const cmsProxyOptions = {
     target: CMS_URL,
     changeOrigin: true,
+    // Only proxy requests that belong to the CMS; everything else falls
+    // through to the next middleware (helmet, static files, API routes, etc.).
+    // Note: http-proxy-middleware strips query strings from `pathname` before
+    // calling pathFilter, so startsWith checks are safe against ?foo=bar.
+    pathFilter: (pathname) =>
+        CMS_PROXY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')),
     on: {
         error: (err, _req, res) => {
             console.error('[CMS Proxy] Error connecting to CMS:', err.message);
@@ -65,23 +83,7 @@ const cmsProxyOptions = {
         },
     },
 };
-app.use('/admin', createProxyMiddleware(cmsProxyOptions));
-// Next.js static assets (JS bundles, CSS, fonts) and the HMR websocket are
-// served by the CMS Next.js process under /_next/*.  These are the build
-// artefacts for the Payload admin UI and contain no sensitive data, so
-// proxying them publicly is intentional and required for the admin panel to
-// load correctly in the browser.
-app.use('/_next', createProxyMiddleware(cmsProxyOptions));
-// Payload CMS media REST API and static uploaded files.
-// /api/media  — Payload's REST endpoints for creating / querying media docs.
-//               The admin panel JS (loaded from /admin) calls these endpoints
-//               using the browser's current origin, so they must be proxied
-//               from the main Express server to the CMS.
-// /media      — Static files served by Payload's Next.js app for uploaded
-//               images.  Proxied so that <img src="/media/photo.jpg"> works
-//               on the main domain without CORS issues.
-app.use('/api/media', createProxyMiddleware(cmsProxyOptions));
-app.use('/media', createProxyMiddleware(cmsProxyOptions));
+app.use(createProxyMiddleware(cmsProxyOptions));
 
 // ============================================
 // SECURITY HEADERS (helmet)
