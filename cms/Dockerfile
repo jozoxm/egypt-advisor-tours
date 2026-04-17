@@ -22,16 +22,16 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy the Next.js standalone output
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-# /app/public is optional (Payload does not require a public dir by default)
-# Use a shell conditional so the build succeeds even when the folder is absent.
-RUN if [ -d /app/public ]; then cp -r /app/public ./public; fi
+# Copy package manifests and built output; reinstall prod-only deps so the
+# image stays lean while still being able to run `next start`.
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/next.config.mjs ./
 
 EXPOSE 3001
 
 ENV NODE_ENV=production
 ENV CMS_PORT=3001
 
-CMD ["node", "server.js"]
+CMD ["npm", "run", "start"]

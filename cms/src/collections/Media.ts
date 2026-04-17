@@ -10,11 +10,12 @@ const dirname = path.dirname(filename)
 // Payload SQLite database in the persistent data volume on Hostinger and is
 // separate from the git-tracked source code.
 //
-// Override the storage directory and/or the public URL via environment vars:
+// Override the storage directory via environment variable:
 //   MEDIA_PATH   — absolute path to the upload directory  (default: <project-root>/media)
-//   MEDIA_URL    — public URL prefix for served images     (default: /media)
+//
+// The public URL is automatically derived from PAYLOAD_SERVER_URL + "/media/"
+// by Payload v3; staticURL is no longer a supported UploadConfig option in v3.
 const staticDir = process.env.MEDIA_PATH || path.resolve(dirname, '../../../media')
-const staticURL = process.env.MEDIA_URL || '/media'
 
 export const Media: CollectionConfig = {
   slug: 'media',
@@ -26,7 +27,6 @@ export const Media: CollectionConfig = {
   },
   upload: {
     staticDir,
-    staticURL,
     // Accept any image format the browser can render.
     mimeTypes: ['image/*'],
   },
