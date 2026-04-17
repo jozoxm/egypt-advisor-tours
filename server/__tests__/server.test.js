@@ -24,10 +24,6 @@ process.env.ADMIN_USERNAME  = 'testadmin';
 const app = require('../index.js');
 const jwt = require('jsonwebtoken');
 
-afterAll(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-});
-
 // Helper: obtain a valid admin session cookie.
 async function adminCookie() {
     const res = await request(app)
@@ -265,6 +261,7 @@ describe('POST /api/bookings/customer', () => {
 // would receive '/' instead of '/admin', causing an infinite redirect loop.
 describe('CMS proxy — path preservation', () => {
     const http = require('http');
+    const CMS_PATHS = ['/admin', '/_next', '/api/media', '/media'];
 
     const cases = [
         ['/admin',                '/admin'],
@@ -279,22 +276,20 @@ describe('CMS proxy — path preservation', () => {
     test.each(cases)(
         'GET %s is forwarded to CMS as %s',
         async (requestPath, expectedCmsPath) => {
-            // We need a fresh proxy bound to the ephemeral CMS port, so we
-            // create a small isolated Express app for this test group rather
-            // than reusing the module-level `app` (which captured CMS_URL at
-            // module load time).
+            // Use a small isolated Express app with a fresh proxy target so
+            // each case can assert the exact path received by the CMS stub.
             const express2 = require('express');
             const { createProxyMiddleware: cpm } = require('http-proxy-middleware');
             const mini = express2();
             const proxiedPaths = [];
             const miniCms = http.createServer((req, res) => {
                 proxiedPaths.push(req.url.split('?')[0]);
-                res.writeHead(200); res.end('ok');
+                res.writeHead(200);
+                res.end('ok');
             });
             await new Promise((r) => miniCms.listen(0, '127.0.0.1', r));
             const miniPort = miniCms.address().port;
 
-            const CMS_PATHS = ['/admin', '/_next', '/api/media', '/media'];
             mini.use(cpm({
                 target: `http://127.0.0.1:${miniPort}`,
                 changeOrigin: true,
@@ -325,12 +320,12 @@ describe('CMS proxy — path preservation', () => {
         const proxiedPaths = [];
         const miniCms = http.createServer((req, res) => {
             proxiedPaths.push(req.url);
-            res.writeHead(200); res.end('ok');
+            res.writeHead(200);
+            res.end('ok');
         });
         await new Promise((r) => miniCms.listen(0, '127.0.0.1', r));
         const miniPort = miniCms.address().port;
 
-        const CMS_PATHS = ['/admin', '/_next', '/api/media', '/media'];
         const mini = express2();
         mini.use(cpm({
             target: `http://127.0.0.1:${miniPort}`,
@@ -354,4 +349,9 @@ describe('CMS proxy — path preservation', () => {
 
         expect(proxiedPaths).toHaveLength(0);
     });
+});
+
+// Cleanup temp dir after all tests.
+afterAll(() => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
 });
