@@ -369,8 +369,10 @@ jobs:
 
                cd '${DEPLOY_DIR}'
 
-               echo '--- pulling latest code ---'
-               git pull origin main
+               echo '--- syncing working tree to origin/main ---'
+               git fetch origin main
+               git reset --hard origin/main
+               git clean -fd
 
                echo '--- installing main app dependencies (also builds React client) ---'
                npm install --production=false
