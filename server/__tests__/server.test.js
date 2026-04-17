@@ -262,26 +262,6 @@ describe('POST /api/bookings/customer', () => {
 describe('CMS proxy — path preservation', () => {
     const http = require('http');
     const CMS_PATHS = ['/admin', '/_next', '/api/media', '/media'];
-    let cmsServer;
-
-    beforeAll((done) => {
-        cmsServer = http.createServer((req, res) => {
-            res.writeHead(200, { 'Content-Type': 'text/plain' });
-            res.end('ok');
-        });
-        cmsServer.listen(0, '127.0.0.1', () => {
-            // Point the already-loaded app's proxy at the ephemeral CMS server.
-            // http-proxy-middleware reads process.env.CMS_URL once at module
-            // init, so we override it before the suite and restore after.
-            process.env.CMS_URL = `http://127.0.0.1:${cmsServer.address().port}`;
-            done();
-        });
-    });
-
-    afterAll((done) => {
-        delete process.env.CMS_URL;
-        cmsServer.close(done);
-    });
 
     const cases = [
         ['/admin',                '/admin'],
@@ -296,10 +276,8 @@ describe('CMS proxy — path preservation', () => {
     test.each(cases)(
         'GET %s is forwarded to CMS as %s',
         async (requestPath, expectedCmsPath) => {
-            // We need a fresh proxy bound to the ephemeral CMS port, so we
-            // create a small isolated Express app for this test group rather
-            // than reusing the module-level `app` (which captured CMS_URL at
-            // load time from process.env before our beforeAll ran).
+            // Use a small isolated Express app with a fresh proxy target so
+            // each case can assert the exact path received by the CMS stub.
             const express2 = require('express');
             const { createProxyMiddleware: cpm } = require('http-proxy-middleware');
             const mini = express2();
