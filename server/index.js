@@ -38,9 +38,29 @@ const cmsProxyOptions = {
         error: (err, _req, res) => {
             console.error('[CMS Proxy] Error connecting to CMS:', err.message);
             if (res && !res.headersSent) {
-                res.status(503).json({
-                    error: 'The CMS admin panel is not available. Make sure the cms/ service is running.',
-                });
+                res.status(503).send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Panel — Unavailable</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto; padding: 0 24px; text-align: center; color: #333; }
+    h1  { color: #c0392b; margin-bottom: 12px; }
+    p   { line-height: 1.6; color: #555; }
+    code { background: #f4f4f4; padding: 2px 8px; border-radius: 4px; font-size: .9em; }
+    .hint { margin-top: 32px; font-size: .875rem; color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Admin Panel Unavailable</h1>
+  <p>The CMS service is not running or is still starting up.</p>
+  <p>If this is a fresh deployment, please wait about 30 seconds and then
+     <a href="/admin">refresh this page</a>.</p>
+  <p class="hint">If the problem persists, make sure the CMS process is running:<br>
+     <code>npm run start --prefix cms</code></p>
+</body>
+</html>`);
             }
         },
     },
@@ -948,6 +968,22 @@ const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
     app.get('*', (req, res) => {
+        // Admin-panel, CMS asset, and media paths must never reach this SPA
+        // fallback.  They are intercepted by the CMS proxy middleware above.
+        // This guard exists as a safety net: if they do somehow slip through
+        // (e.g. proxy middleware not yet initialised), return 404 rather than
+        // serving index.html, which would cause React Router's catch-all to
+        // silently redirect the browser to /.
+        // Match only the exact path segments used by the CMS proxy.
+        // Test for "/admin", "/admin/", "/admin/anything" — but not
+        // "/admin-foo" — by checking that the character immediately after
+        // the prefix is either absent, a slash, or a query string.
+        const isCmsPath = (prefix) =>
+            req.path === prefix ||
+            req.path.startsWith(prefix + '/');
+        if (isCmsPath('/admin') || isCmsPath('/_next') || isCmsPath('/media')) {
+            return res.status(404).send('Not found');
+        }
         res.sendFile(path.join(buildPath, 'index.html'));
     });
 }

@@ -41,6 +41,10 @@
 #
 #       Optional:
 #       ADMIN_USERNAME                 login username (default: "admin")
+#       PAYLOAD_SECRET                 a-long-random-string (Payload CMS JWT key;
+#                                      strongly recommended for production)
+#       SITE_URL                       https://egyptadvisortours.com  (override if
+#                                      the public URL differs from the default)
 #       HOSTINGER_DATA_PATH            /home/u123456789/admin_data  (persist data outside repo)
 #       REACT_APP_EMAILJS_SERVICE_ID
 #       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
@@ -52,6 +56,14 @@
 #     the repository there if it does not already exist.
 #     Make sure HOSTINGER_APP_DIR points to the folder you configured as the
 #     Node.js application root in hPanel.
+#
+#  NOTE — Payload CMS (the /admin panel) runs as a separate Next.js process
+#     on port 3001 and is proxied by the main Express server.  The deploy
+#     workflow automatically builds and starts it after every deployment.
+#     For the CMS to survive server restarts, PM2 must be available on your
+#     Hostinger plan (Business or Cloud plans include it).  On plans without
+#     PM2 the workflow falls back to nohup, which keeps the process running
+#     for the current session but may not survive a full server reboot.
 #
 # After completing steps 1–5, the first push to `main` will bootstrap the
 # app if needed, and later pushes will automatically deploy updates to
@@ -179,6 +191,8 @@ jobs:
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           _ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          _PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+          _SITE_URL: ${{ secrets.SITE_URL || 'https://egyptadvisortours.com' }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
@@ -266,6 +280,14 @@ jobs:
           _DATA_PATH_CLEAN=$(printf '%s' "${_HOSTINGER_DATA_PATH}" | tr -d '\n\r')
           if [ -n "$_DATA_PATH_CLEAN" ]; then
             printf 'DATA_PATH=%s\n' "$_DATA_PATH_CLEAN" >> "$server_env_file"
+            # Tell the Payload CMS where to store its SQLite database (same
+            # persistent volume as the JSON data files).
+            printf 'DATABASE_PATH=%s/payload.db\n' "$_DATA_PATH_CLEAN" >> "$server_env_file"
+          fi
+          # PAYLOAD_SECRET signs Payload CMS JWTs — set it via the GitHub
+          # Secret PAYLOAD_SECRET (optional but strongly recommended).
+          if [ -n "${_PAYLOAD_SECRET}" ]; then
+            printf 'PAYLOAD_SECRET=%s\n' "${_PAYLOAD_SECRET}" >> "$server_env_file"
           fi
 
           for attempt in 1 2 3; do
@@ -285,10 +307,42 @@ jobs:
           done
           rm -f "$server_env_file"
 
+          # Write cms/.env.local so the Payload CMS Next.js process picks up
+          # the correct PAYLOAD_SECRET, DATABASE_PATH, and server URL.
+          # Next.js reads .env.local automatically from the app directory.
+          cms_env_file=$(mktemp)
+          _SITE_URL_CLEAN=$(printf '%s' "${_SITE_URL}" | tr -d '\n\r')
+          printf 'PAYLOAD_SERVER_URL=%s\n' "${_SITE_URL_CLEAN:-https://egyptadvisortours.com}" > "$cms_env_file"
+          if [ -n "${_PAYLOAD_SECRET}" ]; then
+            printf 'PAYLOAD_SECRET=%s\n' "${_PAYLOAD_SECRET}" >> "$cms_env_file"
+          fi
+          if [ -n "$_DATA_PATH_CLEAN" ]; then
+            printf 'DATABASE_PATH=%s/payload.db\n' "$_DATA_PATH_CLEAN" >> "$cms_env_file"
+          fi
+
+          for attempt in 1 2 3; do
+            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+                 "umask 077; mkdir -p '${DEPLOY_DIR}/cms'; cat > '${DEPLOY_DIR}/cms/.env.local'" \
+                 < "$cms_env_file"; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "CMS env file write attempt $attempt failed, retrying in 10s..."
+              sleep 10
+            else
+              rm -f "$cms_env_file"
+              echo "::error::Failed to write CMS .env.local after 3 attempts."
+              exit 1
+            fi
+          done
+          rm -f "$cms_env_file"
+
       # ── 4b. Pull latest code, build, and restart the app ─────────────
       #    The postinstall hook (scripts/build-client.js) runs on every
       #    `npm install` and builds the React frontend unconditionally
       #    (unless SKIP_CLIENT_BUILD=1 or NODE_ENV=development is set).
+      #    After the main app restarts we also install, build, and start the
+      #    Payload CMS (cms/) so that /admin is actually served.
       - name: Pull & restart on Hostinger
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
@@ -302,18 +356,66 @@ jobs:
             ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
               "set -e
                trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
-               cd '$DEPLOY_DIR'
+
+               # ── Load nvm so node/npm are in PATH ──────────────────────────
+               # Non-interactive SSH sessions do not source .bashrc/.bash_profile,
+               # so nvm (and therefore node/npm) is not on PATH by default.
+               export NVM_DIR=\"\$HOME/.nvm\"
+               [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+               # Fallback: add common system npm locations (cPanel / Hostinger)
+               command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
+               # Confirm npm is available — fail fast with a clear message if not.
+               npm --version || { echo '::error::npm not found. Check Node.js setup on Hostinger.'; exit 1; }
+
+               cd '${DEPLOY_DIR}'
+
                echo '--- pulling latest code ---'
                git pull origin main
-               echo '--- installing dependencies (triggers client build if needed) ---'
+
+               echo '--- installing main app dependencies (also builds React client) ---'
                npm install --production=false
+
                echo '--- removing temporary build env file ---'
                rm -f client/.env.production.local
-               echo '--- restarting Node.js app ---'
+
+               echo '--- restarting main Node.js app (Passenger) ---'
                mkdir -p tmp
                touch tmp/restart.txt
-               # If the host uses PM2 directly:
+               # If the host also supports PM2 for the main process:
                # pm2 restart egypt-advisor-tours 2>/dev/null || true
+
+               echo '--- installing CMS dependencies and building (Payload admin panel) ---'
+               if npm install --prefix cms --production=false \
+                  && npm run build --prefix cms; then
+                 echo '--- starting CMS service ---'
+                 if command -v pm2 >/dev/null 2>&1; then
+                   # When PM2 is available, stop by process name — no need
+                   # for pkill or a PID file.
+                   if pm2 describe egypt-cms >/dev/null 2>&1; then
+                     pm2 restart egypt-cms
+                   else
+                     pm2 start npm --name egypt-cms -- run start --prefix '${DEPLOY_DIR}/cms'
+                   fi
+                   pm2 save 2>/dev/null || true
+                 else
+                   # Nohup fallback: stop the previous instance via the saved
+                   # PID file only — avoids any broad pkill pattern.
+                   if [ -f '${DEPLOY_DIR}/cms.pid' ]; then
+                     kill \$(cat '${DEPLOY_DIR}/cms.pid') 2>/dev/null || true
+                     rm -f '${DEPLOY_DIR}/cms.pid'
+                     sleep 2
+                   fi
+                   # Redirect stdin from /dev/null so the process is fully
+                   # detached from the terminal.
+                   nohup npm run start --prefix '${DEPLOY_DIR}/cms' \
+                     > '${DEPLOY_DIR}/cms.log' 2>&1 </dev/null &
+                   echo \$! > '${DEPLOY_DIR}/cms.pid'
+                   echo "CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))"
+                 fi
+               else
+                 echo '::warning::CMS install/build failed — /admin will show an error page until the next successful deploy'
+               fi
+
                echo '--- deploy complete ---'" && break
             if [ "$attempt" -lt 3 ]; then
               echo "Pull & restart attempt $attempt failed, retrying in 10s..."
