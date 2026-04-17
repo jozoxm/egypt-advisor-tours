@@ -432,25 +432,23 @@ jobs:
                     echo '::error::cms/.env.local not found after deploy'
                     exit 1
                   fi
-                  grep -Eq '^PAYLOAD_SERVER_URL=.+$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing or empty in cms/.env.local'; exit 1; }
-                  grep -Eq '^PAYLOAD_SECRET=.+$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing or empty in cms/.env.local'; exit 1; }
-                  grep -Eq '^DATABASE_PATH=.+$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^PAYLOAD_SERVER_URL=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^PAYLOAD_SECRET=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing or empty in cms/.env.local'; exit 1; }
+                  grep -Eq '^DATABASE_PATH=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing or empty in cms/.env.local'; exit 1; }
                   DATABASE_PATH_COUNT=\$(grep -c '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local')
                   if [ \"\$DATABASE_PATH_COUNT\" -gt 1 ]; then
                     echo \"::warning::Multiple DATABASE_PATH entries found in cms/.env.local; using the last one\"
                   fi
                   DATABASE_PATH_VALUE=\$(sed -n 's/^DATABASE_PATH=//p' '${DEPLOY_DIR}/cms/.env.local' | tail -n 1)
+                  DATABASE_PATH_VALUE=\$(printf '%s' \"\$DATABASE_PATH_VALUE\" | sed -e 's/^\"//' -e 's/\"$//')
                   case \"\$DATABASE_PATH_VALUE\" in
                     /*) ;;
                     *) echo \"::error::DATABASE_PATH must be an absolute path in production: \$DATABASE_PATH_VALUE\"; exit 1 ;;
                   esac
-                  case \"\$DATABASE_PATH_VALUE\" in
-                    *..*) echo \"::error::DATABASE_PATH contains unsafe traversal segments: \$DATABASE_PATH_VALUE\"; exit 1 ;;
-                  esac
+                  DATABASE_PATH_VALUE=\$(readlink -m \"\$DATABASE_PATH_VALUE\")
                   DB_DIR=\$(dirname \"\$DATABASE_PATH_VALUE\")
                   mkdir -p \"\$DB_DIR\"
-                  DB_WRITE_TEST=\"\$DB_DIR/.payload-write-test-\$\$.tmp\"
-                  touch \"\$DB_WRITE_TEST\" 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR. Ensure it exists and is writable by the deploy user.\"; exit 1; }
+                  DB_WRITE_TEST=\$(mktemp \"\$DB_DIR/.payload-write-test.XXXXXX\") 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR. Ensure it exists and is writable by the deploy user.\"; exit 1; }
                   rm -f \"\$DB_WRITE_TEST\"
                   sleep 5
                   if command -v pm2 >/dev/null 2>&1; then
@@ -463,6 +461,7 @@ jobs:
                     fi
                     CMS_PID=\$(cat '${DEPLOY_DIR}/cms.pid')
                     kill -0 \"\$CMS_PID\" 2>/dev/null || { echo \"::error::CMS process is not running (PID \$CMS_PID)\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
+                    ps -p \"\$CMS_PID\" -o args= | grep -q \"${DEPLOY_DIR}/cms\" || { echo \"::error::PID \$CMS_PID is not the CMS process\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
                   fi
                 else
                   echo '::error::CMS install/build failed — see logs above for Next.js/Payload build errors'
