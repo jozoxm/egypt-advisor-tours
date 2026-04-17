@@ -40,6 +40,9 @@ app.set('trust proxy', 1);
 // Registered BEFORE helmet so that the CMS's own Next.js headers are not
 // overwritten by Express's CSP headers.
 const CMS_URL = process.env.CMS_URL || 'http://localhost:3001';
+// Path prefixes that must be forwarded to the CMS process.  Defined at
+// module level so the constant is not reallocated on every request.
+const CMS_PROXY_PATHS = ['/admin', '/_next', '/api/media', '/media'];
 const cmsProxyOptions = {
     target: CMS_URL,
     changeOrigin: true,
@@ -47,10 +50,8 @@ const cmsProxyOptions = {
     // through to the next middleware (helmet, static files, API routes, etc.).
     // Note: http-proxy-middleware strips query strings from `pathname` before
     // calling pathFilter, so startsWith checks are safe against ?foo=bar.
-    pathFilter: (pathname) => {
-        const cmsPaths = ['/admin', '/_next', '/api/media', '/media'];
-        return cmsPaths.some((p) => pathname === p || pathname.startsWith(p + '/'));
-    },
+    pathFilter: (pathname) =>
+        CMS_PROXY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')),
     on: {
         error: (err, _req, res) => {
             console.error('[CMS Proxy] Error connecting to CMS:', err.message);
