@@ -974,11 +974,14 @@ if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSy
         // (e.g. proxy middleware not yet initialised), return 404 rather than
         // serving index.html, which would cause React Router's catch-all to
         // silently redirect the browser to /.
-        if (
-            req.path.startsWith('/admin') ||
-            req.path.startsWith('/_next') ||
-            req.path.startsWith('/media')
-        ) {
+        // Match only the exact path segments used by the CMS proxy.
+        // Test for "/admin", "/admin/", "/admin/anything" — but not
+        // "/admin-foo" — by checking that the character immediately after
+        // the prefix is either absent, a slash, or a query string.
+        const isCmsPath = (prefix) =>
+            req.path === prefix ||
+            req.path.startsWith(prefix + '/');
+        if (isCmsPath('/admin') || isCmsPath('/_next') || isCmsPath('/media')) {
             return res.status(404).send('Not found');
         }
         res.sendFile(path.join(buildPath, 'index.html'));
