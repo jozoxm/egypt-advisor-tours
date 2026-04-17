@@ -409,8 +409,8 @@ jobs:
                    # detached from the terminal.
                    nohup npm run start --prefix '${DEPLOY_DIR}/cms' \
                      > '${DEPLOY_DIR}/cms.log' 2>&1 </dev/null &
-                   echo \$! > '${DEPLOY_DIR}/cms.pid'
-                   echo "CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))"
+                    echo \$! > '${DEPLOY_DIR}/cms.pid'
+                    echo \"CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))\"
                  fi
                else
                  echo '::warning::CMS install/build failed — /admin will show an error page until the next successful deploy'
