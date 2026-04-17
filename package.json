@@ -20,7 +20,7 @@
     "test:client": "npm test --prefix client",
     "test:all": "npm test --prefix client -- --watchAll=false --passWithNoTests && npm test --prefix server -- --watchAll=false",
     "dev:client": "npm start --prefix client",
-    "dev:server": "npm install --prefix server && npm run dev --prefix server",
+    "dev:server": "npm run dev --prefix server",
     "dev:cms": "npm run dev --prefix cms",
     "build:cms": "npm run build --prefix cms",
     "dev": "npm run dev:server"
