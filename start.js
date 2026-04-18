@@ -14,7 +14,8 @@ const MIN_KILLABLE_PID = 2;
 let cmsStartMode = null;
 let shuttingDown = false;
 
-// Escapes a value for safe single-argument interpolation in a bash command.
+// Escapes a value for safe single-argument interpolation in a bash command by
+// wrapping it in single quotes and escaping embedded quotes.
 function shellEscape(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
@@ -32,9 +33,10 @@ function assertSafePath(name, value) {
   return value;
 }
 
+// Extracts the background PID from the final line of shell output (`echo $!`).
 function extractPidFromShellOutput(output) {
   const pid = Number(String(output || '').trim().split('\n').pop());
-  if (!Number.isFinite(pid)) {
+  if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
     throw new Error('CMS started with nohup but no valid PID was returned');
   }
   return pid;
@@ -60,9 +62,18 @@ function buildRuntimeEnv(sourceEnv = process.env) {
 }
 
 function runCommand(command, args, env) {
+  if (command !== 'pm2' && command !== 'bash') {
+    throw new Error(`Unsupported command: ${command}`);
+  }
+
+  const commandEnv = {
+    ...env,
+    PATH: process.env.PATH,
+  };
+
   return spawnSync(command, args, {
     cwd: ROOT_DIR,
-    env,
+    env: commandEnv,
     stdio: 'pipe',
     encoding: 'utf8',
   });
@@ -162,9 +173,6 @@ function startCmsViaNohup(env) {
   }
 
   const pid = extractPidFromShellOutput(result.stdout);
-  if (pid < MIN_KILLABLE_PID) {
-    throw new Error('CMS started with nohup but no valid PID was returned');
-  }
 
   try {
     fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
