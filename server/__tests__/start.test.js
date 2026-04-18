@@ -1,7 +1,7 @@
 const path = require('path');
 const http = require('http');
 
-const { buildRuntimeEnv, waitForCms } = require('../../start');
+const { buildRuntimeEnv, waitForCms, validateRuntimeEnv } = require('../../start');
 
 describe('production startup environment', () => {
   it('applies Hostinger-friendly defaults for both Express and CMS', () => {
@@ -36,6 +36,48 @@ describe('production startup environment', () => {
     expect(env.PAYLOAD_SERVER_URL).toBe('https://egyptadvisortours.com');
     expect(env.DATABASE_PATH).toBe('/home/u123/admin_data/payload.db');
     expect(env.CMS_READY_TIMEOUT_MS).toBe('60000');
+  });
+});
+
+describe('validateRuntimeEnv', () => {
+  it('accepts required production variables when valid', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        PAYLOAD_SECRET: 'secret',
+        DATABASE_PATH: '/home/test/payload.db',
+        CMS_URL: 'http://localhost:3001',
+      })
+    ).not.toThrow();
+  });
+
+  it('throws when required variables are missing', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        PAYLOAD_SECRET: '',
+        DATABASE_PATH: '/home/test/payload.db',
+        CMS_URL: '',
+      })
+    ).toThrow(/Missing required environment variable/);
+  });
+
+  it('throws when DATABASE_PATH is not absolute', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        PAYLOAD_SECRET: 'secret',
+        DATABASE_PATH: 'relative/payload.db',
+        CMS_URL: 'http://localhost:3001',
+      })
+    ).toThrow(/DATABASE_PATH must be an absolute path/);
+  });
+
+  it('throws when CMS_URL is invalid', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        PAYLOAD_SECRET: 'secret',
+        DATABASE_PATH: '/home/test/payload.db',
+        CMS_URL: 'localhost:3001',
+      })
+    ).toThrow(/CMS_URL is invalid/);
   });
 });
 
