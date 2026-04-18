@@ -88,8 +88,8 @@ function buildRuntimeEnv(sourceEnv = process.env) {
   return runtimeEnv;
 }
 
-function validateRuntimeEnv(env = process.env) {
-  const required = ['PAYLOAD_SECRET', 'DATABASE_PATH', 'CMS_URL'];
+function validateRequiredProductionEnv(env = process.env) {
+  const required = ['PAYLOAD_SECRET'];
   const missing = required.filter((key) => !String(env[key] || '').trim());
 
   if (missing.length > 0) {
@@ -99,7 +99,9 @@ function validateRuntimeEnv(env = process.env) {
       )}. Please set them before starting production services.`
     );
   }
+}
 
+function validateRuntimeEnv(env = process.env) {
   assertSafePath('DATABASE_PATH', env.DATABASE_PATH);
 
   try {
@@ -336,12 +338,15 @@ function registerShutdownHandlers(runtimeEnv) {
 
 async function start() {
   loadEnvironment();
+  if (process.env.NODE_ENV === 'production') {
+    validateRequiredProductionEnv(process.env);
+  }
   const runtimeEnv = buildRuntimeEnv(process.env);
   Object.assign(process.env, runtimeEnv);
 
   if (process.env.NODE_ENV === 'production') {
     validateRuntimeEnv(runtimeEnv);
-    logStartup('info', 'Validated production CMS environment variables.');
+    logStartup('info', 'Validated production CMS environment (PAYLOAD_SECRET required).');
   } else if (!process.env.PAYLOAD_SECRET) {
     logStartup('warn', 'PAYLOAD_SECRET is not set. It must be configured in production.');
   }
@@ -389,7 +394,13 @@ async function start() {
     logStartup('info', 'Starting Express server after CMS health verification');
     require('./server/index.js');
   } catch (error) {
-    logStartup('error', 'Failed to initialize services.');
+    logStartup(
+      'error',
+      `Failed to initialize services: ${error && error.message ? error.message : String(error)}`
+    );
+    if (error && error.stack) {
+      console.error(error.stack);
+    }
     logStartup(
       'error',
       `Troubleshooting hints: verify PAYLOAD_SECRET, DATABASE_PATH write access, CMS_URL reachability, and run "npm run build --prefix cms" on the host.`
@@ -400,8 +411,13 @@ async function start() {
 }
 
 if (require.main === module) {
-  start().catch(() => {
-    console.error(`[startup ${getCurrentTimestamp()}] Fatal error.`);
+  start().catch((error) => {
+    console.error(
+      `[startup ${getCurrentTimestamp()}] Fatal error: ${error && error.message ? error.message : String(error)}`
+    );
+    if (error && error.stack) {
+      console.error(error.stack);
+    }
     process.exit(1);
   });
 }
@@ -411,5 +427,6 @@ module.exports = {
   buildRuntimeEnv,
   loadEnvironment,
   waitForCms,
+  validateRequiredProductionEnv,
   validateRuntimeEnv,
 };
