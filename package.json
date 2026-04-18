@@ -10,7 +10,7 @@
     "install:server": "npm install --prefix server",
     "install:cms": "npm install --prefix cms",
     "postinstall": "node scripts/build-client.js",
-    "start": "node index.js",
+    "start": "node start.js",
     "server": "npm start --prefix server",
     "start:client": "npm start --prefix client",
     "start:server": "npm start --prefix server",
