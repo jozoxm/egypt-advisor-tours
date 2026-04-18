@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const dotenv = require('dotenv');
 
 const ROOT_DIR = __dirname;
@@ -10,13 +10,10 @@ const CMS_DIR = path.join(ROOT_DIR, 'cms');
 const CMS_LOG_FILE = path.join(ROOT_DIR, 'cms.log');
 const CMS_PID_FILE = path.join(ROOT_DIR, 'cms.pid');
 const CMS_PM2_NAME = process.env.CMS_PM2_NAME || 'egypt-cms';
+const MIN_KILLABLE_PID = 2;
 
 let cmsStartMode = null;
 let shuttingDown = false;
-
-function shellEscape(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
 
 function loadEnvironment() {
   dotenv.config({ path: path.join(ROOT_DIR, '.env') });
@@ -58,9 +55,12 @@ function ensureDatabaseDirectory(env) {
 }
 
 function stopCmsViaPm2(env) {
+  const describe = runCommand('pm2', ['describe', CMS_PM2_NAME], env);
+  if (describe.status !== 0) return;
+
   const result = runCommand('pm2', ['delete', CMS_PM2_NAME], env);
-  if (result.status !== 0 && !/process or namespace .* not found/i.test(result.stderr || '')) {
-    console.warn('[startup] Failed to stop CMS via PM2:', result.stderr || result.stdout);
+  if (result.status !== 0) {
+    console.warn('[startup] Failed to stop CMS via PM2');
   }
 }
 
@@ -83,7 +83,7 @@ function startCmsViaPm2(env) {
   }
 
   cmsStartMode = 'pm2';
-  console.log(`[startup] CMS started with PM2 as "${CMS_PM2_NAME}" on port ${env.CMS_PORT}`);
+  console.log(`[startup] CMS started with PM2 as "${CMS_PM2_NAME}"`);
 }
 
 function stopCmsViaPidFile() {
@@ -93,7 +93,7 @@ function stopCmsViaPidFile() {
   if (!rawPid) return;
   const pid = Number(rawPid);
 
-  if (Number.isFinite(pid) && pid > 1) {
+  if (Number.isFinite(pid) && pid >= MIN_KILLABLE_PID) {
     try {
       process.kill(pid, 'SIGTERM');
     } catch (error) {
@@ -107,25 +107,24 @@ function stopCmsViaPidFile() {
 }
 
 function startCmsViaNohup(env) {
-  const command = [
-    `cd ${shellEscape(CMS_DIR)}`,
-    `nohup npm run start > ${shellEscape(CMS_LOG_FILE)} 2>&1 &`,
-    'echo $!',
-  ].join(' && ');
-  const result = runCommand('bash', ['-lc', command], env);
+  const logFd = fs.openSync(CMS_LOG_FILE, 'a');
+  const child = spawn('nohup', ['npm', 'run', 'start'], {
+    cwd: CMS_DIR,
+    env,
+    detached: true,
+    stdio: ['ignore', logFd, logFd],
+  });
+  fs.closeSync(logFd);
 
-  if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || 'Unable to start CMS with nohup');
-  }
-
-  const pid = (result.stdout || '').trim().split('\n').pop();
-  if (!pid) {
+  if (!child.pid) {
     throw new Error('CMS started with nohup but no PID was returned');
   }
 
+  child.unref();
+  const pid = String(child.pid);
   fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
   cmsStartMode = 'nohup';
-  console.log(`[startup] CMS started with nohup (PID ${pid}) on port ${env.CMS_PORT}`);
+  console.log(`[startup] CMS started with nohup (PID ${pid})`);
 }
 
 function stopCms(runtimeEnv) {
@@ -141,11 +140,15 @@ function registerShutdownHandlers(runtimeEnv) {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`[startup] Received ${signal}. Stopping services...`);
+    let exitCode = 0;
 
     try {
       stopCms(runtimeEnv);
+    } catch (error) {
+      exitCode = 1;
+      console.error('[startup] Error while stopping CMS:', error.stack || error);
     } finally {
-      process.exit(0);
+      process.exit(exitCode);
     }
   };
 
@@ -158,8 +161,12 @@ function start() {
   const runtimeEnv = buildRuntimeEnv(process.env);
   Object.assign(process.env, runtimeEnv);
 
+  if (!process.env.PAYLOAD_SECRET && process.env.NODE_ENV === 'production') {
+    throw new Error('PAYLOAD_SECRET is required in production');
+  }
+
   if (!process.env.PAYLOAD_SECRET) {
-    console.warn('[startup] PAYLOAD_SECRET is not set. CMS should configure this in production.');
+    console.warn('[startup] PAYLOAD_SECRET is not set. It must be configured in production.');
   }
 
   ensureDatabaseDirectory(runtimeEnv);
@@ -172,20 +179,16 @@ function start() {
     }
 
     registerShutdownHandlers(runtimeEnv);
-    return require('./server/index.js');
+    require('./server/index.js');
   } catch (error) {
-    console.error('[startup] Failed to initialize services:', error.message);
+    console.error('[startup] Failed to initialize services:', error.stack || error);
     stopCms(runtimeEnv);
     throw error;
   }
 }
 
 if (require.main === module) {
-  try {
-    start();
-  } catch (_error) {
-    process.exit(1);
-  }
+  start();
 }
 
 module.exports = {
