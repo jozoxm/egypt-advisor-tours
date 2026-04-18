@@ -12,7 +12,7 @@ const CMS_DIR = path.join(ROOT_DIR, 'cms');
 const CMS_LOG_FILE = path.join(ROOT_DIR, 'cms.log');
 const CMS_PID_FILE = path.join(ROOT_DIR, 'cms.pid');
 const MIN_KILLABLE_PID = 2;
-const STARTUP_TIMESTAMP = () => new Date().toISOString();
+const getCurrentTimestamp = () => new Date().toISOString();
 
 let cmsStartMode = null;
 let shuttingDown = false;
@@ -43,7 +43,20 @@ function logStartup(level, message) {
       : level === 'warn'
         ? console.warn
         : console.log;
-  logger(`[startup ${STARTUP_TIMESTAMP()}] ${message}`);
+  logger(`[startup ${getCurrentTimestamp()}] ${message}`);
+}
+
+async function verifyCmsProcessStability(
+  runtimeEnv,
+  { checks = 2, intervalMs = 500 } = {}
+) {
+  for (let i = 0; i < checks; i += 1) {
+    if (!isCmsProcessRunning(runtimeEnv)) return false;
+    if (i < checks - 1) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  return true;
 }
 
 // Extracts the background PID from the final line of shell output (`echo $!`).
@@ -150,7 +163,7 @@ function probeCmsOnce(cmsUrl, requestTimeoutMs) {
 // reached.  Rejects when the deadline passes without a successful response.
 async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 120000 } = {}) {
   const deadline = Date.now() + timeoutMs;
-  logStartup('info', `Waiting for CMS to be ready at ${cmsUrl}...`);
+  logStartup('info', 'Waiting for CMS readiness probe...');
 
   while (Date.now() < deadline) {
     try {
@@ -166,7 +179,7 @@ async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 120000 } 
     await new Promise((r) => setTimeout(r, Math.min(pollIntervalMs, remaining)));
   }
 
-  throw new Error(`CMS did not become ready within ${timeoutMs}ms at ${cmsUrl}`);
+  throw new Error(`CMS did not become ready within ${timeoutMs}ms`);
 }
 
 function stopCmsViaPm2(env) {
@@ -198,7 +211,7 @@ function startCmsViaPm2(env) {
   }
 
   cmsStartMode = 'pm2';
-  logStartup('info', `CMS started with PM2 (process name: ${env.CMS_PM2_NAME})`);
+  logStartup('info', 'CMS started with PM2.');
 }
 
 function stopCmsViaPidFile() {
@@ -255,7 +268,7 @@ function startCmsViaNohup(env) {
   try {
     fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
     cmsStartMode = 'nohup';
-    logStartup('info', `CMS started with nohup (PID ${pid})`);
+    logStartup('info', 'CMS started with nohup.');
   } catch (error) {
     try {
       process.kill(pid, 'SIGTERM');
@@ -301,7 +314,7 @@ function registerShutdownHandlers(runtimeEnv) {
   const shutdown = (signal) => {
     if (shuttingDown) return;
     shuttingDown = true;
-    logStartup('info', `Received ${signal}. Stopping services...`);
+    logStartup('info', `Received shutdown signal (${signal}). Stopping services...`);
     let exitCode = 0;
 
     try {
@@ -309,8 +322,8 @@ function registerShutdownHandlers(runtimeEnv) {
     } catch (error) {
       exitCode = 1;
       console.error(
-        `[startup ${STARTUP_TIMESTAMP()}] Error while stopping CMS:`,
-        error.stack || error
+        `[startup ${getCurrentTimestamp()}] Error while stopping CMS:`,
+        error && error.message ? error.message : String(error)
       );
     } finally {
       process.exit(exitCode);
@@ -328,16 +341,13 @@ async function start() {
 
   if (process.env.NODE_ENV === 'production') {
     validateRuntimeEnv(runtimeEnv);
-    logStartup(
-      'info',
-      `Validated production CMS environment (CMS_URL=${runtimeEnv.CMS_URL}, DATABASE_PATH=${runtimeEnv.DATABASE_PATH})`
-    );
+    logStartup('info', 'Validated production CMS environment variables.');
   } else if (!process.env.PAYLOAD_SECRET) {
     logStartup('warn', 'PAYLOAD_SECRET is not set. It must be configured in production.');
   }
 
   ensureDatabaseDirectory(runtimeEnv);
-  logStartup('info', `Ensured database directory exists for ${runtimeEnv.DATABASE_PATH}`);
+  logStartup('info', 'Ensured CMS database directory exists.');
 
   try {
     const maxStartupAttempts = 2;
@@ -355,9 +365,10 @@ async function start() {
           timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 120000,
         });
 
-        if (!isCmsProcessRunning(runtimeEnv)) {
+        const processStable = await verifyCmsProcessStability(runtimeEnv);
+        if (!processStable) {
           throw new Error(
-            `CMS responded at ${runtimeEnv.CMS_URL} but process exited immediately after startup`
+            'CMS responded to health probes but process exited immediately after startup'
           );
         }
 
@@ -367,9 +378,7 @@ async function start() {
         const canRetry = attempt < maxStartupAttempts;
         logStartup(
           'warn',
-          `CMS startup attempt ${attempt} failed: ${error.message}${
-            canRetry ? ' — restarting CMS once more.' : ''
-          }`
+          `CMS startup attempt ${attempt} failed.${canRetry ? ' Restarting CMS once more.' : ''}`
         );
         stopCms(runtimeEnv);
         if (!canRetry) throw error;
@@ -380,7 +389,7 @@ async function start() {
     logStartup('info', 'Starting Express server after CMS health verification');
     require('./server/index.js');
   } catch (error) {
-    console.error(`[startup ${STARTUP_TIMESTAMP()}] Failed to initialize services:`, error.stack || error);
+    logStartup('error', 'Failed to initialize services.');
     logStartup(
       'error',
       `Troubleshooting hints: verify PAYLOAD_SECRET, DATABASE_PATH write access, CMS_URL reachability, and run "npm run build --prefix cms" on the host.`
@@ -391,8 +400,8 @@ async function start() {
 }
 
 if (require.main === module) {
-  start().catch((err) => {
-    console.error(`[startup ${STARTUP_TIMESTAMP()}] Fatal error:`, err.stack || err);
+  start().catch(() => {
+    console.error(`[startup ${getCurrentTimestamp()}] Fatal error.`);
     process.exit(1);
   });
 }

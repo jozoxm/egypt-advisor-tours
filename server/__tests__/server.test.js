@@ -70,15 +70,16 @@ describe('GET /api/admin/health', () => {
 
         try {
             process.env.CMS_URL = `http://127.0.0.1:${cmsPort}`;
-            jest.resetModules();
-            const healthyApp = require('../index.js');
+            let healthyApp;
+            jest.isolateModules(() => {
+                healthyApp = require('../index.js');
+            });
             const res = await request(healthyApp).get('/api/admin/health');
             expect(res.status).toBe(200);
             expect(res.body.cmsHealthy).toBe(true);
             expect(res.body.checkedUrl).toContain('/api/payload-health');
         } finally {
             process.env.CMS_URL = previousCmsUrl;
-            jest.resetModules();
             await new Promise((resolve) => cmsServer.close(resolve));
         }
     });

@@ -48,8 +48,17 @@ const CMS_HEALTH_TIMEOUT_MS = 4000;
 // module level so the constant is not reallocated on every request.
 const CMS_PROXY_PATHS = ['/admin', '/_next', '/api/media', '/media'];
 
-function startupTimestamp() {
+function getCurrentTimestamp() {
     return new Date().toISOString();
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }
 
 function createCmsHint(errorCode) {
@@ -74,7 +83,10 @@ function probeUrlOnce(targetUrl, timeoutMs = CMS_HEALTH_TIMEOUT_MS) {
                 url: targetUrl,
             });
         });
-        req.on('timeout', () => req.destroy(new Error(`Timeout after ${timeoutMs}ms`)));
+        req.on('timeout', () => {
+            const timeoutPath = new URL(targetUrl).pathname || '/';
+            req.destroy(new Error(`Timeout after ${timeoutMs}ms for CMS path ${timeoutPath}`));
+        });
         req.on('error', reject);
     });
 }
@@ -127,8 +139,11 @@ const cmsProxyOptions = {
         error: (err, req, res) => {
             const errorCode = err && err.code ? err.code : 'UNKNOWN';
             const hint = createCmsHint(errorCode);
+            const escapedCmsUrl = escapeHtml(CMS_URL);
+            const escapedErrorCode = escapeHtml(errorCode);
+            const escapedHint = escapeHtml(hint);
             console.error(
-                `[CMS Proxy ${startupTimestamp()}] ${req.method} ${req.originalUrl} -> ${CMS_URL} failed (${errorCode}): ${err.message}`
+                `[CMS Proxy ${getCurrentTimestamp()}] ${req.method} ${req.originalUrl} -> ${CMS_URL} failed (${errorCode}): ${err.message}`
             );
             if (res && !res.headersSent) {
                 res.status(503).send(`<!DOCTYPE html>
@@ -148,13 +163,13 @@ const cmsProxyOptions = {
 <body>
   <h1>Admin Panel Unavailable</h1>
   <p>The CMS service is not running or is still starting up.</p>
-  <p><strong>Diagnostics:</strong> <code>${CMS_URL}</code> returned <code>${errorCode}</code>.</p>
-  <p>${hint}</p>
+  <p><strong>Diagnostics:</strong> <code>${escapedCmsUrl}</code> returned <code>${escapedErrorCode}</code>.</p>
+  <p>${escapedHint}</p>
   <p>If this is a fresh deployment, please wait about 30 seconds and then
      <a href="/admin">refresh this page</a>.</p>
   <p class="hint">If the problem persists, make sure the CMS process is running:<br>
      <code>npm run start --prefix cms</code><br>
-     Check connectivity via <a href="/api/admin/health">/api/admin/health</a>.</p>
+     Check connectivity via <a href="/api/admin/health">check the admin health status</a>.</p>
 </body>
 </html>`);
             }
@@ -595,7 +610,7 @@ app.get('/api/admin/health', async (req, res) => {
     const cmsStatus = await probeCmsHealth(CMS_URL);
     if (!cmsStatus.cmsHealthy) {
         console.warn(
-            `[CMS Health ${startupTimestamp()}] Unhealthy for ${req.method} ${req.originalUrl}: ${cmsStatus.message}`
+            `[CMS Health ${getCurrentTimestamp()}] Unhealthy for ${req.method} ${req.originalUrl}: ${cmsStatus.message}`
         );
     }
     res.status(cmsStatus.cmsHealthy ? 200 : 503).json(cmsStatus);
