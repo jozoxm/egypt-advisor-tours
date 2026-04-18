@@ -1,6 +1,8 @@
 'use strict';
 
 const fs = require('fs');
+const http = require('http');
+const https = require('https');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const dotenv = require('dotenv');
@@ -57,6 +59,7 @@ function buildRuntimeEnv(sourceEnv = process.env) {
     runtimeEnv.PAYLOAD_SERVER_URL || `http://localhost:${runtimeEnv.PORT}`;
   runtimeEnv.DATABASE_PATH =
     runtimeEnv.DATABASE_PATH || path.join(ROOT_DIR, 'data', 'payload.db');
+  runtimeEnv.CMS_READY_TIMEOUT_MS = runtimeEnv.CMS_READY_TIMEOUT_MS || '120000';
 
   return runtimeEnv;
 }
@@ -89,6 +92,46 @@ function ensureDatabaseDirectory(env) {
   if (!dbPath) return;
   const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
+}
+
+// Makes a single HTTP/HTTPS GET to cmsUrl; resolves with the HTTP status code
+// or rejects on network / timeout error.
+function probeCmsOnce(cmsUrl, requestTimeoutMs) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(cmsUrl);
+    const lib = parsed.protocol === 'https:' ? https : http;
+    const req = lib.get(cmsUrl, { timeout: requestTimeoutMs }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+    });
+    req.on('timeout', () => {
+      req.destroy(new Error(`CMS probe timed out after ${requestTimeoutMs}ms`));
+    });
+    req.on('error', reject);
+  });
+}
+
+// Polls cmsUrl until it returns any HTTP response or the overall deadline is
+// reached.  Rejects when the deadline passes without a successful response.
+async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 120000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  console.log(`[startup] Waiting for CMS to be ready at ${cmsUrl}...`);
+
+  while (Date.now() < deadline) {
+    try {
+      const remaining = deadline - Date.now();
+      const status = await probeCmsOnce(cmsUrl, Math.min(5000, remaining));
+      console.log(`[startup] CMS is ready (HTTP ${status})`);
+      return;
+    } catch (_err) {
+      // CMS not up yet — wait before retrying
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    await new Promise((r) => setTimeout(r, Math.min(pollIntervalMs, remaining)));
+  }
+
+  throw new Error(`CMS did not become ready within ${timeoutMs}ms at ${cmsUrl}`);
 }
 
 function stopCmsViaPm2(env) {
@@ -219,7 +262,7 @@ function registerShutdownHandlers(runtimeEnv) {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-function start() {
+async function start() {
   loadEnvironment();
   const runtimeEnv = buildRuntimeEnv(process.env);
   Object.assign(process.env, runtimeEnv);
@@ -241,6 +284,10 @@ function start() {
       startCmsViaNohup(runtimeEnv);
     }
 
+    await waitForCms(runtimeEnv.CMS_URL, {
+      timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 120000,
+    });
+
     registerShutdownHandlers(runtimeEnv);
     require('./server/index.js');
   } catch (error) {
@@ -251,11 +298,15 @@ function start() {
 }
 
 if (require.main === module) {
-  start();
+  start().catch((err) => {
+    console.error('[startup] Fatal error:', err.stack || err);
+    process.exit(1);
+  });
 }
 
 module.exports = {
   start,
   buildRuntimeEnv,
   loadEnvironment,
+  waitForCms,
 };

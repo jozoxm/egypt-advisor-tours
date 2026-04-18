@@ -1,6 +1,7 @@
 const path = require('path');
+const http = require('http');
 
-const { buildRuntimeEnv } = require('../../start');
+const { buildRuntimeEnv, waitForCms } = require('../../start');
 
 describe('production startup environment', () => {
   it('applies Hostinger-friendly defaults for both Express and CMS', () => {
@@ -11,6 +12,7 @@ describe('production startup environment', () => {
     expect(env.CMS_PM2_NAME).toBe('egypt-cms');
     expect(env.CMS_URL).toBe('http://localhost:3001');
     expect(env.PAYLOAD_SERVER_URL).toBe('http://localhost:5000');
+    expect(env.CMS_READY_TIMEOUT_MS).toBe('120000');
     expect(env.DATABASE_PATH).toBe(
       path.join(path.resolve(__dirname, '..', '..'), 'data', 'payload.db')
     );
@@ -24,6 +26,7 @@ describe('production startup environment', () => {
       CMS_URL: 'http://127.0.0.1:3010',
       PAYLOAD_SERVER_URL: 'https://egyptadvisortours.com',
       DATABASE_PATH: '/home/u123/admin_data/payload.db',
+      CMS_READY_TIMEOUT_MS: '60000',
     });
 
     expect(env.PORT).toBe('8080');
@@ -32,5 +35,29 @@ describe('production startup environment', () => {
     expect(env.CMS_URL).toBe('http://127.0.0.1:3010');
     expect(env.PAYLOAD_SERVER_URL).toBe('https://egyptadvisortours.com');
     expect(env.DATABASE_PATH).toBe('/home/u123/admin_data/payload.db');
+    expect(env.CMS_READY_TIMEOUT_MS).toBe('60000');
+  });
+});
+
+describe('waitForCms', () => {
+  it('resolves when the CMS URL responds with any HTTP status', async () => {
+    const server = http.createServer((req, res) => {
+      res.writeHead(200);
+      res.end();
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address();
+
+    try {
+      await waitForCms(`http://127.0.0.1:${port}`, { pollIntervalMs: 100, timeoutMs: 5000 });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('rejects when the CMS URL is unreachable within the timeout', async () => {
+    await expect(
+      waitForCms('http://127.0.0.1:19999', { pollIntervalMs: 100, timeoutMs: 400 })
+    ).rejects.toThrow(/did not become ready/);
   });
 });
