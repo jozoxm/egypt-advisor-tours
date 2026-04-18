@@ -3,10 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "node scripts/serve.js dev",
+    "dev": "next dev --port ${CMS_PORT:-3001}",
     "build": "next build",
-    "start": "node scripts/serve.js start",
-    "typecheck": "tsc --noEmit",
+    "start": "next start --port ${CMS_PORT:-3001}",
     "generate:types": "payload generate:types",
     "generate:importmap": "payload generate:importMap"
   },

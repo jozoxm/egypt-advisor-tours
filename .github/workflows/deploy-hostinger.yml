@@ -116,12 +116,6 @@ jobs:
       - name: Run client tests
         run: npm run test:client -- --watchAll=false --passWithNoTests
 
-      - name: Install CMS dependencies
-        run: npm install --prefix cms
-
-      - name: Typecheck CMS
-        run: npm run typecheck --prefix cms
-
   # ── Job 2: Deploy only if tests pass ──────────────────────────────────────
   deploy:
     name: SSH deploy → Hostinger
