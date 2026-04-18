@@ -43,6 +43,18 @@ export default buildConfig({
       url: `file:${databasePath}`,
     },
   }),
+  endpoints: [
+    {
+      path: '/payload-health',
+      method: 'get',
+      handler: () =>
+        Response.json({
+          status: 'ok',
+          service: 'payload-cms',
+          timestamp: new Date().toISOString(),
+        }),
+    },
+  ],
   secret: process.env.PAYLOAD_SECRET || 'dev-payload-secret-CHANGE-ME-in-production',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
