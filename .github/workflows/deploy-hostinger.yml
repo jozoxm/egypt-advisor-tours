@@ -509,14 +509,17 @@ jobs:
       # ── 5. Health check — verify the deployed site is responding ──────
       - name: Health check
         run: |
-          echo "Waiting 15 seconds for the app to finish restarting..."
-          sleep 15
+          # Wait for CMS (Next.js / Payload) cold-start.  On Hostinger's
+          # constrained shared hosting it can take 40-60 s for the process
+          # to begin accepting requests after nohup / PM2 starts it.
+          echo "Waiting 45 seconds for the app and CMS to finish starting..."
+          sleep 45
           run_check() {
             local url="$1"
             local label="$2"
             local mode="$3"
             local status
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               status=$(curl -s -o /dev/null -w "%{http_code}" \
                 --max-time 20 "$url" || echo "000")
               case "$mode:$status" in
@@ -525,17 +528,42 @@ jobs:
                   return 0
                   ;;
               esac
-              if [ "$attempt" -lt 3 ]; then
-                echo "${label} check attempt $attempt returned HTTP $status, retrying in 10s..."
-                sleep 10
+              if [ "$attempt" -lt 5 ]; then
+                echo "${label} check attempt $attempt returned HTTP $status, retrying in 15s..."
+                sleep 15
               else
-                echo "::error::${label} check failed after 3 attempts. Last status: HTTP $status"
+                echo "::error::${label} check failed after 5 attempts. Last status: HTTP $status"
                 return 1
+              fi
+            done
+          }
+          # After confirming HTTP status, also verify that the /admin page is
+          # serving real Payload CMS content and NOT the Express 503 fallback
+          # page ("Admin Panel Unavailable") that is returned when the CMS
+          # proxy target is unreachable.  Following redirects (-L) handles the
+          # typical Payload redirect: /admin → /admin/login.
+          check_admin_content() {
+            local body
+            for attempt in 1 2 3; do
+              body=$(curl -s -L --max-time 30 "https://egyptadvisortours.com/admin" || echo "")
+              if echo "$body" | grep -qF "Admin Panel Unavailable"; then
+                if [ "$attempt" -lt 3 ]; then
+                  echo "Admin content check attempt $attempt: CMS still returning 503 page, retrying in 20s..."
+                  sleep 20
+                else
+                  echo "::error::Admin panel is returning the 503 error page — the Payload CMS process is not serving content."
+                  echo "::error::Make sure the CMS started correctly. Check the 'CMS diagnostics on failure' step output."
+                  return 1
+                fi
+              else
+                echo "✅ Admin content check passed (CMS is serving Payload content, not 503 fallback)"
+                return 0
               fi
             done
           }
           run_check "https://egyptadvisortours.com/health" "API health" "strict"
           run_check "https://egyptadvisortours.com/admin" "Admin health" "redirect-ok"
+          check_admin_content
 
       - name: CMS diagnostics on failure
         if: failure()
