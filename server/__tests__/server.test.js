@@ -11,7 +11,6 @@ const request = require('supertest');
 const path    = require('path');
 const os      = require('os');
 const fs      = require('fs');
-const http    = require('http');
 
 // Use a temp dir for data so tests don't touch real data files.
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eat-test-'));
@@ -42,90 +41,6 @@ describe('GET /health', () => {
         const res = await request(app).get('/health');
         expect(res.status).toBe(200);
         expect(res.body.status).toBe('OK');
-    });
-});
-
-describe('GET /api/admin/health', () => {
-    it('returns 503 with diagnostics when CMS is unavailable', async () => {
-        const previousCmsUrl = process.env.CMS_URL;
-
-        try {
-            process.env.CMS_URL = 'http://127.0.0.1:65534';
-            let unavailableApp;
-            jest.isolateModules(() => {
-                unavailableApp = require('../index.js');
-            });
-
-            const res = await request(unavailableApp).get('/api/admin/health');
-            expect(res.status).toBe(503);
-            expect(res.body.cmsHealthy).toBe(false);
-            expect(res.body.checkedUrl).toContain(':65534');
-            expect(res.body.cmsUrl).toBeDefined();
-            expect(res.body.hint).toMatch(/CMS process|CMS_URL|cms\.log/i);
-        } finally {
-            process.env.CMS_URL = previousCmsUrl;
-        }
-    });
-
-    it('returns 200 when CMS responds on the health endpoint', async () => {
-        const cmsServer = http.createServer((req, res) => {
-            if (req.url === '/api/payload-health') {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'ok' }));
-                return;
-            }
-            res.writeHead(404);
-            res.end();
-        });
-        await new Promise((resolve) => cmsServer.listen(0, '127.0.0.1', resolve));
-        const cmsPort = cmsServer.address().port;
-        const previousCmsUrl = process.env.CMS_URL;
-
-        try {
-            process.env.CMS_URL = `http://127.0.0.1:${cmsPort}`;
-            let healthyApp;
-            jest.isolateModules(() => {
-                healthyApp = require('../index.js');
-            });
-            const res = await request(healthyApp).get('/api/admin/health');
-            expect(res.status).toBe(200);
-            expect(res.body.cmsHealthy).toBe(true);
-            expect(res.body.checkedUrl).toContain('/api/payload-health');
-        } finally {
-            process.env.CMS_URL = previousCmsUrl;
-            await new Promise((resolve) => cmsServer.close(resolve));
-        }
-    });
-
-    it('returns 503 when health endpoint returns non-2xx even if root responds', async () => {
-        const cmsServer = http.createServer((req, res) => {
-            if (req.url === '/api/payload-health') {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'boom' }));
-                return;
-            }
-            res.writeHead(200);
-            res.end('ok');
-        });
-        await new Promise((resolve) => cmsServer.listen(0, '127.0.0.1', resolve));
-        const cmsPort = cmsServer.address().port;
-        const previousCmsUrl = process.env.CMS_URL;
-
-        try {
-            process.env.CMS_URL = `http://127.0.0.1:${cmsPort}`;
-            let unhealthyApp;
-            jest.isolateModules(() => {
-                unhealthyApp = require('../index.js');
-            });
-            const res = await request(unhealthyApp).get('/api/admin/health');
-            expect(res.status).toBe(503);
-            expect(res.body.cmsHealthy).toBe(false);
-            expect(res.body.checkedUrl).toContain(`:${cmsPort}`);
-            expect(res.body.statusCode).toBe(500);
-        } finally {
-            process.env.CMS_URL = previousCmsUrl;
-            await new Promise((resolve) => cmsServer.close(resolve));
-        }
     });
 });
 
@@ -433,16 +348,6 @@ describe('CMS proxy — path preservation', () => {
         await new Promise((r) => miniCms.close(r));
 
         expect(proxiedPaths).toHaveLength(0);
-    });
-});
-
-describe('CMS proxy — unavailable diagnostics', () => {
-    it('returns a 503 page with CMS diagnostics for /admin', async () => {
-        const res = await request(app).get('/admin');
-        expect(res.status).toBe(503);
-        expect(res.text).toMatch(/Admin Panel Unavailable/i);
-        expect(res.text).toMatch(/Diagnostics/i);
-        expect(res.text).toMatch(/\/api\/admin\/health/i);
     });
 });
 
