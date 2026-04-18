@@ -33,4 +33,10 @@ const result = spawnSync(process.execPath, [nextCli, cmd, '--port', port], {
   env: process.env,
 });
 
-process.exit(result.status ?? 1);
+// If the child was terminated by a signal (e.g. Ctrl-C / SIGINT), re-raise
+// the same signal on this process so the shell sees a proper signal exit.
+if (result.signal) {
+  process.kill(process.pid, result.signal);
+} else {
+  process.exit(result.status ?? 1);
+}
