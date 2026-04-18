@@ -33,7 +33,11 @@ function assertSafePath(name, value) {
 }
 
 function extractPidFromShellOutput(output) {
-  return Number(String(output || '').trim().split('\n').pop());
+  const pid = Number(String(output || '').trim().split('\n').pop());
+  if (!Number.isFinite(pid)) {
+    throw new Error('CMS started with nohup but no valid PID was returned');
+  }
+  return pid;
 }
 
 function loadEnvironment() {
@@ -146,18 +150,19 @@ function startCmsViaNohup(env) {
   const cmsDir = assertSafePath('CMS_DIR', CMS_DIR);
   const cmsLogFile = assertSafePath('CMS_LOG_FILE', CMS_LOG_FILE);
   const command = [
+    'set -e',
     `cd ${shellEscape(cmsDir)}`,
     `nohup npm run start >> ${shellEscape(cmsLogFile)} 2>&1 &`,
     'echo $!',
-  ].join(' && ');
-  const result = runCommand('bash', ['-lc', command], env);
+  ].join('; ');
+  const result = runCommand('bash', ['-c', command], env);
 
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || 'Unable to start CMS with nohup');
   }
 
   const pid = extractPidFromShellOutput(result.stdout);
-  if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
+  if (pid < MIN_KILLABLE_PID) {
     throw new Error('CMS started with nohup but no valid PID was returned');
   }
 
