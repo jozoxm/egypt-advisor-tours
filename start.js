@@ -2,18 +2,21 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 const dotenv = require('dotenv');
 
 const ROOT_DIR = __dirname;
 const CMS_DIR = path.join(ROOT_DIR, 'cms');
 const CMS_LOG_FILE = path.join(ROOT_DIR, 'cms.log');
 const CMS_PID_FILE = path.join(ROOT_DIR, 'cms.pid');
-const CMS_PM2_NAME = process.env.CMS_PM2_NAME || 'egypt-cms';
 const MIN_KILLABLE_PID = 2;
 
 let cmsStartMode = null;
 let shuttingDown = false;
+
+function shellEscape(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
 
 function loadEnvironment() {
   dotenv.config({ path: path.join(ROOT_DIR, '.env') });
@@ -24,6 +27,7 @@ function buildRuntimeEnv(sourceEnv = process.env) {
 
   runtimeEnv.PORT = runtimeEnv.PORT || '5000';
   runtimeEnv.CMS_PORT = runtimeEnv.CMS_PORT || '3001';
+  runtimeEnv.CMS_PM2_NAME = runtimeEnv.CMS_PM2_NAME || 'egypt-cms';
   runtimeEnv.CMS_URL = runtimeEnv.CMS_URL || `http://localhost:${runtimeEnv.CMS_PORT}`;
   runtimeEnv.PAYLOAD_SERVER_URL =
     runtimeEnv.PAYLOAD_SERVER_URL || `http://localhost:${runtimeEnv.PORT}`;
@@ -55,25 +59,25 @@ function ensureDatabaseDirectory(env) {
 }
 
 function stopCmsViaPm2(env) {
-  const describe = runCommand('pm2', ['describe', CMS_PM2_NAME], env);
+  const describe = runCommand('pm2', ['describe', env.CMS_PM2_NAME], env);
   if (describe.status !== 0) return;
 
-  const result = runCommand('pm2', ['delete', CMS_PM2_NAME], env);
+  const result = runCommand('pm2', ['delete', env.CMS_PM2_NAME], env);
   if (result.status !== 0) {
     console.warn('[startup] Failed to stop CMS via PM2');
   }
 }
 
 function startCmsViaPm2(env) {
-  const describe = runCommand('pm2', ['describe', CMS_PM2_NAME], env);
+  const describe = runCommand('pm2', ['describe', env.CMS_PM2_NAME], env);
   let result;
 
   if (describe.status === 0) {
-    result = runCommand('pm2', ['restart', CMS_PM2_NAME, '--update-env'], env);
+    result = runCommand('pm2', ['restart', env.CMS_PM2_NAME, '--update-env'], env);
   } else {
     result = runCommand(
       'pm2',
-      ['start', 'npm', '--name', CMS_PM2_NAME, '--cwd', CMS_DIR, '--', 'run', 'start'],
+      ['start', 'npm', '--name', env.CMS_PM2_NAME, '--cwd', CMS_DIR, '--', 'run', 'start'],
       env
     );
   }
@@ -83,23 +87,37 @@ function startCmsViaPm2(env) {
   }
 
   cmsStartMode = 'pm2';
-  console.log(`[startup] CMS started with PM2 as "${CMS_PM2_NAME}"`);
+  console.log(`[startup] CMS started with PM2 as "${env.CMS_PM2_NAME}"`);
 }
 
 function stopCmsViaPidFile() {
   if (!fs.existsSync(CMS_PID_FILE)) return;
 
-  const rawPid = fs.readFileSync(CMS_PID_FILE, 'utf8').trim();
-  if (!rawPid) return;
-  const pid = Number(rawPid);
+  let rawPid;
+  try {
+    rawPid = fs.readFileSync(CMS_PID_FILE, 'utf8').trim();
+  } catch (error) {
+    console.warn('[startup] Failed to read CMS pid file:', error.message);
+    fs.rmSync(CMS_PID_FILE, { force: true });
+    return;
+  }
 
-  if (Number.isFinite(pid) && pid >= MIN_KILLABLE_PID) {
-    try {
-      process.kill(pid, 'SIGTERM');
-    } catch (error) {
-      if (error.code !== 'ESRCH') {
-        console.warn('[startup] Failed to stop CMS process:', error.message);
-      }
+  if (!rawPid) {
+    fs.rmSync(CMS_PID_FILE, { force: true });
+    return;
+  }
+
+  const pid = Number(rawPid);
+  if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
+    fs.rmSync(CMS_PID_FILE, { force: true });
+    return;
+  }
+
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch (error) {
+    if (error.code !== 'ESRCH') {
+      console.warn('[startup] Failed to stop CMS process:', error.message);
     }
   }
 
@@ -107,24 +125,36 @@ function stopCmsViaPidFile() {
 }
 
 function startCmsViaNohup(env) {
-  const logFd = fs.openSync(CMS_LOG_FILE, 'a');
-  const child = spawn('nohup', ['npm', 'run', 'start'], {
-    cwd: CMS_DIR,
-    env,
-    detached: true,
-    stdio: ['ignore', logFd, logFd],
-  });
-  fs.closeSync(logFd);
+  const command = [
+    `cd ${shellEscape(CMS_DIR)}`,
+    `nohup npm run start >> ${shellEscape(CMS_LOG_FILE)} 2>&1 &`,
+    'echo $!',
+  ].join(' && ');
+  const result = runCommand('bash', ['-lc', command], env);
 
-  if (!child.pid) {
-    throw new Error('CMS started with nohup but no PID was returned');
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || 'Unable to start CMS with nohup');
   }
 
-  child.unref();
-  const pid = String(child.pid);
-  fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
-  cmsStartMode = 'nohup';
-  console.log(`[startup] CMS started with nohup (PID ${pid})`);
+  const pid = Number((result.stdout || '').trim().split('\n').pop());
+  if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
+    throw new Error('CMS started with nohup but no valid PID was returned');
+  }
+
+  try {
+    fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
+    cmsStartMode = 'nohup';
+    console.log(`[startup] CMS started with nohup (PID ${pid})`);
+  } catch (error) {
+    try {
+      process.kill(pid, 'SIGTERM');
+    } catch (killError) {
+      if (killError.code !== 'ESRCH') {
+        console.warn('[startup] Failed to stop orphaned CMS process:', killError.message);
+      }
+    }
+    throw error;
+  }
 }
 
 function stopCms(runtimeEnv) {

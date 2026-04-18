@@ -8,6 +8,7 @@ describe('production startup environment', () => {
 
     expect(env.PORT).toBe('5000');
     expect(env.CMS_PORT).toBe('3001');
+    expect(env.CMS_PM2_NAME).toBe('egypt-cms');
     expect(env.CMS_URL).toBe('http://localhost:3001');
     expect(env.PAYLOAD_SERVER_URL).toBe('http://localhost:5000');
     expect(env.DATABASE_PATH).toBe(
@@ -19,6 +20,7 @@ describe('production startup environment', () => {
     const env = buildRuntimeEnv({
       PORT: '8080',
       CMS_PORT: '3010',
+      CMS_PM2_NAME: 'custom-cms',
       CMS_URL: 'http://127.0.0.1:3010',
       PAYLOAD_SERVER_URL: 'https://egyptadvisortours.com',
       DATABASE_PATH: '/home/u123/admin_data/payload.db',
@@ -26,6 +28,7 @@ describe('production startup environment', () => {
 
     expect(env.PORT).toBe('8080');
     expect(env.CMS_PORT).toBe('3010');
+    expect(env.CMS_PM2_NAME).toBe('custom-cms');
     expect(env.CMS_URL).toBe('http://127.0.0.1:3010');
     expect(env.PAYLOAD_SERVER_URL).toBe('https://egyptadvisortours.com');
     expect(env.DATABASE_PATH).toBe('/home/u123/admin_data/payload.db');
