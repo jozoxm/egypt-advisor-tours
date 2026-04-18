@@ -14,8 +14,26 @@ const MIN_KILLABLE_PID = 2;
 let cmsStartMode = null;
 let shuttingDown = false;
 
+// Escapes a value for safe single-argument interpolation in a bash command.
 function shellEscape(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function assertSafePath(name, value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`${name} must be a non-empty path`);
+  }
+  if (!path.isAbsolute(value)) {
+    throw new Error(`${name} must be an absolute path`);
+  }
+  if (value.includes('\n') || value.includes('\r')) {
+    throw new Error(`${name} contains invalid characters`);
+  }
+  return value;
+}
+
+function extractPidFromShellOutput(output) {
+  return Number(String(output || '').trim().split('\n').pop());
 }
 
 function loadEnvironment() {
@@ -87,7 +105,7 @@ function startCmsViaPm2(env) {
   }
 
   cmsStartMode = 'pm2';
-  console.log(`[startup] CMS started with PM2 as "${env.CMS_PM2_NAME}"`);
+  console.log('[startup] CMS started with PM2');
 }
 
 function stopCmsViaPidFile() {
@@ -125,9 +143,11 @@ function stopCmsViaPidFile() {
 }
 
 function startCmsViaNohup(env) {
+  const cmsDir = assertSafePath('CMS_DIR', CMS_DIR);
+  const cmsLogFile = assertSafePath('CMS_LOG_FILE', CMS_LOG_FILE);
   const command = [
-    `cd ${shellEscape(CMS_DIR)}`,
-    `nohup npm run start >> ${shellEscape(CMS_LOG_FILE)} 2>&1 &`,
+    `cd ${shellEscape(cmsDir)}`,
+    `nohup npm run start >> ${shellEscape(cmsLogFile)} 2>&1 &`,
     'echo $!',
   ].join(' && ');
   const result = runCommand('bash', ['-lc', command], env);
@@ -136,7 +156,7 @@ function startCmsViaNohup(env) {
     throw new Error(result.stderr || result.stdout || 'Unable to start CMS with nohup');
   }
 
-  const pid = Number((result.stdout || '').trim().split('\n').pop());
+  const pid = extractPidFromShellOutput(result.stdout);
   if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
     throw new Error('CMS started with nohup but no valid PID was returned');
   }
