@@ -60,6 +60,7 @@ function buildRuntimeEnv(sourceEnv = process.env) {
   runtimeEnv.DATABASE_PATH =
     runtimeEnv.DATABASE_PATH || path.join(ROOT_DIR, 'data', 'payload.db');
   runtimeEnv.CMS_READY_TIMEOUT_MS = runtimeEnv.CMS_READY_TIMEOUT_MS || '120000';
+  runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS = runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS || '2';
 
   return runtimeEnv;
 }
@@ -252,7 +253,6 @@ function stopCms(runtimeEnv) {
   } else if (cmsStartMode === 'nohup') {
     stopCmsViaPidFile();
   }
-  cmsStartMode = null;
 }
 
 function isCmsProcessRunning(runtimeEnv) {
@@ -326,7 +326,10 @@ async function start() {
   ensureDatabaseDirectory(runtimeEnv);
 
   try {
-    const maxStartupAttempts = 2;
+    const maxStartupAttempts = Math.max(
+      1,
+      Number(runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS)
+    );
     for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
       if (hasPm2(runtimeEnv)) {
         startCmsViaPm2(runtimeEnv);
@@ -342,7 +345,7 @@ async function start() {
         const processStable = await verifyCmsProcessStability(runtimeEnv);
         if (!processStable) {
           throw new Error(
-            'CMS responded to readiness probes but exited immediately after startup'
+            `CMS responded to readiness probes but exited immediately after startup (attempt ${attempt}/${maxStartupAttempts})`
           );
         }
         break;

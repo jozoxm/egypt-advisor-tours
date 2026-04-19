@@ -54,11 +54,12 @@ const cmsProxyOptions = {
         CMS_PROXY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')),
     on: {
         error: (err, req, res) => {
-            const errorCode = err && err.code ? err.code : 'UNKNOWN';
-            const requestMethod = req && req.method ? req.method : 'UNKNOWN_METHOD';
-            const requestPath = req && (req.originalUrl || req.url) ? (req.originalUrl || req.url) : 'UNKNOWN_PATH';
+            const errorCode = err?.code ?? 'UNKNOWN';
+            const requestMethod = req?.method ?? 'UNKNOWN_METHOD';
+            const requestPath = req?.originalUrl ?? req?.url ?? 'UNKNOWN_PATH';
+            const errorMessage = err?.message ?? 'Unknown proxy error';
             console.error(
-                `[CMS Proxy] ${requestMethod} ${requestPath} -> ${CMS_URL} failed (${errorCode}): ${err.message}`
+                `[CMS Proxy] ${requestMethod} ${requestPath} -> ${CMS_URL} failed (${errorCode}): ${errorMessage}`
             );
             if (res && !res.headersSent) {
                 res.status(503).send(`<!DOCTYPE html>

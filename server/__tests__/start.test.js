@@ -13,6 +13,7 @@ describe('production startup environment', () => {
     expect(env.CMS_URL).toBe('http://localhost:3001');
     expect(env.PAYLOAD_SERVER_URL).toBe('http://localhost:5000');
     expect(env.CMS_READY_TIMEOUT_MS).toBe('120000');
+    expect(env.CMS_MAX_STARTUP_ATTEMPTS).toBe('2');
     expect(env.DATABASE_PATH).toBe(
       path.join(path.resolve(__dirname, '..', '..'), 'data', 'payload.db')
     );
@@ -27,6 +28,7 @@ describe('production startup environment', () => {
       PAYLOAD_SERVER_URL: 'https://egyptadvisortours.com',
       DATABASE_PATH: '/home/u123/admin_data/payload.db',
       CMS_READY_TIMEOUT_MS: '60000',
+      CMS_MAX_STARTUP_ATTEMPTS: '3',
     });
 
     expect(env.PORT).toBe('8080');
@@ -36,6 +38,7 @@ describe('production startup environment', () => {
     expect(env.PAYLOAD_SERVER_URL).toBe('https://egyptadvisortours.com');
     expect(env.DATABASE_PATH).toBe('/home/u123/admin_data/payload.db');
     expect(env.CMS_READY_TIMEOUT_MS).toBe('60000');
+    expect(env.CMS_MAX_STARTUP_ATTEMPTS).toBe('3');
   });
 });
 
