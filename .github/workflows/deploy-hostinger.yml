@@ -186,9 +186,30 @@ jobs:
               ;;
           esac
 
-      # ── 1. Check out code (needed only to verify the workflow itself) ──
+      # ── 1. Check out code ────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # ── 1b. Set up Node.js for CMS build ─────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cms/package-lock.json
+
+      # ── 1c. Build CMS on runner ───────────────────────────────────────────
+      #    Hostinger shared hosting has a low per-user process-count limit
+      #    (ulimit -u).  When `next build` spawns 5 worker processes for
+      #    "Collecting page data" the server hits EAGAIN (errno -11), crashing
+      #    the build every time.  Building on the GitHub Actions runner (no
+      #    process limits) and uploading the pre-built .next artefacts resolves
+      #    this entirely.  All env vars used here are runtime-only (no
+      #    NEXT_PUBLIC_ prefix), so the build succeeds without server secrets.
+      - name: Build CMS on runner
+        run: |
+          npm ci --prefix cms
+          npm run build --prefix cms
 
       # ── 2. Add pinned Hostinger SSH host key to known_hosts ───────────
       - name: Add Hostinger to known_hosts
@@ -209,7 +230,7 @@ jobs:
       #    Because the SSH session on Hostinger does not inherit hPanel env vars,
       #    we pipe them into a gitignored client/.env.production.local file that
       #    Create React App reads automatically during the build.
-      #    The file is deleted in step 4b right after npm install completes.
+      #    The file is deleted in step 4c right after npm install completes.
       #    ADMIN_SECRET and ADMIN_PASSWORD are written to a gitignored .env file
       #    so the Node.js server can enforce JWT-based admin auth at runtime.
       #    On first deploy this step also bootstraps the repo if the app directory
@@ -369,12 +390,53 @@ jobs:
           done
           rm -f "$cms_env_file"
 
-      # ── 4b. Pull latest code, build, and restart the app ─────────────
+      # ── 4b. Upload pre-built CMS .next artefacts to server ───────────────
+      #    The CMS was built on the CI runner in step 1c to avoid the Hostinger
+      #    EAGAIN process-limit crash.  We upload the resulting .next directory
+      #    as a tarball here so the deploy script (step 4c) can extract it
+      #    instead of running `next build` on the server.
+      - name: Upload CMS build to server
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
+          # Note: scp uses -P (uppercase) for port, not -p
+          SCP_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -P $DEPLOY_PORT"
+
+          echo "Creating CMS build tarball..."
+          tar -czf /tmp/cms-next-prebuilt.tar.gz -C cms .next
+          echo "Tarball size: $(du -sh /tmp/cms-next-prebuilt.tar.gz | cut -f1)"
+
+          # Ensure the cms directory exists on the server (safe on both first
+          # and subsequent deploys; step 4a already wrote cms/.env.local there).
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '${DEPLOY_DIR}/cms'"
+
+          for attempt in 1 2 3; do
+            if scp $SCP_OPTS /tmp/cms-next-prebuilt.tar.gz \
+                 "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/cms-next-prebuilt.tar.gz"; then
+              echo "CMS build uploaded successfully (attempt $attempt)."
+              break
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Upload attempt $attempt failed, retrying in 10s..."
+              sleep 10
+            else
+              echo "::error::Failed to upload CMS build tarball after 3 attempts."
+              exit 1
+            fi
+          done
+          rm -f /tmp/cms-next-prebuilt.tar.gz
+
+      # ── 4c. Pull latest code and restart the app ─────────────────────────
       #    The postinstall hook (scripts/build-client.js) runs on every
       #    `npm install` and builds the React frontend unconditionally
       #    (unless SKIP_CLIENT_BUILD=1 or NODE_ENV=development is set).
-      #    After the main app restarts we also install, build, and start the
-      #    Payload CMS (cms/) so that /admin is actually served.
+      #    After the main app restarts we install the CMS production deps,
+      #    extract the pre-built .next artefacts uploaded in step 4b, and
+      #    start the Payload CMS so that /admin is served.
       - name: Pull & restart on Hostinger
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
@@ -427,9 +489,18 @@ jobs:
                # If the host also supports PM2 for the main process:
                # pm2 restart egypt-advisor-tours 2>/dev/null || true
 
-                echo '--- installing CMS dependencies and building (Payload admin panel) ---'
-                if npm install --prefix cms --production=false \
-                   && npm run build --prefix cms; then
+                echo '--- installing CMS production dependencies (built on CI runner) ---'
+                if npm install --prefix cms --production=false; then
+                  echo '--- extracting pre-built CMS .next artefacts ---'
+                  if [ ! -f '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz' ]; then
+                    echo '::error::Pre-built CMS tarball not found at ${DEPLOY_DIR}/cms-next-prebuilt.tar.gz — upload step may have failed.'
+                    exit 1
+                  fi
+                  cd '${DEPLOY_DIR}/cms'
+                  rm -rf .next
+                  tar -xzf '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
+                  rm -f '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
+                  cd '${DEPLOY_DIR}'
                   echo '--- starting CMS service ---'
                   if command -v pm2 >/dev/null 2>&1; then
                    # When PM2 is available, stop by process name — no need
@@ -492,7 +563,7 @@ jobs:
                     ps -p \"\$CMS_PID\" -o args= | grep -Fq \"${DEPLOY_DIR}/cms\" || { echo \"::error::PID \$CMS_PID is not the CMS process\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
                   fi
                 else
-                  echo '::error::CMS install/build failed — see logs above for Next.js/Payload build errors'
+                  echo '::error::CMS dependency install failed — check npm output above'
                   exit 1
                 fi
 
