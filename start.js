@@ -94,6 +94,19 @@ function ensureDatabaseDirectory(env) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+function validateRuntimeEnv(env = process.env) {
+  assertSafePath('DATABASE_PATH', env.DATABASE_PATH);
+
+  try {
+    const parsed = new URL(env.CMS_URL);
+    if (!parsed.protocol || !parsed.hostname) {
+      throw new Error('CMS_URL must include protocol and hostname');
+    }
+  } catch (error) {
+    throw new Error(`CMS_URL is invalid: ${error.message}`);
+  }
+}
+
 // Makes a single HTTP/HTTPS GET to cmsUrl; resolves with the HTTP status code
 // or rejects on network / timeout error.
 function probeCmsOnce(cmsUrl, requestTimeoutMs) {
@@ -239,6 +252,37 @@ function stopCms(runtimeEnv) {
   } else if (cmsStartMode === 'nohup') {
     stopCmsViaPidFile();
   }
+  cmsStartMode = null;
+}
+
+function isCmsProcessRunning(runtimeEnv) {
+  if (cmsStartMode === 'pm2') {
+    return runCommand('pm2', ['describe', runtimeEnv.CMS_PM2_NAME], runtimeEnv).status === 0;
+  }
+
+  if (cmsStartMode === 'nohup') {
+    if (!fs.existsSync(CMS_PID_FILE)) return false;
+    const pid = Number(fs.readFileSync(CMS_PID_FILE, 'utf8').trim());
+    if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) return false;
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+async function verifyCmsProcessStability(runtimeEnv, { checks = 2, intervalMs = 500 } = {}) {
+  for (let i = 0; i < checks; i += 1) {
+    if (!isCmsProcessRunning(runtimeEnv)) return false;
+    if (i < checks - 1) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  return true;
 }
 
 function registerShutdownHandlers(runtimeEnv) {
@@ -271,6 +315,10 @@ async function start() {
     throw new Error('PAYLOAD_SECRET is required in production');
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    validateRuntimeEnv(runtimeEnv);
+  }
+
   if (!process.env.PAYLOAD_SECRET) {
     console.warn('[startup] PAYLOAD_SECRET is not set. It must be configured in production.');
   }
@@ -278,15 +326,32 @@ async function start() {
   ensureDatabaseDirectory(runtimeEnv);
 
   try {
-    if (hasPm2(runtimeEnv)) {
-      startCmsViaPm2(runtimeEnv);
-    } else {
-      startCmsViaNohup(runtimeEnv);
-    }
+    const maxStartupAttempts = 2;
+    for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
+      if (hasPm2(runtimeEnv)) {
+        startCmsViaPm2(runtimeEnv);
+      } else {
+        startCmsViaNohup(runtimeEnv);
+      }
 
-    await waitForCms(runtimeEnv.CMS_URL, {
-      timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 120000,
-    });
+      try {
+        await waitForCms(runtimeEnv.CMS_URL, {
+          timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 120000,
+        });
+
+        const processStable = await verifyCmsProcessStability(runtimeEnv);
+        if (!processStable) {
+          throw new Error(
+            'CMS responded to readiness probes but exited immediately after startup'
+          );
+        }
+        break;
+      } catch (error) {
+        const canRetry = attempt < maxStartupAttempts;
+        stopCms(runtimeEnv);
+        if (!canRetry) throw error;
+      }
+    }
 
     registerShutdownHandlers(runtimeEnv);
     require('./server/index.js');
@@ -309,4 +374,5 @@ module.exports = {
   buildRuntimeEnv,
   loadEnvironment,
   waitForCms,
+  validateRuntimeEnv,
 };

@@ -1,7 +1,7 @@
 const path = require('path');
 const http = require('http');
 
-const { buildRuntimeEnv, waitForCms } = require('../../start');
+const { buildRuntimeEnv, waitForCms, validateRuntimeEnv } = require('../../start');
 
 describe('production startup environment', () => {
   it('applies Hostinger-friendly defaults for both Express and CMS', () => {
@@ -59,5 +59,25 @@ describe('waitForCms', () => {
     await expect(
       waitForCms('http://127.0.0.1:19999', { pollIntervalMs: 100, timeoutMs: 400 })
     ).rejects.toThrow(/did not become ready/);
+  });
+});
+
+describe('validateRuntimeEnv', () => {
+  it('throws a clear error when CMS_URL is invalid', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        DATABASE_PATH: '/tmp/payload.db',
+        CMS_URL: 'localhost:3001',
+      })
+    ).toThrow(/CMS_URL is invalid/);
+  });
+
+  it('accepts a valid CMS_URL with protocol', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        DATABASE_PATH: '/tmp/payload.db',
+        CMS_URL: 'http://127.0.0.1:3001',
+      })
+    ).not.toThrow();
   });
 });

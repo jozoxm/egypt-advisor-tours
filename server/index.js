@@ -53,8 +53,13 @@ const cmsProxyOptions = {
     pathFilter: (pathname) =>
         CMS_PROXY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')),
     on: {
-        error: (err, _req, res) => {
-            console.error('[CMS Proxy] Error connecting to CMS:', err.message);
+        error: (err, req, res) => {
+            const errorCode = err && err.code ? err.code : 'UNKNOWN';
+            const requestMethod = req && req.method ? req.method : 'UNKNOWN_METHOD';
+            const requestPath = req && (req.originalUrl || req.url) ? (req.originalUrl || req.url) : 'UNKNOWN_PATH';
+            console.error(
+                `[CMS Proxy] ${requestMethod} ${requestPath} -> ${CMS_URL} failed (${errorCode}): ${err.message}`
+            );
             if (res && !res.headersSent) {
                 res.status(503).send(`<!DOCTYPE html>
 <html lang="en">
