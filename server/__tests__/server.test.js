@@ -44,6 +44,25 @@ describe('GET /health', () => {
     });
 });
 
+describe('GET /api/admin/health', () => {
+    // In the test environment the CMS process is not running, so the endpoint
+    // should report the CMS as down (503) — but it must not crash Express.
+    it('returns 503 with degraded status when CMS is unreachable', async () => {
+        const res = await request(app).get('/api/admin/health');
+        expect(res.status).toBe(503);
+        expect(res.body.status).toBe('degraded');
+        expect(res.body.cms).toBe('down');
+    });
+
+    it('includes diagnostic details in non-production mode', async () => {
+        const res = await request(app).get('/api/admin/health');
+        // NODE_ENV is 'test' so diagnostics should be included
+        expect(res.body).toHaveProperty('cmsUrl');
+        expect(res.body).toHaveProperty('errorCode');
+        expect(res.body).toHaveProperty('hint');
+    });
+});
+
 describe('GET /api', () => {
     it('returns 200 with welcome message', async () => {
         const res = await request(app).get('/api');

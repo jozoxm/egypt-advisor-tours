@@ -520,6 +520,65 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================
+// CMS HEALTH ENDPOINT
+// ============================================
+// GET /api/admin/health
+// Probes the Payload CMS process and returns its status.  Useful for
+// monitoring and for diagnosing "Admin Panel Unavailable" errors.
+//
+// In production the response body is intentionally minimal — no internal
+// URLs, error codes, or hints — to avoid leaking infrastructure details.
+// In non-production (development / test) the full diagnostics are included.
+//
+// Response shape:
+//   200  { status: 'ok',       cms: 'up',   ...diagnostics? }
+//   503  { status: 'degraded', cms: 'down', ...diagnostics? }
+app.get('/api/admin/health', async (req, res) => {
+    const cmsUrl = process.env.CMS_URL || 'http://localhost:3001';
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Helper: attempt a single HTTP GET and resolve with { ok, statusCode, error }.
+    const probe = (url) =>
+        new Promise((resolve) => {
+            const lib = url.startsWith('https') ? require('https') : require('http');
+            const request = lib.get(url, { timeout: 5000 }, (r) => {
+                r.resume(); // consume body so the socket is released
+                resolve({ ok: true, statusCode: r.statusCode });
+            });
+            request.on('timeout', () => {
+                request.destroy();
+                resolve({ ok: false, error: 'ETIMEDOUT' });
+            });
+            request.on('error', (err) => {
+                resolve({ ok: false, error: err.code || err.message });
+            });
+        });
+
+    // Try /api/payload-health first; fall back to CMS root.
+    let result = await probe(`${cmsUrl}/api/payload-health`);
+    if (!result.ok) {
+        result = await probe(cmsUrl);
+    }
+
+    if (result.ok) {
+        const body = { status: 'ok', cms: 'up' };
+        if (!isProduction) {
+            body.cmsUrl = cmsUrl;
+            body.httpStatus = result.statusCode;
+        }
+        return res.status(200).json(body);
+    }
+
+    const body = { status: 'degraded', cms: 'down' };
+    if (!isProduction) {
+        body.cmsUrl = cmsUrl;
+        body.errorCode = result.error;
+        body.hint = 'Run: npm run start --prefix cms';
+    }
+    return res.status(503).json(body);
+});
+
+// ============================================
 // ADMIN AUTH ENDPOINTS
 // ============================================
 
