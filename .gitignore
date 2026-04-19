@@ -51,6 +51,11 @@ data/payload.db-wal
 # Payload CMS — uploaded media files (written at runtime, not tracked in git)
 /media/
 
+# CMS runtime artifacts (PID file, log, and incremental TS build cache)
+cms.pid
+cms.log
+cms/*.tsbuildinfo
+
 # Temporary files
 *.tmp
 *.temp
