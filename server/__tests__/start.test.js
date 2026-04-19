@@ -1,7 +1,12 @@
 const path = require('path');
 const http = require('http');
 
-const { buildRuntimeEnv, waitForCms, validateRuntimeEnv } = require('../../start');
+const {
+  buildRuntimeEnv,
+  waitForCms,
+  validateRuntimeEnv,
+  getStartupRetryDelayMs,
+} = require('../../start');
 
 describe('production startup environment', () => {
   it('applies Hostinger-friendly defaults for both Express and CMS', () => {
@@ -12,8 +17,8 @@ describe('production startup environment', () => {
     expect(env.CMS_PM2_NAME).toBe('egypt-cms');
     expect(env.CMS_URL).toBe('http://localhost:3001');
     expect(env.PAYLOAD_SERVER_URL).toBe('http://localhost:5000');
-    expect(env.CMS_READY_TIMEOUT_MS).toBe('120000');
-    expect(env.CMS_MAX_STARTUP_ATTEMPTS).toBe('2');
+    expect(env.CMS_READY_TIMEOUT_MS).toBe('180000');
+    expect(env.CMS_MAX_STARTUP_ATTEMPTS).toBe('3');
     expect(env.DATABASE_PATH).toBe(
       path.join(path.resolve(__dirname, '..', '..'), 'data', 'payload.db')
     );
@@ -82,5 +87,13 @@ describe('validateRuntimeEnv', () => {
         CMS_URL: 'http://127.0.0.1:3001',
       })
     ).not.toThrow();
+  });
+});
+
+describe('getStartupRetryDelayMs', () => {
+  it('uses incremental backoff per startup attempt', () => {
+    expect(getStartupRetryDelayMs(1)).toBe(5000);
+    expect(getStartupRetryDelayMs(2)).toBe(10000);
+    expect(getStartupRetryDelayMs(3)).toBe(15000);
   });
 });
