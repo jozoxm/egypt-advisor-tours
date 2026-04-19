@@ -6,14 +6,11 @@ const nextConfig = {
   // In production the admin panel is reverse-proxied from the main domain
   // via http-proxy-middleware in server/index.js.
 
-  // Hostinger's shared hosting enforces a low process-count limit. When
-  // Next.js spawns separate Node.js worker processes for TypeScript type
-  // checking or ESLint, the spawn() call fails with EAGAIN (errno -11),
-  // crashing the build and leaving the CMS unable to start.  Disabling
-  // these checks here prevents the extra spawns; types and lint are still
-  // verified in CI (GitHub Actions) and local development.
+  // The CMS is built on the GitHub Actions runner (not on the Hostinger
+  // server) to avoid EAGAIN errors caused by Next.js spawning worker
+  // processes on a host with a low per-user process-count limit.
+  // TypeScript types are checked separately via `npm run typecheck` in CI.
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
 }
 
 export default withPayload(nextConfig)

@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
-const http = require('http');
-const https = require('https');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -42,160 +40,9 @@ app.set('trust proxy', 1);
 // Registered BEFORE helmet so that the CMS's own Next.js headers are not
 // overwritten by Express's CSP headers.
 const CMS_URL = process.env.CMS_URL || 'http://localhost:3001';
-const CMS_HEALTH_PATH = '/api/payload-health';
-const CMS_HEALTH_TIMEOUT_MS = 4000;
 // Path prefixes that must be forwarded to the CMS process.  Defined at
 // module level so the constant is not reallocated on every request.
 const CMS_PROXY_PATHS = ['/admin', '/_next', '/api/media', '/media'];
-
-function getCurrentTimestamp() {
-    return new Date().toISOString();
-}
-
-function escapeHtml(value) {
-    return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-}
-
-function createCmsHint(errorCode) {
-    if (errorCode === 'ECONNREFUSED') {
-        return 'The CMS process is not listening yet. Ensure the CMS service is running and bound to CMS_PORT.';
-    }
-    if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNRESET') {
-        return 'The CMS process is starting slowly or unstable. Check cms.log and increase CMS_READY_TIMEOUT_MS if needed.';
-    }
-    return 'Check CMS_URL, process status (PM2/nohup), and cms.log for startup failures.';
-}
-
-function probeUrlOnce(targetUrl, timeoutMs = CMS_HEALTH_TIMEOUT_MS) {
-    return new Promise((resolve, reject) => {
-        const parsed = new URL(targetUrl);
-        const transport = parsed.protocol === 'https:' ? https : http;
-        const req = transport.get(targetUrl, { timeout: timeoutMs }, (cmsRes) => {
-            cmsRes.resume();
-            resolve({
-                ok: cmsRes.statusCode >= 200 && cmsRes.statusCode < 300,
-                statusCode: cmsRes.statusCode,
-                url: targetUrl,
-            });
-        });
-        req.on('timeout', () => {
-            const timeoutPath = new URL(targetUrl).pathname || '/';
-            req.destroy(new Error(`Timeout after ${timeoutMs}ms for CMS path ${timeoutPath}`));
-        });
-        req.on('error', reject);
-    });
-}
-
-// The health endpoint itself may be unavailable on older CMS builds or custom
-// deployments even when the CMS root is alive; treat these as "endpoint
-// unavailable" statuses and fall back to probing the CMS root URL.
-function isUnavailableHealthStatus(statusCode) {
-    return statusCode === 404 || statusCode === 405 || statusCode === 501;
-}
-
-function toPublicCmsStatus(cmsStatus) {
-    if (process.env.NODE_ENV !== 'production') return cmsStatus;
-    if (cmsStatus.cmsHealthy) {
-        return {
-            cmsHealthy: true,
-            statusCode: cmsStatus.statusCode,
-            message: cmsStatus.message,
-        };
-    }
-
-    return {
-        cmsHealthy: false,
-        statusCode: cmsStatus.statusCode || 503,
-        message: 'CMS is unavailable. Check server logs for diagnostics.',
-    };
-}
-
-async function probeCmsHealth(cmsUrl = CMS_URL) {
-    const healthUrl = new URL(CMS_HEALTH_PATH, cmsUrl).toString();
-    try {
-        const healthProbe = await probeUrlOnce(healthUrl);
-        if (healthProbe.ok) {
-            return {
-                cmsHealthy: true,
-                cmsUrl,
-                checkedUrl: healthProbe.url,
-                statusCode: healthProbe.statusCode,
-                message: 'CMS is responding.',
-            };
-        }
-
-        if (!isUnavailableHealthStatus(healthProbe.statusCode)) {
-            return {
-                cmsHealthy: false,
-                cmsUrl,
-                checkedUrl: healthProbe.url,
-                statusCode: healthProbe.statusCode,
-                errorCode: `HTTP_${healthProbe.statusCode}`,
-                message: `CMS health endpoint returned HTTP ${healthProbe.statusCode}.`,
-                hint: 'Inspect CMS logs and application errors to restore a healthy response.',
-            };
-        }
-
-        const rootProbe = await probeUrlOnce(cmsUrl);
-        if (rootProbe.ok) {
-            return {
-                cmsHealthy: true,
-                cmsUrl,
-                checkedUrl: rootProbe.url,
-                statusCode: rootProbe.statusCode,
-                message: `CMS responded on root URL (health path unavailable at ${CMS_HEALTH_PATH}).`,
-            };
-        }
-
-        return {
-            cmsHealthy: false,
-            cmsUrl,
-            checkedUrl: rootProbe.url,
-            statusCode: rootProbe.statusCode,
-            errorCode: `HTTP_${rootProbe.statusCode}`,
-            message: `CMS root URL returned HTTP ${rootProbe.statusCode}.`,
-            hint: createCmsHint(`HTTP_${rootProbe.statusCode}`),
-        };
-    } catch (healthError) {
-        try {
-            const rootProbe = await probeUrlOnce(cmsUrl);
-            if (!rootProbe.ok) {
-                return {
-                    cmsHealthy: false,
-                    cmsUrl,
-                    checkedUrl: rootProbe.url,
-                    statusCode: rootProbe.statusCode,
-                    errorCode: `HTTP_${rootProbe.statusCode}`,
-                    message: `CMS root URL returned HTTP ${rootProbe.statusCode}.`,
-                    hint: createCmsHint(`HTTP_${rootProbe.statusCode}`),
-                };
-            }
-            return {
-                cmsHealthy: true,
-                cmsUrl,
-                checkedUrl: rootProbe.url,
-                statusCode: rootProbe.statusCode,
-                message: `CMS responded on root URL (health path unavailable at ${CMS_HEALTH_PATH}).`,
-            };
-        } catch (rootError) {
-            return {
-                cmsHealthy: false,
-                cmsUrl,
-                checkedUrl: healthUrl,
-                statusCode: null,
-                errorCode: rootError.code || healthError.code || 'UNKNOWN',
-                message: rootError.message || healthError.message || 'Unable to reach CMS.',
-                hint: createCmsHint(rootError.code || healthError.code),
-            };
-        }
-    }
-}
-
 const cmsProxyOptions = {
     target: CMS_URL,
     changeOrigin: true,
@@ -207,17 +54,12 @@ const cmsProxyOptions = {
         CMS_PROXY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')),
     on: {
         error: (err, req, res) => {
-            const errorCode = err && err.code ? err.code : 'UNKNOWN';
-            const hint = createCmsHint(errorCode);
-            const escapedCmsUrl = escapeHtml(CMS_URL);
-            const escapedErrorCode = escapeHtml(errorCode);
-            const escapedHint = escapeHtml(hint);
-            const isProduction = process.env.NODE_ENV === 'production';
-            const diagnosticsMarkup = isProduction
-                ? ''
-                : `<p><strong>Diagnostics:</strong> <code>${escapedCmsUrl}</code> returned <code>${escapedErrorCode}</code>.</p><p>${escapedHint}</p>`;
+            const errorCode = err?.code ?? 'UNKNOWN';
+            const requestMethod = req?.method ?? 'UNKNOWN_METHOD';
+            const requestPath = req?.originalUrl ?? req?.url ?? 'UNKNOWN_PATH';
+            const errorMessage = err?.message ?? 'Unknown proxy error';
             console.error(
-                `[CMS Proxy ${getCurrentTimestamp()}] ${req.method} ${req.originalUrl} -> ${CMS_URL} failed (${errorCode}): ${err.message}`
+                `[CMS Proxy] ${requestMethod} ${requestPath} -> ${CMS_URL} failed (${errorCode}): ${errorMessage}`
             );
             if (res && !res.headersSent) {
                 res.status(503).send(`<!DOCTYPE html>
@@ -237,12 +79,10 @@ const cmsProxyOptions = {
 <body>
   <h1>Admin Panel Unavailable</h1>
   <p>The CMS service is not running or is still starting up.</p>
-  ${diagnosticsMarkup}
   <p>If this is a fresh deployment, please wait about 30 seconds and then
      <a href="/admin">refresh this page</a>.</p>
   <p class="hint">If the problem persists, make sure the CMS process is running:<br>
-     <code>npm run start --prefix cms</code><br>
-     Check connectivity via <a href="/api/admin/health">check the admin health status</a>.</p>
+     <code>npm run start --prefix cms</code></p>
 </body>
 </html>`);
             }
@@ -679,14 +519,63 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
+// ============================================
+// CMS HEALTH ENDPOINT
+// ============================================
+// GET /api/admin/health
+// Probes the Payload CMS process and returns its status.  Useful for
+// monitoring and for diagnosing "Admin Panel Unavailable" errors.
+//
+// In production the response body is intentionally minimal — no internal
+// URLs, error codes, or hints — to avoid leaking infrastructure details.
+// In non-production (development / test) the full diagnostics are included.
+//
+// Response shape:
+//   200  { status: 'ok',       cms: 'up',   ...diagnostics? }
+//   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
-    const cmsStatus = await probeCmsHealth(CMS_URL);
-    if (!cmsStatus.cmsHealthy) {
-        console.warn(
-            `[CMS Health ${getCurrentTimestamp()}] Unhealthy for ${req.method} ${req.originalUrl}: ${cmsStatus.message}`
-        );
+    const cmsUrl = process.env.CMS_URL || 'http://localhost:3001';
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Helper: attempt a single HTTP GET and resolve with { ok, statusCode, error }.
+    const probe = (url) =>
+        new Promise((resolve) => {
+            const lib = url.startsWith('https') ? require('https') : require('http');
+            const request = lib.get(url, { timeout: 5000 }, (r) => {
+                r.resume(); // consume body so the socket is released
+                resolve({ ok: true, statusCode: r.statusCode });
+            });
+            request.on('timeout', () => {
+                request.destroy();
+                resolve({ ok: false, error: 'ETIMEDOUT' });
+            });
+            request.on('error', (err) => {
+                resolve({ ok: false, error: err.code || err.message });
+            });
+        });
+
+    // Try /api/payload-health first; fall back to CMS root.
+    let result = await probe(`${cmsUrl}/api/payload-health`);
+    if (!result.ok) {
+        result = await probe(cmsUrl);
     }
-    res.status(cmsStatus.cmsHealthy ? 200 : 503).json(toPublicCmsStatus(cmsStatus));
+
+    if (result.ok) {
+        const body = { status: 'ok', cms: 'up' };
+        if (!isProduction) {
+            body.cmsUrl = cmsUrl;
+            body.httpStatus = result.statusCode;
+        }
+        return res.status(200).json(body);
+    }
+
+    const body = { status: 'degraded', cms: 'down' };
+    if (!isProduction) {
+        body.cmsUrl = cmsUrl;
+        body.errorCode = result.error;
+        body.hint = 'Run: npm run start --prefix cms';
+    }
+    return res.status(503).json(body);
 });
 
 // ============================================

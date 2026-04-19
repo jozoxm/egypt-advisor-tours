@@ -44,7 +44,6 @@ server/data/*.json
 
 # Payload CMS — generated files and database
 cms/payload-types.ts
-cms/*.tsbuildinfo
 data/payload.db
 data/payload.db-shm
 data/payload.db-wal
