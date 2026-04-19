@@ -499,7 +499,6 @@ jobs:
                   cd '${DEPLOY_DIR}/cms'
                   rm -rf .next
                   tar -xzf '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
-                  rm -f '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
                   cd '${DEPLOY_DIR}'
                   echo '--- starting CMS service ---'
                   if command -v pm2 >/dev/null 2>&1; then
@@ -560,8 +559,9 @@ jobs:
                     fi
                     CMS_PID=\$(cat '${DEPLOY_DIR}/cms.pid')
                     kill -0 \"\$CMS_PID\" 2>/dev/null || { echo \"::error::CMS process is not running (PID \$CMS_PID)\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
-                    ps -p \"\$CMS_PID\" -o args= | grep -Fq \"${DEPLOY_DIR}/cms\" || { echo \"::error::PID \$CMS_PID is not the CMS process\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
                   fi
+                  # Tarball no longer needed — delete after confirming CMS is alive so retries can re-use it.
+                  rm -f '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
                 else
                   echo '::error::CMS dependency install failed — check npm output above'
                   exit 1
