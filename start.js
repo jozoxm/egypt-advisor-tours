@@ -59,8 +59,8 @@ function buildRuntimeEnv(sourceEnv = process.env) {
     runtimeEnv.PAYLOAD_SERVER_URL || `http://localhost:${runtimeEnv.PORT}`;
   runtimeEnv.DATABASE_PATH =
     runtimeEnv.DATABASE_PATH || path.join(ROOT_DIR, 'data', 'payload.db');
-  runtimeEnv.CMS_READY_TIMEOUT_MS = runtimeEnv.CMS_READY_TIMEOUT_MS || '120000';
-  runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS = runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS || '2';
+  runtimeEnv.CMS_READY_TIMEOUT_MS = runtimeEnv.CMS_READY_TIMEOUT_MS || '180000';
+  runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS = runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS || '3';
 
   return runtimeEnv;
 }
@@ -127,7 +127,7 @@ function probeCmsOnce(cmsUrl, requestTimeoutMs) {
 
 // Polls cmsUrl until it returns any HTTP response or the overall deadline is
 // reached.  Rejects when the deadline passes without a successful response.
-async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 120000 } = {}) {
+async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 180000 } = {}) {
   const deadline = Date.now() + timeoutMs;
   console.log(`[startup] Waiting for CMS to be ready at ${cmsUrl}...`);
 
@@ -222,7 +222,7 @@ function startCmsViaNohup(env) {
     `cd ${shellEscape(cmsDir)}`,
     `nohup npm run start >> ${shellEscape(cmsLogFile)} 2>&1 &`,
     'echo $!',
-  ].join('; ');
+  ].join('\n');
   const result = runCommand('bash', ['-c', command], env);
 
   if (result.status !== 0) {
@@ -285,6 +285,20 @@ async function verifyCmsProcessStability(runtimeEnv, { checks = 2, intervalMs = 
   return true;
 }
 
+function getStartupRetryDelayMs(attempt) {
+  const normalizedAttempt = Math.max(1, Number(attempt) || 1);
+  const baseDelayMs = 5000;
+  return baseDelayMs * normalizedAttempt;
+}
+
+function toErrorMessage(error) {
+  if (!error) return 'Unknown startup error';
+  if (typeof error === 'string') return error;
+  if (error.stack) return String(error.stack);
+  if (error.message) return String(error.message);
+  return String(error);
+}
+
 function registerShutdownHandlers(runtimeEnv) {
   const shutdown = (signal) => {
     if (shuttingDown) return;
@@ -331,6 +345,7 @@ async function start() {
       Number(runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS)
     );
     for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
+      console.log(`[startup] Starting CMS (attempt ${attempt}/${maxStartupAttempts})`);
       if (hasPm2(runtimeEnv)) {
         startCmsViaPm2(runtimeEnv);
       } else {
@@ -339,7 +354,7 @@ async function start() {
 
       try {
         await waitForCms(runtimeEnv.CMS_URL, {
-          timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 120000,
+          timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
         });
 
         const processStable = await verifyCmsProcessStability(runtimeEnv);
@@ -351,8 +366,17 @@ async function start() {
         break;
       } catch (error) {
         const canRetry = attempt < maxStartupAttempts;
+        const diagnostics = [
+          `[startup] CMS startup attempt ${attempt}/${maxStartupAttempts} failed.`,
+          `[startup] Reason: ${toErrorMessage(error)}`,
+          '[startup] Verify PAYLOAD_SECRET, DATABASE_PATH permissions, and CMS_URL settings.',
+        ];
+        console.warn(diagnostics.join('\n'));
         stopCms(runtimeEnv);
         if (!canRetry) throw error;
+        const retryDelayMs = getStartupRetryDelayMs(attempt);
+        console.log(`[startup] Retrying CMS startup in ${retryDelayMs}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
       }
     }
 
@@ -378,4 +402,5 @@ module.exports = {
   loadEnvironment,
   waitForCms,
   validateRuntimeEnv,
+  getStartupRetryDelayMs,
 };

@@ -604,6 +604,9 @@ jobs:
                 sleep 15
               else
                 echo "::error::${label} check failed after 5 attempts. Last status: HTTP $status"
+                echo "::group::${label} response body"
+                curl -s -L --max-time 30 "$url" || true
+                echo "::endgroup::"
                 return 1
               fi
             done
@@ -633,6 +636,7 @@ jobs:
             done
           }
           run_check "https://egyptadvisortours.com/health" "API health" "strict"
+          run_check "https://egyptadvisortours.com/api/admin/health" "CMS admin API health" "strict"
           run_check "https://egyptadvisortours.com/admin" "Admin health" "redirect-ok"
           check_admin_content
 
