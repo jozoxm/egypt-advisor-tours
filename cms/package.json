@@ -10,16 +10,6 @@
     "generate:types": "payload generate:types",
     "generate:importmap": "payload generate:importMap"
   },
-  "dependencies": {
-    "next": "16.2.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "payload": "3.82.1",
-    "@payloadcms/db-sqlite": "3.82.1",
-    "@payloadcms/richtext-lexical": "3.82.1",
-    "@payloadcms/next": "3.82.1",
-    "graphql": "^16.8.1"
-  },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
@@ -28,5 +18,15 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@payloadcms/db-mongodb": "^3.83.0",
+    "@payloadcms/db-postgres": "^3.83.0",
+    "@payloadcms/db-sqlite": "^3.83.0",
+    "@payloadcms/next": "^3.83.0",
+    "@payloadcms/richtext-lexical": "^3.83.0",
+    "graphql": "^16.13.2",
+    "payload": "^3.83.0",
+    "sharp": "^0.34.5"
   }
 }

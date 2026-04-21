@@ -12,5 +12,6 @@ const nextConfig = {
   // TypeScript types are checked separately via `npm run typecheck` in CI.
   typescript: { ignoreBuildErrors: true },
 }
-
+// Make sure you wrap your `nextConfig`
+// with the `withPayload` plugin
 export default withPayload(nextConfig)
