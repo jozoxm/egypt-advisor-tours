@@ -35,11 +35,12 @@ npm start
 > kill the process before restarting:
 >
 > ```bash
-> # Linux / macOS
-> lsof -ti tcp:3001 | xargs kill -9
+> # Linux / macOS (no-op when nothing is listening)
+> pid=$(lsof -ti tcp:3001) && kill -9 $pid || true
 >
 > # Windows (PowerShell)
-> Get-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess | Stop-Process -Force
+> $pid = (Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue).OwningProcess
+> if ($pid) { Stop-Process -Id $pid -Force }
 > ```
 >
 > `npm start` will also detect a pre-occupied port 3001 automatically and skip

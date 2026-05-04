@@ -1,11 +1,13 @@
 const path = require('path');
 const http = require('http');
+const net = require('net');
 
 const {
   buildRuntimeEnv,
   waitForCms,
   validateRuntimeEnv,
   getStartupRetryDelayMs,
+  isPortInUse,
 } = require('../../start');
 
 describe('production startup environment', () => {
@@ -95,5 +97,38 @@ describe('getStartupRetryDelayMs', () => {
     expect(getStartupRetryDelayMs(1)).toBe(5000);
     expect(getStartupRetryDelayMs(2)).toBe(10000);
     expect(getStartupRetryDelayMs(3)).toBe(15000);
+  });
+});
+
+describe('isPortInUse', () => {
+  it('resolves true when a server is listening on the port', async () => {
+    const server = net.createServer();
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address();
+
+    try {
+      await expect(isPortInUse(port)).resolves.toBe(true);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  it('resolves false when nothing is listening on the port', async () => {
+    // Pick a port that is almost certainly free by binding then immediately closing
+    const server = net.createServer();
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address();
+    await new Promise((resolve) => server.close(resolve));
+
+    await expect(isPortInUse(port)).resolves.toBe(false);
+  });
+
+  it('resolves false for an out-of-range port number', async () => {
+    await expect(isPortInUse(99999)).resolves.toBe(false);
+    await expect(isPortInUse(-1)).resolves.toBe(false);
+  });
+
+  it('resolves false for a non-numeric port value', async () => {
+    await expect(isPortInUse('abc')).resolves.toBe(false);
   });
 });

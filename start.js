@@ -127,19 +127,39 @@ function probeCmsOnce(cmsUrl, requestTimeoutMs) {
 }
 
 // Returns a Promise that resolves to true if something is already listening on
-// the given TCP port on 127.0.0.1, or false if the port is free.
+// the given TCP port on 127.0.0.1, or false if the port is free or invalid.
+// A short connection timeout (1 s) prevents the probe from hanging indefinitely.
 function isPortInUse(port) {
+  const portNum = Number(port);
+  if (!Number.isInteger(portNum) || portNum < 0 || portNum > 65535) {
+    return Promise.resolve(false);
+  }
+
   return new Promise((resolve) => {
-    const socket = net.createConnection({ port, host: '127.0.0.1' });
-    socket.once('connect', () => {
-      socket.destroy();
-      resolve(true);
-    });
-    // All connection errors mean the port is free; destroy is idempotent here.
-    socket.once('error', () => {
-      if (!socket.destroyed) socket.destroy();
+    let socket;
+    try {
+      socket = net.createConnection({ port: portNum, host: '127.0.0.1' });
+    } catch (_err) {
+      // Synchronous throw (e.g. bad options) — treat as port free
       resolve(false);
-    });
+      return;
+    }
+
+    // Guard against both events firing on some platforms
+    let settled = false;
+    const done = (value) => {
+      if (settled) return;
+      settled = true;
+      if (!socket.destroyed) socket.destroy();
+      resolve(value);
+    };
+
+    // Time out the probe after 1 second so startup isn't delayed
+    socket.setTimeout(1000);
+    socket.once('connect', () => done(true));
+    // Any error (ECONNREFUSED, timeout, etc.) means port is free
+    socket.once('error', () => done(false));
+    socket.once('timeout', () => done(false));
   });
 }
 
