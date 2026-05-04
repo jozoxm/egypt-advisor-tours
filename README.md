@@ -23,6 +23,29 @@ npm install
 npm start
 ```
 
+> **⚠️ Important — run only one process at a time:**
+> Always use `npm start` at the **repository root**. This launches both the CMS
+> (Payload, port 3001) and the Express server (port 5000) in one coordinated
+> process. **Never** run `npm run start --prefix cms` (or `cd cms && npm start`)
+> at the same time as the root `npm start`; both will try to bind port 3001 and
+> the second one will fail with `EADDRINUSE`.
+
+> **Port 3001 stuck / left dangling?**
+> If you interrupted a previous run and port 3001 is still occupied, find and
+> kill the process before restarting:
+>
+> ```bash
+> # Linux / macOS
+> lsof -ti tcp:3001 | xargs kill -9
+>
+> # Windows (PowerShell)
+> Get-Process -Id (Get-NetTCPConnection -LocalPort 3001).OwningProcess | Stop-Process -Force
+> ```
+>
+> `npm start` will also detect a pre-occupied port 3001 automatically and skip
+> re-spawning the CMS — it will just wait for the already-running CMS process
+> to respond before starting Express.
+
 Or run frontend and backend in parallel for hot-reload during development:
 
 ```bash

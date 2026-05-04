@@ -3,6 +3,7 @@
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const net = require('net');
 const path = require('path');
 const { spawnSync } = require('child_process');
 const dotenv = require('dotenv');
@@ -122,6 +123,23 @@ function probeCmsOnce(cmsUrl, requestTimeoutMs) {
       req.destroy(new Error(`CMS probe timed out after ${requestTimeoutMs}ms`));
     });
     req.on('error', reject);
+  });
+}
+
+// Returns a Promise that resolves to true if something is already listening on
+// the given TCP port on 127.0.0.1, or false if the port is free.
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ port, host: '127.0.0.1' });
+    socket.once('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    // All connection errors mean the port is free; destroy is idempotent here.
+    socket.once('error', () => {
+      if (!socket.destroyed) socket.destroy();
+      resolve(false);
+    });
   });
 }
 
@@ -340,43 +358,55 @@ async function start() {
   ensureDatabaseDirectory(runtimeEnv);
 
   try {
-    const maxStartupAttempts = Math.max(
-      1,
-      Number(runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS)
-    );
-    for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
-      console.log(`[startup] Starting CMS (attempt ${attempt}/${maxStartupAttempts})`);
-      if (hasPm2(runtimeEnv)) {
-        startCmsViaPm2(runtimeEnv);
-      } else {
-        startCmsViaNohup(runtimeEnv);
-      }
+    const cmsPort = Number(runtimeEnv.CMS_PORT) || 3001;
+    const portOccupied = await isPortInUse(cmsPort);
 
-      try {
-        await waitForCms(runtimeEnv.CMS_URL, {
-          timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
-        });
-
-        const processStable = await verifyCmsProcessStability(runtimeEnv);
-        if (!processStable) {
-          throw new Error(
-            `CMS responded to readiness probes but exited immediately after startup (attempt ${attempt}/${maxStartupAttempts})`
-          );
+    if (portOccupied) {
+      console.warn(
+        `[startup] Port ${cmsPort} is already in use. Skipping CMS spawn — assuming CMS is already running.`
+      );
+      await waitForCms(runtimeEnv.CMS_URL, {
+        timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
+      });
+    } else {
+      const maxStartupAttempts = Math.max(
+        1,
+        Number(runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS)
+      );
+      for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
+        console.log(`[startup] Starting CMS (attempt ${attempt}/${maxStartupAttempts})`);
+        if (hasPm2(runtimeEnv)) {
+          startCmsViaPm2(runtimeEnv);
+        } else {
+          startCmsViaNohup(runtimeEnv);
         }
-        break;
-      } catch (error) {
-        const canRetry = attempt < maxStartupAttempts;
-        const diagnostics = [
-          `[startup] CMS startup attempt ${attempt}/${maxStartupAttempts} failed.`,
-          `[startup] Reason: ${toErrorMessage(error)}`,
-          '[startup] Verify PAYLOAD_SECRET, DATABASE_PATH permissions, and CMS_URL settings.',
-        ];
-        console.warn(diagnostics.join('\n'));
-        stopCms(runtimeEnv);
-        if (!canRetry) throw error;
-        const retryDelayMs = getStartupRetryDelayMs(attempt);
-        console.log(`[startup] Retrying CMS startup in ${retryDelayMs}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+
+        try {
+          await waitForCms(runtimeEnv.CMS_URL, {
+            timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
+          });
+
+          const processStable = await verifyCmsProcessStability(runtimeEnv);
+          if (!processStable) {
+            throw new Error(
+              `CMS responded to readiness probes but exited immediately after startup (attempt ${attempt}/${maxStartupAttempts})`
+            );
+          }
+          break;
+        } catch (error) {
+          const canRetry = attempt < maxStartupAttempts;
+          const diagnostics = [
+            `[startup] CMS startup attempt ${attempt}/${maxStartupAttempts} failed.`,
+            `[startup] Reason: ${toErrorMessage(error)}`,
+            '[startup] Verify PAYLOAD_SECRET, DATABASE_PATH permissions, and CMS_URL settings.',
+          ];
+          console.warn(diagnostics.join('\n'));
+          stopCms(runtimeEnv);
+          if (!canRetry) throw error;
+          const retryDelayMs = getStartupRetryDelayMs(attempt);
+          console.log(`[startup] Retrying CMS startup in ${retryDelayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        }
       }
     }
 
@@ -403,4 +433,5 @@ module.exports = {
   waitForCms,
   validateRuntimeEnv,
   getStartupRetryDelayMs,
+  isPortInUse,
 };
