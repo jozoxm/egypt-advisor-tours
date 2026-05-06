@@ -147,8 +147,9 @@ describe('isPortInUse', () => {
 
 describe('checkCmsPrerequisites', () => {
   // checkCmsPrerequisites reads CMS_DIR which is hard-wired to the real cms/
-  // directory.  We verify the two failure cases by temporarily renaming the
-  // directories so the check sees them as absent.
+  // directory.  We verify the two failure cases by monkey-patching
+  // fs.existsSync (via jest.spyOn) so the check sees the directories as absent
+  // without touching the filesystem.
 
   it('throws when cms/node_modules is missing', () => {
     // Monkey-patch fs.existsSync to simulate missing node_modules

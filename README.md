@@ -8,7 +8,7 @@ A full-stack tour-operator website built with React (frontend) and Express/Node.
 
 ## Quick start (local development)
 
-> **Prerequisites:** [Node.js ≥ 18](https://nodejs.org/) installed on your machine.
+> **Prerequisites:** [Node.js 18 or 20](https://nodejs.org/) — Node.js 20 is used in production and recommended; Node.js 18 is the minimum supported version.
 
 ### Option A — Production-like (`npm start`)
 

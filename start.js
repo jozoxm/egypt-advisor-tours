@@ -295,7 +295,13 @@ function startCmsViaNohup(env) {
     throw new Error(`Failed to spawn CMS process: ${err.message}`);
   } finally {
     // Close our copy of the fd; the child's inherited copies stay open.
-    fs.closeSync(logFd);
+    // Wrap in try/catch so a rare close failure doesn't orphan a successfully
+    // spawned CMS process by preventing the PID file from being written.
+    try {
+      fs.closeSync(logFd);
+    } catch (closeErr) {
+      console.warn('[startup] Failed to close CMS log file handle:', closeErr.message);
+    }
   }
 
   const pid = child.pid;
