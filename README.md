@@ -8,6 +8,15 @@ A full-stack tour-operator website built with React (frontend) and Express/Node.
 
 ## Quick start (local development)
 
+> **Prerequisites:** [Node.js ≥ 18](https://nodejs.org/) installed on your machine.
+
+### Option A — Production-like (`npm start`)
+
+`npm start` runs both the Payload CMS (`next start`, port 3001) and the Express
+server (port 5000) together.  Because `next start` needs a pre-built `.next`
+directory, you must **build the CMS once** before your first run (and again after
+any CMS source changes):
+
 ```bash
 # 1. Clone the repo
 git clone https://github.com/jozoxm/egypt-advisor-tours.git
@@ -15,13 +24,18 @@ cd egypt-advisor-tours
 
 # 2. Copy and fill in environment variables
 cp .env.example .env
+# Edit .env — at minimum set PAYLOAD_SECRET to a random string
 
-# 3. Install all dependencies (also builds the React client)
-npm install
+# 3. Install all dependencies AND build the CMS in one step
+npm run setup
 
-# 4. Start the server (API + serves the React build)
+# 4. Start both services
 npm start
 ```
+
+> **`npm run setup` does:** `npm run install:all` (installs root, client, server,
+> and CMS dependencies) then `npm run build:cms` (runs `next build` inside the
+> `cms/` directory).  Only needed once — or when CMS source files change.
 
 > **⚠️ Important — run only one process at a time:**
 > Always use `npm start` at the **repository root**. This launches both the CMS
@@ -35,10 +49,10 @@ npm start
 > kill the process before restarting:
 >
 > ```bash
-> # Linux / macOS (no-op when nothing is listening)
+> # Linux / macOS / WSL (no-op when nothing is listening)
 > pid=$(lsof -ti tcp:3001) && kill -9 $pid || true
 >
-> # Windows (PowerShell)
+> # Windows PowerShell
 > $pid = (Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue).OwningProcess
 > if ($pid) { Stop-Process -Id $pid -Force }
 > ```
@@ -47,15 +61,23 @@ npm start
 > re-spawning the CMS — it will just wait for the already-running CMS process
 > to respond before starting Express.
 
-Or run frontend and backend in parallel for hot-reload during development:
+### Option B — Development (hot-reload)
+
+For day-to-day development you don't need a production CMS build.  Run each
+service in its own terminal with hot-reload:
 
 ```bash
-# Terminal 1 – Express API
-npm run dev          # starts server on http://localhost:5000
+# Terminal 1 – CMS dev server (Next.js HMR, port 3001)
+npm run dev:cms
 
-# Terminal 2 – React dev server (proxies /api/* to :5000)
-cd client && npm start
+# Terminal 2 – Express API
+npm run dev:server        # http://localhost:5000
+
+# Terminal 3 – React dev server (proxies /api/* to :5000)
+npm run dev:client        # http://localhost:3000
 ```
+
+> First time only: `npm run install:all` to install all dependencies.
 
 ### Docker (optional)
 
@@ -63,8 +85,6 @@ cd client && npm start
 cp .env.example .env      # fill in secrets
 docker-compose up --build  # starts the app on http://localhost:5000
 ```
-
----
 
 ## Documentation
 
@@ -137,17 +157,25 @@ git commit -m "Resolve CSS conflict"
 
 ## 🚀 Quick Start - Commands in Order
 
-**Need the exact commands to follow?** See **[COMMANDS-IN-ORDER.md](COMMANDS-IN-ORDER.md)** for a step-by-step guide!
+See [Quick start (local development)](#quick-start-local-development) above for
+the full setup flow.
 
-**TL;DR:**
+**TL;DR (production-like single command):**
+```bash
+npm run setup   # install all deps + build CMS (first time only)
+npm start       # starts CMS (port 3001) + Express (port 5000)
+```
+
+**TL;DR (development with hot-reload):**
 ```bash
 # Terminal 1:
-npm run start:server
+npm run dev:cms
 
 # Terminal 2:
-npm run start:client
+npm run dev:server
 
-# Then open: http://localhost:3000
+# Terminal 3:
+npm run dev:client    # open http://localhost:3000
 ```
 
 ---
@@ -183,49 +211,16 @@ Egypt Advisor Tours is a travel agency website designed to help travelers plan t
 
 ## Installation Instructions
 
-### Quick Start (Recommended)
-1. Clone the repository:  
-   ```bash
-   git clone https://github.com/jozoxm/egypt-advisor-tours.git
-   ```
-2. Navigate to the project directory:  
-   ```bash
-   cd egypt-advisor-tours
-   ```
-3. Install all dependencies (client and server):  
-   ```bash
-   npm run install:all
-   ```
-4. Start the development server:  
-   ```bash
-   npm start
-   ```
+See **[Quick start](#quick-start-local-development)** above for the full setup
+flow.  In summary:
 
-### Alternative: Install Client Only
-If you only want to run the frontend:
 ```bash
-cd egypt-advisor-tours
-npm run install:client
+# Install all deps + build the CMS (required before npm start)
+npm run setup
+
+# Then start both services
 npm start
 ```
-
-### Alternative: Manual Installation
-If you prefer to install dependencies manually:
-1. Install client dependencies:  
-   ```bash
-   cd client
-   npm install
-   ```
-2. Install server dependencies:  
-   ```bash
-   cd ../server
-   npm install
-   ```
-3. Start the client:  
-   ```bash
-   cd ../client
-   npm start
-   ```
 
 ## Features
 - Comprehensive tour listings with detailed descriptions
