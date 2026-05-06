@@ -158,7 +158,7 @@ describe('checkCmsPrerequisites', () => {
       return realExistsSync(p);
     });
     try {
-      expect(() => checkCmsPrerequisites()).toThrow(/npm install --prefix cms/);
+      expect(() => checkCmsPrerequisites()).toThrow(/npm run setup/);
     } finally {
       jest.restoreAllMocks();
     }
@@ -172,7 +172,7 @@ describe('checkCmsPrerequisites', () => {
       return realExistsSync(p);
     });
     try {
-      expect(() => checkCmsPrerequisites()).toThrow(/npm run build --prefix cms/);
+      expect(() => checkCmsPrerequisites()).toThrow(/npm run setup/);
     } finally {
       jest.restoreAllMocks();
     }

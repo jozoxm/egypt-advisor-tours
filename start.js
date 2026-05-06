@@ -88,14 +88,14 @@ function checkCmsPrerequisites() {
   const modulesDir = path.join(CMS_DIR, 'node_modules');
   if (!fs.existsSync(modulesDir)) {
     throw new Error(
-      'CMS dependencies are not installed. Run: npm install --prefix cms'
+      'CMS dependencies are not installed. Run: npm run setup (or npm run install:cms)'
     );
   }
 
   const nextBuildDir = path.join(CMS_DIR, '.next');
   if (!fs.existsSync(nextBuildDir)) {
     throw new Error(
-      'CMS production build not found. Run: npm run build --prefix cms'
+      'CMS production build not found. Run: npm run setup (or npm run build:cms)'
     );
   }
 }
