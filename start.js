@@ -5,7 +5,7 @@ const http = require('http');
 const https = require('https');
 const net = require('net');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const dotenv = require('dotenv');
 
 const ROOT_DIR = __dirname;
@@ -16,12 +16,6 @@ const MIN_KILLABLE_PID = 2;
 
 let cmsStartMode = null;
 let shuttingDown = false;
-
-// Escapes a value for safe single-argument interpolation in a bash command by
-// wrapping it in single quotes and escaping embedded quotes.
-function shellEscape(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
 
 function assertSafePath(name, value) {
   if (typeof value !== 'string' || !value.trim()) {
@@ -34,15 +28,6 @@ function assertSafePath(name, value) {
     throw new Error(`${name} contains invalid characters`);
   }
   return value;
-}
-
-// Extracts the background PID from the final line of shell output (`echo $!`).
-function extractPidFromShellOutput(output) {
-  const pid = Number(String(output || '').trim().split('\n').pop());
-  if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
-    throw new Error('CMS started with nohup but no valid PID was returned');
-  }
-  return pid;
 }
 
 function loadEnvironment() {
@@ -67,7 +52,7 @@ function buildRuntimeEnv(sourceEnv = process.env) {
 }
 
 function runCommand(command, args, env) {
-  if (command !== 'pm2' && command !== 'bash') {
+  if (command !== 'pm2') {
     throw new Error(`Unsupported command: ${command}`);
   }
 
@@ -94,6 +79,25 @@ function ensureDatabaseDirectory(env) {
   if (!dbPath) return;
   const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
+}
+
+// Validates that CMS dependencies are installed and the production build exists
+// before attempting to start the CMS process.  Throws with an actionable message
+// so users immediately know what command to run rather than waiting for a timeout.
+function checkCmsPrerequisites() {
+  const modulesDir = path.join(CMS_DIR, 'node_modules');
+  if (!fs.existsSync(modulesDir)) {
+    throw new Error(
+      'CMS dependencies are not installed. Run: npm install --prefix cms'
+    );
+  }
+
+  const nextBuildDir = path.join(CMS_DIR, '.next');
+  if (!fs.existsSync(nextBuildDir)) {
+    throw new Error(
+      'CMS production build not found. Run: npm run build --prefix cms'
+    );
+  }
 }
 
 function validateRuntimeEnv(env = process.env) {
@@ -165,7 +169,13 @@ function isPortInUse(port) {
 
 // Polls cmsUrl until it returns any HTTP response or the overall deadline is
 // reached.  Rejects when the deadline passes without a successful response.
-async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 180000 } = {}) {
+// Optional isProcessAlive() callback enables fail-fast: if the CMS process
+// exits before it becomes ready, the function rejects immediately instead of
+// waiting for the full timeout.
+async function waitForCms(
+  cmsUrl,
+  { pollIntervalMs = 2000, timeoutMs = 180000, isProcessAlive = null } = {}
+) {
   const deadline = Date.now() + timeoutMs;
   console.log(`[startup] Waiting for CMS to be ready at ${cmsUrl}...`);
 
@@ -176,7 +186,10 @@ async function waitForCms(cmsUrl, { pollIntervalMs = 2000, timeoutMs = 180000 } 
       console.log(`[startup] CMS is ready (HTTP ${status})`);
       return;
     } catch (_err) {
-      // CMS not up yet — wait before retrying
+      // CMS not up yet — check if the process is still alive before sleeping.
+      if (isProcessAlive !== null && !isProcessAlive()) {
+        throw new Error('CMS process exited before becoming ready. Check cms.log for details.');
+      }
     }
     const remaining = deadline - Date.now();
     if (remaining <= 0) break;
@@ -255,19 +268,38 @@ function stopCmsViaPidFile() {
 function startCmsViaNohup(env) {
   const cmsDir = assertSafePath('CMS_DIR', CMS_DIR);
   const cmsLogFile = assertSafePath('CMS_LOG_FILE', CMS_LOG_FILE);
-  const command = [
-    'set -e',
-    `cd ${shellEscape(cmsDir)}`,
-    `nohup npm run start >> ${shellEscape(cmsLogFile)} 2>&1 &`,
-    'echo $!',
-  ].join('\n');
-  const result = runCommand('bash', ['-c', command], env);
+  const serveScript = path.join(cmsDir, 'scripts', 'serve.js');
 
-  if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || 'Unable to start CMS with nohup');
+  // Open (or create) the log file in append mode so CMS stdout/stderr land there.
+  let logFd;
+  try {
+    logFd = fs.openSync(cmsLogFile, 'a');
+  } catch (err) {
+    throw new Error(`Cannot open CMS log file for writing: ${err.message}`);
   }
 
-  const pid = extractPidFromShellOutput(result.stdout);
+  // Spawn the CMS using the current Node.js binary directly — cross-platform and
+  // avoids the bash + nohup approach that breaks on Windows (Windows-style paths
+  // are not valid inside bash).  detached:true + unref() lets the child outlive
+  // this process (same semantics as nohup).
+  let child;
+  try {
+    child = spawn(process.execPath, [serveScript, 'start'], {
+      cwd: cmsDir,
+      env: { ...env, PATH: process.env.PATH },
+      stdio: ['ignore', logFd, logFd],
+      detached: true,
+    });
+    child.unref();
+  } finally {
+    // Close our copy of the fd; the child's inherited copies stay open.
+    fs.closeSync(logFd);
+  }
+
+  const pid = child.pid;
+  if (!pid || pid < MIN_KILLABLE_PID) {
+    throw new Error('CMS started but no valid PID was returned');
+  }
 
   try {
     fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
@@ -393,6 +425,7 @@ async function start() {
         1,
         Number(runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS)
       );
+      checkCmsPrerequisites();
       for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
         console.log(`[startup] Starting CMS (attempt ${attempt}/${maxStartupAttempts})`);
         if (hasPm2(runtimeEnv)) {
@@ -404,6 +437,7 @@ async function start() {
         try {
           await waitForCms(runtimeEnv.CMS_URL, {
             timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
+            isProcessAlive: () => isCmsProcessRunning(runtimeEnv),
           });
 
           const processStable = await verifyCmsProcessStability(runtimeEnv);
@@ -454,4 +488,5 @@ module.exports = {
   validateRuntimeEnv,
   getStartupRetryDelayMs,
   isPortInUse,
+  checkCmsPrerequisites,
 };

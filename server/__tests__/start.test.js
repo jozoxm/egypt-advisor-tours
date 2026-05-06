@@ -1,6 +1,8 @@
 const path = require('path');
 const http = require('http');
 const net = require('net');
+const fs = require('fs');
+const os = require('os');
 
 const {
   buildRuntimeEnv,
@@ -8,6 +10,7 @@ const {
   validateRuntimeEnv,
   getStartupRetryDelayMs,
   isPortInUse,
+  checkCmsPrerequisites,
 } = require('../../start');
 
 describe('production startup environment', () => {
@@ -70,6 +73,16 @@ describe('waitForCms', () => {
       waitForCms('http://127.0.0.1:19999', { pollIntervalMs: 100, timeoutMs: 400 })
     ).rejects.toThrow(/did not become ready/);
   });
+
+  it('rejects immediately when isProcessAlive returns false', async () => {
+    await expect(
+      waitForCms('http://127.0.0.1:19999', {
+        pollIntervalMs: 100,
+        timeoutMs: 5000,
+        isProcessAlive: () => false,
+      })
+    ).rejects.toThrow(/CMS process exited before becoming ready/);
+  });
 });
 
 describe('validateRuntimeEnv', () => {
@@ -130,5 +143,44 @@ describe('isPortInUse', () => {
 
   it('resolves false for a non-numeric port value', async () => {
     await expect(isPortInUse('abc')).resolves.toBe(false);
+  });
+});
+
+describe('checkCmsPrerequisites', () => {
+  // checkCmsPrerequisites reads CMS_DIR which is hard-wired to the real cms/
+  // directory.  We verify the two failure cases by temporarily renaming the
+  // directories so the check sees them as absent.
+
+  it('throws when cms/node_modules is missing', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cms-prereq-'));
+    // Create .next so we only trigger the node_modules error
+    fs.mkdirSync(path.join(tmpDir, '.next'));
+
+    // Monkey-patch fs.existsSync for this test to simulate missing node_modules
+    const realExistsSync = fs.existsSync;
+    jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
+      if (p.endsWith('node_modules')) return false;
+      return realExistsSync(p);
+    });
+    try {
+      expect(() => checkCmsPrerequisites()).toThrow(/npm install --prefix cms/);
+    } finally {
+      jest.restoreAllMocks();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when cms/.next build directory is missing', () => {
+    const realExistsSync = fs.existsSync;
+    jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
+      if (p.endsWith('node_modules')) return true;
+      if (p.endsWith('.next')) return false;
+      return realExistsSync(p);
+    });
+    try {
+      expect(() => checkCmsPrerequisites()).toThrow(/npm run build --prefix cms/);
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 });
