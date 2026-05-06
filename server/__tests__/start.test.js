@@ -1,6 +1,7 @@
 const path = require('path');
 const http = require('http');
 const net = require('net');
+const fs = require('fs');
 
 const {
   buildRuntimeEnv,
@@ -8,6 +9,7 @@ const {
   validateRuntimeEnv,
   getStartupRetryDelayMs,
   isPortInUse,
+  checkCmsPrerequisites,
 } = require('../../start');
 
 describe('production startup environment', () => {
@@ -70,6 +72,16 @@ describe('waitForCms', () => {
       waitForCms('http://127.0.0.1:19999', { pollIntervalMs: 100, timeoutMs: 400 })
     ).rejects.toThrow(/did not become ready/);
   });
+
+  it('rejects immediately when isProcessAlive returns false', async () => {
+    await expect(
+      waitForCms('http://127.0.0.1:19999', {
+        pollIntervalMs: 100,
+        timeoutMs: 5000,
+        isProcessAlive: () => false,
+      })
+    ).rejects.toThrow(/CMS process exited before becoming ready/);
+  });
 });
 
 describe('validateRuntimeEnv', () => {
@@ -130,5 +142,40 @@ describe('isPortInUse', () => {
 
   it('resolves false for a non-numeric port value', async () => {
     await expect(isPortInUse('abc')).resolves.toBe(false);
+  });
+});
+
+describe('checkCmsPrerequisites', () => {
+  // checkCmsPrerequisites reads CMS_DIR which is hard-wired to the real cms/
+  // directory.  We verify the two failure cases by monkey-patching
+  // fs.existsSync (via jest.spyOn) so the check sees the directories as absent
+  // without touching the filesystem.
+
+  it('throws when cms/node_modules is missing', () => {
+    // Monkey-patch fs.existsSync to simulate missing node_modules
+    const realExistsSync = fs.existsSync;
+    jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
+      if (p.endsWith('node_modules')) return false;
+      return realExistsSync(p);
+    });
+    try {
+      expect(() => checkCmsPrerequisites()).toThrow(/npm run setup/);
+    } finally {
+      jest.restoreAllMocks();
+    }
+  });
+
+  it('throws when cms/.next build directory is missing', () => {
+    const realExistsSync = fs.existsSync;
+    jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
+      if (p.endsWith('node_modules')) return true;
+      if (p.endsWith('.next')) return false;
+      return realExistsSync(p);
+    });
+    try {
+      expect(() => checkCmsPrerequisites()).toThrow(/npm run setup/);
+    } finally {
+      jest.restoreAllMocks();
+    }
   });
 });
