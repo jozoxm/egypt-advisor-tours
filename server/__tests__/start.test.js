@@ -2,7 +2,6 @@ const path = require('path');
 const http = require('http');
 const net = require('net');
 const fs = require('fs');
-const os = require('os');
 
 const {
   buildRuntimeEnv,
@@ -152,11 +151,7 @@ describe('checkCmsPrerequisites', () => {
   // directories so the check sees them as absent.
 
   it('throws when cms/node_modules is missing', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cms-prereq-'));
-    // Create .next so we only trigger the node_modules error
-    fs.mkdirSync(path.join(tmpDir, '.next'));
-
-    // Monkey-patch fs.existsSync for this test to simulate missing node_modules
+    // Monkey-patch fs.existsSync to simulate missing node_modules
     const realExistsSync = fs.existsSync;
     jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
       if (p.endsWith('node_modules')) return false;
@@ -166,7 +161,6 @@ describe('checkCmsPrerequisites', () => {
       expect(() => checkCmsPrerequisites()).toThrow(/npm install --prefix cms/);
     } finally {
       jest.restoreAllMocks();
-      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 

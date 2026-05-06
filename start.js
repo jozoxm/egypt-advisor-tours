@@ -291,6 +291,8 @@ function startCmsViaNohup(env) {
       detached: true,
     });
     child.unref();
+  } catch (err) {
+    throw new Error(`Failed to spawn CMS process: ${err.message}`);
   } finally {
     // Close our copy of the fd; the child's inherited copies stay open.
     fs.closeSync(logFd);
