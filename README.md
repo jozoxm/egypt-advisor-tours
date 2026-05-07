@@ -31,15 +31,20 @@ npm start
 - Express dev server: `npm run dev:server`
 - Storyblok editor redirect: `http://localhost:5000/admin`
 
-## Storyblok setup
+## Storyblok setup (exact UI + env steps)
 
 The site keeps its existing API shapes (`/api/tours`, `/api/blogs`, `/api/settings`, etc.) and maps them to Storyblok stories.
 
-### Recommended Storyblok content model
-
-1. Create a Storyblok component named `json_document`
-2. Add a long-text field named `json`
-3. Create these stories (or override the slugs with env vars):
+1. Create or open your Storyblok space.
+2. Go to **Settings → Access Tokens** and copy:
+   - **Preview token** → `STORYBLOK_PREVIEW_TOKEN`
+   - (Optional) **Management token** → `STORYBLOK_MANAGEMENT_TOKEN` (required for `npm run sync:storyblok`)
+3. Copy your **Space ID** from Storyblok space settings → `STORYBLOK_SPACE_ID`.
+4. In Storyblok, go to **Components** and create:
+   - Component name: `json_document`
+   - Field name: `json`
+   - Field type: **Long text**
+5. In Storyblok, create these stories (or override with env vars):
 
 | API resource | Default Storyblok slug |
 |---|---|
@@ -51,6 +56,51 @@ The site keeps its existing API shapes (`/api/tours`, `/api/blogs`, `/api/settin
 | Site settings | `cms-settings` |
 | Promotions | `cms-promotions` |
 | Destinations | `cms-destinations` |
+
+6. Configure local env values in `.env`:
+
+```env
+STORYBLOK_PREVIEW_TOKEN=<preview_token>
+STORYBLOK_SPACE_ID=<space_id>
+STORYBLOK_MANAGEMENT_TOKEN=<management_token>
+STORYBLOK_REGION=eu
+STORYBLOK_PREVIEW_SECRET=<long-random-secret>
+ADMIN_SECRET=<long-random-secret>
+ADMIN_PASSWORD=<secure-password>
+```
+
+- Set `STORYBLOK_REGION=us` only if your Storyblok space is in the US region.
+
+7. Install dependencies and bootstrap Storyblok content:
+
+```bash
+npm install
+npm install --prefix server
+npm run sync:storyblok
+```
+
+8. In Storyblok, set preview URL to:
+
+```text
+https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
+```
+
+Local alternative:
+
+```text
+http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
+```
+
+9. Start and verify:
+
+```bash
+npm start
+```
+
+- `/admin` redirects to Storyblok editor
+- `/api/tours` and other APIs serve Storyblok-backed content
+- `/api/admin/preview/<secret>` enables draft preview mode
+- `/api/admin/preview/exit` clears preview mode
 
 Each story stores the same JSON shape the existing API already returns. Examples:
 
@@ -83,6 +133,10 @@ https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
 - The route sets a short-lived preview cookie so the API reads Storyblok draft content
 - `/api/admin/preview/exit` clears the preview cookie
 - `/admin` redirects to the Storyblok editor
+
+## Security note
+
+If any Storyblok token was exposed in screenshots, chats, or public logs, rotate/regenerate it immediately in Storyblok and update your `.env`.
 
 ## What changed in this migration
 

@@ -2,6 +2,30 @@
 
 Content editing now happens in **Storyblok**.
 
+## First-time Storyblok setup
+
+1. In Storyblok, open your space and copy:
+   - **Preview token** (`Settings → Access Tokens`) → `STORYBLOK_PREVIEW_TOKEN`
+   - **Space ID** (space settings) → `STORYBLOK_SPACE_ID`
+   - **Management token** (optional, needed for `npm run sync:storyblok`) → `STORYBLOK_MANAGEMENT_TOKEN`
+2. Create component `json_document` with one field:
+   - `json` (Long text)
+3. Create required stories:
+   - `cms-tours`, `cms-contact`, `cms-blogs`, `cms-gallery`, `cms-slideshow`, `cms-settings`, `cms-promotions`, `cms-destinations`
+4. Set env values in `.env`:
+   - `STORYBLOK_PREVIEW_TOKEN`, `STORYBLOK_SPACE_ID`, `STORYBLOK_REGION`, `STORYBLOK_PREVIEW_SECRET`, `ADMIN_SECRET`, `ADMIN_PASSWORD`
+   - Add `STORYBLOK_MANAGEMENT_TOKEN` if using `npm run sync:storyblok`
+5. Set Storyblok preview URL:
+   - `https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
+   - Local: `http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
+6. Run:
+   - `npm install`
+   - `npm install --prefix server`
+   - `npm run sync:storyblok` (optional, recommended)
+   - `npm start`
+
+If any token was exposed publicly, rotate/regenerate it in Storyblok immediately and update `.env`.
+
 ## Opening the editor
 
 Visit:
