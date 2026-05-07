@@ -44,7 +44,7 @@ app.use(helmet({
     },
     // Strict-Transport-Security is sent automatically by helmet
     crossOriginEmbedderPolicy: false, // Allow Unsplash images
-    frameguard: false,
+    frameguard: { action: 'sameorigin' },
 }));
 
 // Enable CORS.
@@ -63,6 +63,45 @@ app.use(express.json({ limit: '10mb' }));
 // API-only clients (non-browser) authenticate via the same SameSite=Strict cookie
 // and are expected to operate from the same origin.
 app.use(cookieParser());
+
+const allowedOrigins = new Set(
+    [
+        corsOrigin,
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000',
+        'https://egyptadvisortours.com',
+    ].filter(Boolean)
+);
+
+app.use((req, res, next) => {
+    if (getStoryblokVersion(req) === 'draft') {
+        res.removeHeader('X-Frame-Options');
+    }
+
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        return next();
+    }
+
+    const origin = req.get('origin');
+    if (!origin) {
+        return next();
+    }
+
+    let normalizedOrigin;
+    try {
+        normalizedOrigin = new URL(origin).origin;
+    } catch (_error) {
+        return res.status(403).json({ error: 'Invalid request origin.' });
+    }
+
+    if (!allowedOrigins.has(normalizedOrigin)) {
+        return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
+    }
+
+    return next();
+});
 
 // ============================================
 // AUTHENTICATION — JWT-BASED ADMIN AUTH
@@ -544,11 +583,12 @@ app.get('/api/admin/health', async (req, res) => {
     }
 });
 
-app.get('/api/admin/preview', (req, res) => {
+app.get('/api/admin/preview/:secret?', (req, res) => {
     const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
-    const { secret, path: redirectPath = '/' } = req.query || {};
+    const providedSecret = req.params.secret;
+    const { path: redirectPath = '/' } = req.query || {};
 
-    if (configuredSecret && secret !== configuredSecret) {
+    if (configuredSecret && providedSecret !== configuredSecret) {
         return res.status(401).send('Invalid Storyblok preview secret.');
     }
 
@@ -558,8 +598,15 @@ app.get('/api/admin/preview', (req, res) => {
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 1000,
     });
-    const safeRedirectPath =
-        typeof redirectPath === 'string' && redirectPath.startsWith('/') ? redirectPath : '/';
+    let safeRedirectPath = '/';
+    if (typeof redirectPath === 'string') {
+        try {
+            const parsed = new URL(redirectPath, 'http://localhost');
+            if (parsed.origin === 'http://localhost' && !redirectPath.startsWith('//')) {
+                safeRedirectPath = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+            }
+        } catch (_error) {}
+    }
     return res.redirect(302, safeRedirectPath);
 });
 
@@ -1029,7 +1076,7 @@ app.use('/api', (req, res) => {
 const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
-    app.get('*', (req, res) => {
+    app.get('*', readLimiter, (req, res) => {
         // Admin redirects are handled above; if a request somehow reaches the
         // SPA fallback, return 404 rather than letting React Router swallow it.
         const isCmsPath = (prefix) =>

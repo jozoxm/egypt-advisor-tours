@@ -76,7 +76,7 @@ Required env vars for the sync script:
 Set Storyblok's preview URL to:
 
 ```text
-https://your-domain.com/api/admin/preview?secret=YOUR_PREVIEW_SECRET&path=/
+https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET?path=/
 ```
 
 - `STORYBLOK_PREVIEW_SECRET` is optional but recommended

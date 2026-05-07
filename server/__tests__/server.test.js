@@ -73,8 +73,8 @@ describe('GET /admin', () => {
 describe('Storyblok preview routes', () => {
     it('sets the preview cookie and redirects when the secret is valid', async () => {
         const res = await request(app)
-            .get('/api/admin/preview')
-            .query({ secret: 'storyblok-secret', path: '/tours' });
+            .get('/api/admin/preview/storyblok-secret')
+            .query({ path: '/tours' });
 
         expect(res.status).toBe(302);
         expect(res.headers.location).toBe('/tours');
@@ -83,8 +83,8 @@ describe('Storyblok preview routes', () => {
 
     it('rejects invalid preview secrets', async () => {
         const res = await request(app)
-            .get('/api/admin/preview')
-            .query({ secret: 'wrong-secret', path: '/' });
+            .get('/api/admin/preview/wrong-secret')
+            .query({ path: '/' });
 
         expect(res.status).toBe(401);
     });

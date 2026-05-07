@@ -32,7 +32,7 @@ Each story should use the `json_document` component with a `json` field containi
 Configure Storyblok's preview URL as:
 
 ```text
-https://egyptadvisortours.com/api/admin/preview?secret=YOUR_PREVIEW_SECRET&path=/
+https://egyptadvisortours.com/api/admin/preview/YOUR_PREVIEW_SECRET?path=/
 ```
 
 That route enables draft mode for the public site so you can preview unpublished Storyblok changes.
