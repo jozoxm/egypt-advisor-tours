@@ -1,484 +1,50 @@
 'use strict';
 
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
-const net = require('net');
 const path = require('path');
-const { spawn, spawnSync } = require('child_process');
 const dotenv = require('dotenv');
 
 const ROOT_DIR = __dirname;
-const CMS_DIR = path.join(ROOT_DIR, 'cms');
-const CMS_LOG_FILE = path.join(ROOT_DIR, 'cms.log');
-const CMS_PID_FILE = path.join(ROOT_DIR, 'cms.pid');
-const MIN_KILLABLE_PID = 2;
-
-let cmsStartMode = null;
-let shuttingDown = false;
-
-function assertSafePath(name, value) {
-  if (typeof value !== 'string' || !value.trim()) {
-    throw new Error(`${name} must be a non-empty path`);
-  }
-  if (!path.isAbsolute(value)) {
-    throw new Error(`${name} must be an absolute path`);
-  }
-  if (value.includes('\n') || value.includes('\r')) {
-    throw new Error(`${name} contains invalid characters`);
-  }
-  return value;
-}
 
 function loadEnvironment() {
   dotenv.config({ path: path.join(ROOT_DIR, '.env') });
 }
 
 function buildRuntimeEnv(sourceEnv = process.env) {
-  const runtimeEnv = { ...sourceEnv };
-
-  runtimeEnv.PORT = runtimeEnv.PORT || '5000';
-  runtimeEnv.CMS_PORT = runtimeEnv.CMS_PORT || '3001';
-  runtimeEnv.CMS_PM2_NAME = runtimeEnv.CMS_PM2_NAME || 'egypt-cms';
-  runtimeEnv.CMS_URL = runtimeEnv.CMS_URL || `http://localhost:${runtimeEnv.CMS_PORT}`;
-  runtimeEnv.PAYLOAD_SERVER_URL =
-    runtimeEnv.PAYLOAD_SERVER_URL || `http://localhost:${runtimeEnv.PORT}`;
-  runtimeEnv.DATABASE_PATH =
-    runtimeEnv.DATABASE_PATH || path.join(ROOT_DIR, 'data', 'payload.db');
-  runtimeEnv.CMS_READY_TIMEOUT_MS = runtimeEnv.CMS_READY_TIMEOUT_MS || '180000';
-  runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS = runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS || '3';
-
-  return runtimeEnv;
-}
-
-function runCommand(command, args, env) {
-  if (command !== 'pm2') {
-    throw new Error(`Unsupported command: ${command}`);
-  }
-
-  const commandEnv = {
-    ...env,
-    PATH: process.env.PATH,
+  return {
+    ...sourceEnv,
+    PORT: sourceEnv.PORT || '5000',
+    STORYBLOK_REGION: sourceEnv.STORYBLOK_REGION || 'eu',
+    STORYBLOK_EDITOR_URL:
+      sourceEnv.STORYBLOK_EDITOR_URL ||
+      (sourceEnv.STORYBLOK_SPACE_ID
+        ? `https://app.storyblok.com/#/me/spaces/${sourceEnv.STORYBLOK_SPACE_ID}/content/`
+        : 'https://app.storyblok.com/'),
   };
-
-  return spawnSync(command, args, {
-    cwd: ROOT_DIR,
-    env: commandEnv,
-    stdio: 'pipe',
-    encoding: 'utf8',
-  });
-}
-
-function hasPm2(env) {
-  const result = runCommand('pm2', ['--version'], env);
-  return result.status === 0;
-}
-
-function ensureDatabaseDirectory(env) {
-  const dbPath = env.DATABASE_PATH;
-  if (!dbPath) return;
-  const dir = path.dirname(dbPath);
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-// Validates that CMS dependencies are installed and the production build exists
-// before attempting to start the CMS process.  Throws with an actionable message
-// so users immediately know what command to run rather than waiting for a timeout.
-function checkCmsPrerequisites() {
-  const modulesDir = path.join(CMS_DIR, 'node_modules');
-  if (!fs.existsSync(modulesDir)) {
-    throw new Error(
-      'CMS dependencies are not installed. Run: npm run setup (or npm run install:cms)'
-    );
-  }
-
-  const nextBuildDir = path.join(CMS_DIR, '.next');
-  if (!fs.existsSync(nextBuildDir)) {
-    throw new Error(
-      'CMS production build not found. Run: npm run setup (or npm run build:cms)'
-    );
-  }
 }
 
 function validateRuntimeEnv(env = process.env) {
-  assertSafePath('DATABASE_PATH', env.DATABASE_PATH);
-
-  try {
-    const parsed = new URL(env.CMS_URL);
-    if (!parsed.protocol || !parsed.hostname) {
-      throw new Error('CMS_URL must include protocol and hostname');
-    }
-  } catch (error) {
-    throw new Error(`CMS_URL is invalid: ${error.message}`);
-  }
-}
-
-// Makes a single HTTP/HTTPS GET to cmsUrl; resolves with the HTTP status code
-// or rejects on network / timeout error.
-function probeCmsOnce(cmsUrl, requestTimeoutMs) {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(cmsUrl);
-    const lib = parsed.protocol === 'https:' ? https : http;
-    const req = lib.get(cmsUrl, { timeout: requestTimeoutMs }, (res) => {
-      res.resume();
-      resolve(res.statusCode);
-    });
-    req.on('timeout', () => {
-      req.destroy(new Error(`CMS probe timed out after ${requestTimeoutMs}ms`));
-    });
-    req.on('error', reject);
-  });
-}
-
-// Returns a Promise that resolves to true if something is already listening on
-// the given TCP port on 127.0.0.1, or false if the port is free or invalid.
-// A short connection timeout (1 s) prevents the probe from hanging indefinitely.
-function isPortInUse(port) {
-  const portNum = Number(port);
-  if (!Number.isInteger(portNum) || portNum < 0 || portNum > 65535) {
-    return Promise.resolve(false);
+  if (env.NODE_ENV === 'production' && !env.STORYBLOK_PREVIEW_TOKEN) {
+    throw new Error('STORYBLOK_PREVIEW_TOKEN is required in production');
   }
 
-  return new Promise((resolve) => {
-    let socket;
+  if (env.STORYBLOK_EDITOR_URL) {
     try {
-      socket = net.createConnection({ port: portNum, host: '127.0.0.1' });
-    } catch (_err) {
-      // Synchronous throw (e.g. bad options) — treat as port free
-      resolve(false);
-      return;
-    }
-
-    // Guard against both events firing on some platforms
-    let settled = false;
-    const done = (value) => {
-      if (settled) return;
-      settled = true;
-      if (!socket.destroyed) socket.destroy();
-      resolve(value);
-    };
-
-    // Time out the probe after 1 second so startup isn't delayed
-    socket.setTimeout(1000);
-    socket.once('connect', () => done(true));
-    // Any error (ECONNREFUSED, timeout, etc.) means port is free
-    socket.once('error', () => done(false));
-    socket.once('timeout', () => done(false));
-  });
-}
-
-// Polls cmsUrl until it returns any HTTP response or the overall deadline is
-// reached.  Rejects when the deadline passes without a successful response.
-// Optional isProcessAlive() callback enables fail-fast: if the CMS process
-// exits before it becomes ready, the function rejects immediately instead of
-// waiting for the full timeout.
-async function waitForCms(
-  cmsUrl,
-  { pollIntervalMs = 2000, timeoutMs = 180000, isProcessAlive = null } = {}
-) {
-  const deadline = Date.now() + timeoutMs;
-  console.log(`[startup] Waiting for CMS to be ready at ${cmsUrl}...`);
-
-  while (Date.now() < deadline) {
-    try {
-      const remaining = deadline - Date.now();
-      const status = await probeCmsOnce(cmsUrl, Math.min(5000, remaining));
-      console.log(`[startup] CMS is ready (HTTP ${status})`);
-      return;
-    } catch (_err) {
-      // CMS not up yet — check if the process is still alive before sleeping.
-      if (isProcessAlive !== null && !isProcessAlive()) {
-        throw new Error('CMS process exited before becoming ready. Check cms.log for details.');
+      const parsed = new URL(env.STORYBLOK_EDITOR_URL);
+      if (!parsed.protocol || !parsed.hostname) {
+        throw new Error('STORYBLOK_EDITOR_URL must include protocol and hostname');
       }
-    }
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await new Promise((r) => setTimeout(r, Math.min(pollIntervalMs, remaining)));
-  }
-
-  throw new Error(`CMS did not become ready within ${timeoutMs}ms at ${cmsUrl}`);
-}
-
-function stopCmsViaPm2(env) {
-  const describe = runCommand('pm2', ['describe', env.CMS_PM2_NAME], env);
-  if (describe.status !== 0) return;
-
-  const result = runCommand('pm2', ['delete', env.CMS_PM2_NAME], env);
-  if (result.status !== 0) {
-    console.warn('[startup] Failed to stop CMS via PM2');
-  }
-}
-
-function startCmsViaPm2(env) {
-  const describe = runCommand('pm2', ['describe', env.CMS_PM2_NAME], env);
-  let result;
-
-  if (describe.status === 0) {
-    result = runCommand('pm2', ['restart', env.CMS_PM2_NAME, '--update-env'], env);
-  } else {
-    result = runCommand(
-      'pm2',
-      ['start', 'npm', '--name', env.CMS_PM2_NAME, '--cwd', CMS_DIR, '--', 'run', 'start'],
-      env
-    );
-  }
-
-  if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout || 'Unable to start CMS with PM2');
-  }
-
-  cmsStartMode = 'pm2';
-  console.log('[startup] CMS started with PM2');
-}
-
-function stopCmsViaPidFile() {
-  if (!fs.existsSync(CMS_PID_FILE)) return;
-
-  let rawPid;
-  try {
-    rawPid = fs.readFileSync(CMS_PID_FILE, 'utf8').trim();
-  } catch (error) {
-    console.warn('[startup] Failed to read CMS pid file:', error.message);
-    fs.rmSync(CMS_PID_FILE, { force: true });
-    return;
-  }
-
-  if (!rawPid) {
-    fs.rmSync(CMS_PID_FILE, { force: true });
-    return;
-  }
-
-  const pid = Number(rawPid);
-  if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) {
-    fs.rmSync(CMS_PID_FILE, { force: true });
-    return;
-  }
-
-  try {
-    process.kill(pid, 'SIGTERM');
-  } catch (error) {
-    if (error.code !== 'ESRCH') {
-      console.warn('[startup] Failed to stop CMS process:', error.message);
-    }
-  }
-
-  fs.rmSync(CMS_PID_FILE, { force: true });
-}
-
-function startCmsViaNohup(env) {
-  const cmsDir = assertSafePath('CMS_DIR', CMS_DIR);
-  const cmsLogFile = assertSafePath('CMS_LOG_FILE', CMS_LOG_FILE);
-  const serveScript = path.join(cmsDir, 'scripts', 'serve.js');
-
-  // Open (or create) the log file in append mode so CMS stdout/stderr land there.
-  let logFd;
-  try {
-    logFd = fs.openSync(cmsLogFile, 'a');
-  } catch (err) {
-    throw new Error(`Cannot open CMS log file for writing: ${err.message}`);
-  }
-
-  // Spawn the CMS using the current Node.js binary directly — cross-platform and
-  // avoids the bash + nohup approach that breaks on Windows (Windows-style paths
-  // are not valid inside bash).  detached:true + unref() lets the child outlive
-  // this process (same semantics as nohup).
-  let child;
-  try {
-    child = spawn(process.execPath, [serveScript, 'start'], {
-      cwd: cmsDir,
-      env: { ...env, PATH: process.env.PATH },
-      stdio: ['ignore', logFd, logFd],
-      detached: true,
-    });
-    child.unref();
-  } catch (err) {
-    throw new Error(`Failed to spawn CMS process: ${err.message}`);
-  } finally {
-    // Close our copy of the fd; the child's inherited copies stay open.
-    // Wrap in try/catch so a rare close failure doesn't orphan a successfully
-    // spawned CMS process by preventing the PID file from being written.
-    try {
-      fs.closeSync(logFd);
-    } catch (closeErr) {
-      console.warn('[startup] Failed to close CMS log file handle:', closeErr.message);
-    }
-  }
-
-  const pid = child.pid;
-  if (!pid || pid < MIN_KILLABLE_PID) {
-    throw new Error('CMS started but no valid PID was returned');
-  }
-
-  try {
-    fs.writeFileSync(CMS_PID_FILE, `${pid}\n`, 'utf8');
-    cmsStartMode = 'nohup';
-    console.log(`[startup] CMS started with nohup (PID ${pid})`);
-  } catch (error) {
-    try {
-      process.kill(pid, 'SIGTERM');
-    } catch (killError) {
-      if (killError.code !== 'ESRCH') {
-        console.warn('[startup] Failed to stop orphaned CMS process:', killError.message);
-      }
-    }
-    throw error;
-  }
-}
-
-function stopCms(runtimeEnv) {
-  if (cmsStartMode === 'pm2') {
-    stopCmsViaPm2(runtimeEnv);
-  } else if (cmsStartMode === 'nohup') {
-    stopCmsViaPidFile();
-  }
-}
-
-function isCmsProcessRunning(runtimeEnv) {
-  if (cmsStartMode === 'pm2') {
-    return runCommand('pm2', ['describe', runtimeEnv.CMS_PM2_NAME], runtimeEnv).status === 0;
-  }
-
-  if (cmsStartMode === 'nohup') {
-    if (!fs.existsSync(CMS_PID_FILE)) return false;
-    const pid = Number(fs.readFileSync(CMS_PID_FILE, 'utf8').trim());
-    if (!Number.isFinite(pid) || pid < MIN_KILLABLE_PID) return false;
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  return false;
-}
-
-async function verifyCmsProcessStability(runtimeEnv, { checks = 2, intervalMs = 500 } = {}) {
-  for (let i = 0; i < checks; i += 1) {
-    if (!isCmsProcessRunning(runtimeEnv)) return false;
-    if (i < checks - 1) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-  }
-  return true;
-}
-
-function getStartupRetryDelayMs(attempt) {
-  const normalizedAttempt = Math.max(1, Number(attempt) || 1);
-  const baseDelayMs = 5000;
-  return baseDelayMs * normalizedAttempt;
-}
-
-function toErrorMessage(error) {
-  if (!error) return 'Unknown startup error';
-  if (typeof error === 'string') return error;
-  if (error.stack) return String(error.stack);
-  if (error.message) return String(error.message);
-  return String(error);
-}
-
-function registerShutdownHandlers(runtimeEnv) {
-  const shutdown = (signal) => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    console.log(`[startup] Received ${signal}. Stopping services...`);
-    let exitCode = 0;
-
-    try {
-      stopCms(runtimeEnv);
     } catch (error) {
-      exitCode = 1;
-      console.error('[startup] Error while stopping CMS:', error.stack || error);
-    } finally {
-      process.exit(exitCode);
+      throw new Error(`STORYBLOK_EDITOR_URL is invalid: ${error.message}`);
     }
-  };
-
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  }
 }
 
 async function start() {
   loadEnvironment();
   const runtimeEnv = buildRuntimeEnv(process.env);
   Object.assign(process.env, runtimeEnv);
-
-  if (!process.env.PAYLOAD_SECRET && process.env.NODE_ENV === 'production') {
-    throw new Error('PAYLOAD_SECRET is required in production');
-  }
-
-  if (process.env.NODE_ENV === 'production') {
-    validateRuntimeEnv(runtimeEnv);
-  }
-
-  if (!process.env.PAYLOAD_SECRET) {
-    console.warn('[startup] PAYLOAD_SECRET is not set. It must be configured in production.');
-  }
-
-  ensureDatabaseDirectory(runtimeEnv);
-
-  try {
-    const cmsPort = Number(runtimeEnv.CMS_PORT) || 3001;
-    const portOccupied = await isPortInUse(cmsPort);
-
-    if (portOccupied) {
-      console.warn(
-        `[startup] Port ${cmsPort} is already in use. Skipping CMS spawn — assuming CMS is already running.`
-      );
-      await waitForCms(runtimeEnv.CMS_URL, {
-        timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
-      });
-    } else {
-      const maxStartupAttempts = Math.max(
-        1,
-        Number(runtimeEnv.CMS_MAX_STARTUP_ATTEMPTS)
-      );
-      checkCmsPrerequisites();
-      for (let attempt = 1; attempt <= maxStartupAttempts; attempt += 1) {
-        console.log(`[startup] Starting CMS (attempt ${attempt}/${maxStartupAttempts})`);
-        if (hasPm2(runtimeEnv)) {
-          startCmsViaPm2(runtimeEnv);
-        } else {
-          startCmsViaNohup(runtimeEnv);
-        }
-
-        try {
-          await waitForCms(runtimeEnv.CMS_URL, {
-            timeoutMs: Number(runtimeEnv.CMS_READY_TIMEOUT_MS) || 180000,
-            isProcessAlive: () => isCmsProcessRunning(runtimeEnv),
-          });
-
-          const processStable = await verifyCmsProcessStability(runtimeEnv);
-          if (!processStable) {
-            throw new Error(
-              `CMS responded to readiness probes but exited immediately after startup (attempt ${attempt}/${maxStartupAttempts})`
-            );
-          }
-          break;
-        } catch (error) {
-          const canRetry = attempt < maxStartupAttempts;
-          const diagnostics = [
-            `[startup] CMS startup attempt ${attempt}/${maxStartupAttempts} failed.`,
-            `[startup] Reason: ${toErrorMessage(error)}`,
-            '[startup] Verify PAYLOAD_SECRET, DATABASE_PATH permissions, and CMS_URL settings.',
-          ];
-          console.warn(diagnostics.join('\n'));
-          stopCms(runtimeEnv);
-          if (!canRetry) throw error;
-          const retryDelayMs = getStartupRetryDelayMs(attempt);
-          console.log(`[startup] Retrying CMS startup in ${retryDelayMs}ms...`);
-          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-        }
-      }
-    }
-
-    registerShutdownHandlers(runtimeEnv);
-    require('./server/index.js');
-  } catch (error) {
-    console.error('[startup] Failed to initialize services:', error.stack || error);
-    stopCms(runtimeEnv);
-    throw error;
-  }
+  validateRuntimeEnv(runtimeEnv);
+  require('./server/index.js');
 }
 
 if (require.main === module) {
@@ -492,9 +58,5 @@ module.exports = {
   start,
   buildRuntimeEnv,
   loadEnvironment,
-  waitForCms,
   validateRuntimeEnv,
-  getStartupRetryDelayMs,
-  isPortInUse,
-  checkCmsPrerequisites,
 };

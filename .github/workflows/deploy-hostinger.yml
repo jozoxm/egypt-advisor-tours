@@ -1,93 +1,18 @@
-# ============================================================
-# Auto-deploy to Hostinger on every push to main
-# ============================================================
-#
-# SETUP CHECKLIST (one-time, done by the repo owner):
-#
-#  1. In Hostinger hPanel, set up a Node.js application:
-#       hPanel → Websites → egyptadvisortours.com → Node.js
-#       • Node.js version : 18 (LTS) or higher
-#       • Application root : the folder where this repo is deployed, e.g.
-#                            /home/u123456789/egyptadvisortours.com
-#       • Startup file     : index.js
-#       • Click "Create" / "Save"
-#
-#  2. Enable SSH access for your Hostinger account:
-#       hPanel → Advanced → SSH Access → Enable
-#       Note your SSH hostname (e.g. server123.web-hosting.com), username,
-#       and port (usually 65002 on Hostinger shared/business plans).
-#
-#  3. Generate a dedicated SSH key-pair on your local machine:
-#       ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/hostinger_deploy
-#     Add the PUBLIC key (~/.ssh/hostinger_deploy.pub) to Hostinger:
-#       hPanel → Advanced → SSH Access → Manage SSH Keys → Add SSH Key
-#     Copy the PRIVATE key (~/.ssh/hostinger_deploy) content for step 4.
-#
-#  4. Add the following GitHub Secrets to this repository:
-#       GitHub → Settings → Secrets and variables → Actions → New repository secret
-#
-#       Secret name                    Example value
-#       ──────────────────────────────────────────────────────────────────────
-#       HOSTINGER_SSH_HOST             server123.web-hosting.com
-#       HOSTINGER_SSH_PORT             65002          (check hPanel SSH page)
-#       HOSTINGER_SSH_USER             u123456789     (your Hostinger username)
-#       HOSTINGER_SSH_KEY              -----BEGIN OPENSSH PRIVATE KEY----- ...
-#       HOSTINGER_APP_DIR              /home/u123456789/egyptadvisortours.com
-#       HOSTINGER_SSH_KNOWN_HOSTS      output of: ssh-keyscan -p <PORT> <HOST>
-#                                      Run once locally and paste the output as
-#                                      the secret value to pin the server key.
-#       ADMIN_SECRET                   a-long-random-string (JWT signing key)
-#       ADMIN_PASSWORD                 a-secure-password (admin login password)
-#
-#       Optional:
-#       ADMIN_USERNAME                 login username (default: "admin")
-#       PAYLOAD_SECRET                 a-long-random-string (Payload CMS JWT key;
-#                                      strongly recommended for production)
-#       SITE_URL                       https://egyptadvisortours.com  (override if
-#                                      the public URL differs from the default)
-#       HOSTINGER_DATA_PATH            /home/u123456789/admin_data  (persist data outside repo)
-#       REACT_APP_EMAILJS_SERVICE_ID
-#       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
-#       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
-#       REACT_APP_EMAILJS_PUBLIC_KEY
-#
-#  5. No manual repository clone is required on first deploy.
-#     The workflow will bootstrap HOSTINGER_APP_DIR automatically and clone
-#     the repository there if it does not already exist.
-#     Make sure HOSTINGER_APP_DIR points to the folder you configured as the
-#     Node.js application root in hPanel.
-#
-#  NOTE — Payload CMS (the /admin panel) runs as a separate Next.js process
-#     on port 3001 and is proxied by the main Express server.  The deploy
-#     workflow automatically builds and starts it after every deployment.
-#     For the CMS to survive server restarts, PM2 must be available on your
-#     Hostinger plan (Business or Cloud plans include it).  On plans without
-#     PM2 the workflow falls back to nohup, which keeps the process running
-#     for the current session but may not survive a full server reboot.
-#
-# After completing steps 1–5, the first push to `main` will bootstrap the
-# app if needed, and later pushes will automatically deploy updates to
-# https://egyptadvisortours.com.
-# ============================================================
-
 name: Deploy to Hostinger
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
+  workflow_dispatch:
 
 permissions:
-  contents: read   # only read access needed; no push/write in this workflow
+  contents: read
 
 env:
-  # Opt in to Node.js 24 now; avoids deprecation warnings from actions/checkout
-  # that will become hard errors when GitHub removes Node.js 20 support.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  # ── Job 1: Run all tests before deploying ──────────────────────────────────
   test:
     name: Run tests
     runs-on: ubuntu-latest
@@ -116,13 +41,6 @@ jobs:
       - name: Run client tests
         run: npm run test:client -- --watchAll=false --passWithNoTests
 
-      - name: Install CMS dependencies
-        run: npm install --prefix cms
-
-      - name: Typecheck CMS
-        run: npm run typecheck --prefix cms
-
-  # ── Job 2: Deploy only if tests pass ──────────────────────────────────────
   deploy:
     name: SSH deploy → Hostinger
     runs-on: ubuntu-latest
@@ -132,8 +50,6 @@ jobs:
       url: https://egyptadvisortours.com
 
     steps:
-      # ── 0. Validate required secrets ─────────────────────────────────────
-      #    Fail fast with a helpful message before spending time on SSH steps.
       - name: Validate required secrets
         env:
           _HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
@@ -144,531 +60,141 @@ jobs:
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          _PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
+          _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
           _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
           missing=()
-          [ -z "$_HOST" ]          && missing+=("HOSTINGER_SSH_HOST")
-          [ -z "$_USER" ]          && missing+=("HOSTINGER_SSH_USER")
-          [ -z "$_PORT" ]          && missing+=("HOSTINGER_SSH_PORT")
-          [ -z "$_KEY" ]           && missing+=("HOSTINGER_SSH_KEY")
-          [ -z "$_DIR" ]           && missing+=("HOSTINGER_APP_DIR")
-          [ -z "$_KNOWN_HOSTS" ]   && missing+=("HOSTINGER_SSH_KNOWN_HOSTS (run: ssh-keyscan -p <PORT> <HOST>)")
-          [ -z "$_ADMIN_SECRET" ]  && missing+=("ADMIN_SECRET")
+          [ -z "$_HOST" ] && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ] && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ] && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY" ] && missing+=("HOSTINGER_SSH_KEY")
+          [ -z "$_DIR" ] && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS")
+          [ -z "$_ADMIN_SECRET" ] && missing+=("ADMIN_SECRET")
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
-          [ -z "$_PAYLOAD_SECRET" ] && missing+=("PAYLOAD_SECRET")
-          [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH (absolute writable directory path on the server)")
+          [ -z "$_STORYBLOK_PREVIEW_TOKEN" ] && missing+=("STORYBLOK_PREVIEW_TOKEN")
+          [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
-            echo "Add them at: Settings → Secrets and variables → Actions"
-            exit 1
-          fi
-          # Validate HOSTINGER_DATA_PATH format: must start with '/' and contain no whitespace
-          case "$_HOSTINGER_DATA_PATH" in
-            /*) ;;
-            *) echo "::error::HOSTINGER_DATA_PATH must be an absolute path (start with /): '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
-          esac
-          case "$_HOSTINGER_DATA_PATH" in
-            *[[:space:]]*) echo "::error::HOSTINGER_DATA_PATH must not contain whitespace: '$_HOSTINGER_DATA_PATH'"; exit 1 ;;
-          esac
-
-          if [ "$_HOSTINGER_DATA_PATH" != "${_HOSTINGER_DATA_PATH#"${_HOSTINGER_DATA_PATH%%[![:space:]]*}"}" ] || \
-             [ "$_HOSTINGER_DATA_PATH" != "${_HOSTINGER_DATA_PATH%"${_HOSTINGER_DATA_PATH##*[![:space:]]}"}" ]; then
-            echo "::error::HOSTINGER_DATA_PATH must not contain leading or trailing whitespace"
             exit 1
           fi
 
-          case "$_HOSTINGER_DATA_PATH" in
-            /*) ;;
-            *)
-              echo "::error::HOSTINGER_DATA_PATH must be an absolute path starting with /"
-              exit 1
-              ;;
-          esac
-
-      # ── 1. Check out code ────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 1b. Set up Node.js for CMS build ─────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: 'npm'
-          cache-dependency-path: cms/package-lock.json
 
-      # ── 1c. Build CMS on runner ───────────────────────────────────────────
-      #    Hostinger shared hosting has a low per-user process-count limit
-      #    (ulimit -u).  When `next build` spawns 5 worker processes for
-      #    "Collecting page data" the server hits EAGAIN (errno -11), crashing
-      #    the build every time.  Building on the GitHub Actions runner (no
-      #    process limits) and uploading the pre-built .next artefacts resolves
-      #    this entirely.  All env vars used here are runtime-only (no
-      #    NEXT_PUBLIC_ prefix), so the build succeeds without server secrets.
-      - name: Build CMS on runner
-        run: |
-          npm ci --prefix cms
-          npm run build --prefix cms
-
-      # ── 2. Add pinned Hostinger SSH host key to known_hosts ───────────
       - name: Add Hostinger to known_hosts
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      # ── 3. Write the private key ──────────────────────────────────────
       - name: Install SSH private key
         run: |
           printf '%s' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
 
-      # ── 4a. Write client build-time env vars and server runtime env to the server ──
-      #    REACT_APP_* variables are embedded into the React bundle at build
-      #    time (triggered by scripts/build-client.js via the postinstall hook).
-      #    Because the SSH session on Hostinger does not inherit hPanel env vars,
-      #    we pipe them into a gitignored client/.env.production.local file that
-      #    Create React App reads automatically during the build.
-      #    The file is deleted in step 4c right after npm install completes.
-      #    ADMIN_SECRET and ADMIN_PASSWORD are written to a gitignored .env file
-      #    so the Node.js server can enforce JWT-based admin auth at runtime.
-      #    On first deploy this step also bootstraps the repo if the app directory
-      #    does not yet contain a git repository.
-      #
-      #    SSH resilience: -4 forces IPv4 (avoids "Network is unreachable" on
-      #    runners that try IPv6 first), ConnectTimeout=10 fails fast, and the
-      #    retry loop retries up to 3 times for transient network errors.
-      - name: Write client env vars to server
+      - name: Write environment files to server
         env:
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           _ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-          _PAYLOAD_SECRET: ${{ secrets.PAYLOAD_SECRET }}
-          _SITE_URL: ${{ secrets.SITE_URL || 'https://egyptadvisortours.com' }}
+          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
+          _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
+          _STORYBLOK_SPACE_ID: ${{ secrets.STORYBLOK_SPACE_ID }}
+          _STORYBLOK_EDITOR_URL: ${{ secrets.STORYBLOK_EDITOR_URL }}
+          _STORYBLOK_MANAGEMENT_TOKEN: ${{ secrets.STORYBLOK_MANAGEMENT_TOKEN }}
+          _STORYBLOK_PREVIEW_SECRET: ${{ secrets.STORYBLOK_PREVIEW_SECRET }}
+          _STORYBLOK_REGION: ${{ secrets.STORYBLOK_REGION }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_PUBLIC_KEY: ${{ secrets.REACT_APP_EMAILJS_PUBLIC_KEY }}
-          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
-
-          # Common SSH options used for every connection in this step.
-          # -4               : force IPv4 — avoids "Network is unreachable" when the
-          #                    runner resolves to an IPv6 address that Hostinger
-          #                    does not support.
-          # ConnectTimeout=10: give up quickly so retries kick in sooner.
-          # BatchMode=yes    : never prompt for a password (fail immediately).
           SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
 
-          # Helper: run a remote SSH command with up to 3 attempts.
-          ssh_retry() {
-            local attempt exit_code
-            for attempt in 1 2 3; do
-              ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "$1"
-              exit_code=$?
-              [ "$exit_code" -eq 0 ] && return 0
-              if [ "$attempt" -lt 3 ]; then
-                echo "SSH attempt $attempt failed (exit $exit_code), retrying in 10s..."
-                sleep 10
-              fi
-            done
-            echo "::error::SSH command failed after 3 attempts (exit $exit_code)."
-            return 1
-          }
-
-          # On first deploy: bootstrap the repo in-place if .git is missing.
-          ssh_retry "set -e
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
+            mkdir -p '${DEPLOY_DIR}'
             if [ ! -d '${DEPLOY_DIR}/.git' ]; then
-              echo '--- first deploy: bootstrapping repository ---'
-              mkdir -p '${DEPLOY_DIR}'
               cd '${DEPLOY_DIR}'
               git init
               git remote add origin https://github.com/${{ github.repository }}.git
-              git fetch origin main
-              git reset --hard FETCH_HEAD
             fi
             mkdir -p '${DEPLOY_DIR}/client'"
 
-          # Write build-time env vars to a gitignored file on the server so
-          # `npm run build` embeds the correct values in the React bundle.
-          env_file=$(mktemp)
+          client_env_file=$(mktemp)
           printf '%s\n%s\n%s\n%s\n' \
             "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
             "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_PUBLIC_KEY=${_REACT_APP_EMAILJS_PUBLIC_KEY}" \
-            > "$env_file"
+            > "$client_env_file"
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+            "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'" < "$client_env_file"
+          rm -f "$client_env_file"
 
-          for attempt in 1 2 3; do
-            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-                 "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'" \
-                 < "$env_file"; then
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Env file write attempt $attempt failed, retrying in 10s..."
-              sleep 10
-            else
-              rm -f "$env_file"
-              echo "::error::Failed to write env file to server after 3 attempts."
-              exit 1
-            fi
-          done
-          rm -f "$env_file"
-
-          # Write the server runtime .env file containing ADMIN_SECRET and
-          # ADMIN_PASSWORD so that the Node.js process enforces JWT-based admin
-          # authentication in production.
           server_env_file=$(mktemp)
-          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\n' \
-            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" > "$server_env_file"
-          if [ -n "${_ADMIN_USERNAME}" ]; then
-            printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"
-          fi
-          _DATA_PATH_CLEAN=$(printf '%s' "${_HOSTINGER_DATA_PATH}" | tr -d '\n\r')
-          if [ -n "$_DATA_PATH_CLEAN" ]; then
-            printf 'DATA_PATH=%s\n' "$_DATA_PATH_CLEAN" >> "$server_env_file"
-            # Tell the Payload CMS where to store its SQLite database (same
-            # persistent volume as the JSON data files).
-            printf 'DATABASE_PATH=%s/payload.db\n' "$_DATA_PATH_CLEAN" >> "$server_env_file"
-          fi
-          # PAYLOAD_SECRET signs Payload CMS JWTs — set it via the GitHub
-          # Secret PAYLOAD_SECRET (optional but strongly recommended).
-          if [ -n "${_PAYLOAD_SECRET}" ]; then
-            printf 'PAYLOAD_SECRET=%s\n' "${_PAYLOAD_SECRET}" >> "$server_env_file"
-          fi
-
-          for attempt in 1 2 3; do
-            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-                 "umask 077; cat > '${DEPLOY_DIR}/.env'" \
-                 < "$server_env_file"; then
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Server env file write attempt $attempt failed, retrying in 10s..."
-              sleep 10
-            else
-              rm -f "$server_env_file"
-              echo "::error::Failed to write server .env file after 3 attempts."
-              exit 1
-            fi
-          done
+          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\nDATA_PATH=%s\nSTORYBLOK_PREVIEW_TOKEN=%s\n' \
+            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${_STORYBLOK_PREVIEW_TOKEN}" > "$server_env_file"
+          [ -n "${_ADMIN_USERNAME}" ] && printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_SPACE_ID}" ] && printf 'STORYBLOK_SPACE_ID=%s\n' "${_STORYBLOK_SPACE_ID}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_EDITOR_URL}" ] && printf 'STORYBLOK_EDITOR_URL=%s\n' "${_STORYBLOK_EDITOR_URL}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_MANAGEMENT_TOKEN}" ] && printf 'STORYBLOK_MANAGEMENT_TOKEN=%s\n' "${_STORYBLOK_MANAGEMENT_TOKEN}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_PREVIEW_SECRET}" ] && printf 'STORYBLOK_PREVIEW_SECRET=%s\n' "${_STORYBLOK_PREVIEW_SECRET}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_REGION}" ] && printf 'STORYBLOK_REGION=%s\n' "${_STORYBLOK_REGION}" >> "$server_env_file"
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+            "umask 077; cat > '${DEPLOY_DIR}/.env'" < "$server_env_file"
           rm -f "$server_env_file"
 
-          # Write cms/.env.local so the Payload CMS Next.js process picks up
-          # the correct PAYLOAD_SECRET, DATABASE_PATH, and server URL.
-          # Next.js reads .env.local automatically from the app directory.
-          cms_env_file=$(mktemp)
-          _SITE_URL_CLEAN=$(printf '%s' "${_SITE_URL}" | tr -d '\n\r')
-          printf 'PAYLOAD_SERVER_URL=%s\n' "${_SITE_URL_CLEAN:-https://egyptadvisortours.com}" > "$cms_env_file"
-          if [ -n "${_PAYLOAD_SECRET}" ]; then
-            printf 'PAYLOAD_SECRET=%s\n' "${_PAYLOAD_SECRET}" >> "$cms_env_file"
-          fi
-          if [ -n "$_DATA_PATH_CLEAN" ]; then
-            printf 'DATABASE_PATH=%s/payload.db\n' "$_DATA_PATH_CLEAN" >> "$cms_env_file"
-          fi
-
-          for attempt in 1 2 3; do
-            if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-                 "umask 077; mkdir -p '${DEPLOY_DIR}/cms'; cat > '${DEPLOY_DIR}/cms/.env.local'" \
-                 < "$cms_env_file"; then
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "CMS env file write attempt $attempt failed, retrying in 10s..."
-              sleep 10
-            else
-              rm -f "$cms_env_file"
-              echo "::error::Failed to write CMS .env.local after 3 attempts."
-              exit 1
-            fi
-          done
-          rm -f "$cms_env_file"
-
-      # ── 4b. Upload pre-built CMS .next artefacts to server ───────────────
-      #    The CMS was built on the CI runner in step 1c to avoid the Hostinger
-      #    EAGAIN process-limit crash.  We upload the resulting .next directory
-      #    as a tarball here so the deploy script (step 4c) can extract it
-      #    instead of running `next build` on the server.
-      - name: Upload CMS build to server
-        run: |
-          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
-          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
-          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
-          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
-
-          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
-          # Note: scp uses -P (uppercase) for port, not -p
-          SCP_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -P $DEPLOY_PORT"
-
-          echo "Creating CMS build tarball..."
-          tar -czf /tmp/cms-next-prebuilt.tar.gz -C cms .next
-          echo "Tarball size: $(du -sh /tmp/cms-next-prebuilt.tar.gz | cut -f1)"
-
-          # Ensure the cms directory exists on the server (safe on both first
-          # and subsequent deploys; step 4a already wrote cms/.env.local there).
-          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '${DEPLOY_DIR}/cms'"
-
-          for attempt in 1 2 3; do
-            if scp $SCP_OPTS /tmp/cms-next-prebuilt.tar.gz \
-                 "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_DIR}/cms-next-prebuilt.tar.gz"; then
-              echo "CMS build uploaded successfully (attempt $attempt)."
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Upload attempt $attempt failed, retrying in 10s..."
-              sleep 10
-            else
-              echo "::error::Failed to upload CMS build tarball after 3 attempts."
-              exit 1
-            fi
-          done
-          rm -f /tmp/cms-next-prebuilt.tar.gz
-
-      # ── 4c. Pull latest code and restart the app ─────────────────────────
-      #    The postinstall hook (scripts/build-client.js) runs on every
-      #    `npm install` and builds the React frontend unconditionally
-      #    (unless SKIP_CLIENT_BUILD=1 or NODE_ENV=development is set).
-      #    After the main app restarts we install the CMS production deps,
-      #    extract the pre-built .next artefacts uploaded in step 4b, and
-      #    start the Payload CMS so that /admin is served.
       - name: Pull & restart on Hostinger
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
-
           SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
 
-          for attempt in 1 2 3; do
-            ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-              "set -e
-               trap 'rm -f \"${DEPLOY_DIR}/client/.env.production.local\"' EXIT
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
+            export NVM_DIR=\"\$HOME/.nvm\"
+            [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+            command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
+            npm --version
+            cd '${DEPLOY_DIR}'
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+            npm install --production=false
+            rm -f client/.env.production.local
+            mkdir -p tmp
+            touch tmp/restart.txt"
 
-               # ── Load nvm so node/npm are in PATH ──────────────────────────
-               # Non-interactive SSH sessions do not source .bashrc/.bash_profile,
-               # so nvm (and therefore node/npm) is not on PATH by default.
-               export NVM_DIR=\"\$HOME/.nvm\"
-               [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
-               # Fallback: add common system npm locations (cPanel / Hostinger)
-               command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
-               # Confirm npm is available — fail fast with a clear message if not.
-               npm --version || { echo '::error::npm not found. Check Node.js setup on Hostinger.'; exit 1; }
-
-               cd '${DEPLOY_DIR}'
-
-               echo '--- resetting local tracked changes before sync ---'
-               echo 'Current git status before reset:'
-               git status --short || true
-               git reset --hard HEAD
-               # npm install in cms/ may create this untracked lockfile on the
-               # server; remove it so remote-tracking reset cannot fail due to
-               # leftover untracked files from prior deploys.
-               rm -f cms/package-lock.json
-
-               echo '--- fetching latest code and resetting to origin/main ---'
-               git fetch origin main
-               git checkout main
-               git reset --hard origin/main
-
-               echo '--- installing main app dependencies (also builds React client) ---'
-               npm install --production=false
-
-               echo '--- removing temporary build env file ---'
-               rm -f client/.env.production.local
-
-               echo '--- restarting main Node.js app (Passenger) ---'
-               mkdir -p tmp
-               touch tmp/restart.txt
-               # If the host also supports PM2 for the main process:
-               # pm2 restart egypt-advisor-tours 2>/dev/null || true
-
-                echo '--- installing CMS production dependencies (built on CI runner) ---'
-                if npm install --prefix cms --production=false; then
-                  echo '--- extracting pre-built CMS .next artefacts ---'
-                  if [ ! -f '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz' ]; then
-                    echo '::error::Pre-built CMS tarball not found at ${DEPLOY_DIR}/cms-next-prebuilt.tar.gz — upload step may have failed.'
-                    exit 1
-                  fi
-                  cd '${DEPLOY_DIR}/cms'
-                  rm -rf .next
-                  tar -xzf '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
-                  cd '${DEPLOY_DIR}'
-                  echo '--- starting CMS service ---'
-                  if command -v pm2 >/dev/null 2>&1; then
-                   # When PM2 is available, stop by process name — no need
-                   # for pkill or a PID file.
-                   if pm2 describe egypt-cms >/dev/null 2>&1; then
-                     pm2 restart egypt-cms
-                   else
-                     pm2 start npm --name egypt-cms -- run start --prefix '${DEPLOY_DIR}/cms'
-                   fi
-                   pm2 save 2>/dev/null || true
-                  else
-                    # Nohup fallback: stop the previous instance via the saved
-                    # PID file only — avoids any broad pkill pattern.
-                    if [ -f '${DEPLOY_DIR}/cms.pid' ]; then
-                      kill \$(cat '${DEPLOY_DIR}/cms.pid') 2>/dev/null || true
-                     rm -f '${DEPLOY_DIR}/cms.pid'
-                     sleep 2
-                   fi
-                   # Redirect stdin from /dev/null so the process is fully
-                   # detached from the terminal.
-                    nohup npm run start --prefix '${DEPLOY_DIR}/cms' \
-                      > '${DEPLOY_DIR}/cms.log' 2>&1 </dev/null &
-                    echo \$! > '${DEPLOY_DIR}/cms.pid'
-                    echo \"CMS started in background (PID: \$(cat '${DEPLOY_DIR}/cms.pid'))\"
-                  fi
-                  echo '--- verifying CMS runtime/env wiring ---'
-                  if [ ! -f '${DEPLOY_DIR}/cms/.env.local' ]; then
-                    echo '::error::cms/.env.local not found after deploy'
-                    exit 1
-                  fi
-                  grep -Eq '^PAYLOAD_SERVER_URL=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SERVER_URL missing or empty in cms/.env.local'; exit 1; }
-                  grep -Eq '^PAYLOAD_SECRET=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::PAYLOAD_SECRET missing or empty in cms/.env.local'; exit 1; }
-                  grep -Eq '^DATABASE_PATH=[^[:space:]].*$' '${DEPLOY_DIR}/cms/.env.local' || { echo '::error::DATABASE_PATH missing or empty in cms/.env.local'; exit 1; }
-                  DATABASE_PATH_COUNT=\$(grep -c '^DATABASE_PATH=' '${DEPLOY_DIR}/cms/.env.local')
-                  if [ \"\$DATABASE_PATH_COUNT\" -gt 1 ]; then
-                    echo \"::warning::Multiple DATABASE_PATH entries found in cms/.env.local; using the last one\"
-                  fi
-                  DATABASE_PATH_VALUE=\$(sed -n 's/^DATABASE_PATH=//p' '${DEPLOY_DIR}/cms/.env.local' | tail -n 1)
-                  DATABASE_PATH_VALUE=\$(printf '%s' \"\$DATABASE_PATH_VALUE\" | sed -e 's/^\"//' -e 's/\"$//')
-                  case \"\$DATABASE_PATH_VALUE\" in
-                    /*) ;;
-                    *) echo \"::error::DATABASE_PATH must be an absolute path in production: \$DATABASE_PATH_VALUE\"; exit 1 ;;
-                  esac
-                  DATABASE_PATH_VALUE=\$(readlink -f \"\$DATABASE_PATH_VALUE\" 2>/dev/null || realpath \"\$DATABASE_PATH_VALUE\" 2>/dev/null || echo \"\$DATABASE_PATH_VALUE\")
-                  DB_DIR=\$(dirname \"\$DATABASE_PATH_VALUE\")
-                  mkdir -p \"\$DB_DIR\"
-                  DB_WRITE_TEST=\$(mktemp \"\$DB_DIR/.payload-write-test.XXXXXX\") 2>/dev/null || { echo \"::error::DATABASE_PATH directory is not writable: \$DB_DIR. Ensure it exists and is writable by the deploy user.\"; exit 1; }
-                  rm -f \"\$DB_WRITE_TEST\"
-                  sleep 5
-                  if command -v pm2 >/dev/null 2>&1; then
-                    pm2 describe egypt-cms >/dev/null 2>&1 || { echo '::error::PM2 process egypt-cms is not running'; pm2 logs egypt-cms --lines 120 --nostream || true; exit 1; }
-                  else
-                    if [ ! -f '${DEPLOY_DIR}/cms.pid' ]; then
-                      echo '::error::cms.pid not found after CMS start'
-                      tail -n 120 '${DEPLOY_DIR}/cms.log' || true
-                      exit 1
-                    fi
-                    CMS_PID=\$(cat '${DEPLOY_DIR}/cms.pid')
-                    kill -0 \"\$CMS_PID\" 2>/dev/null || { echo \"::error::CMS process is not running (PID \$CMS_PID)\"; tail -n 120 '${DEPLOY_DIR}/cms.log' || true; exit 1; }
-                  fi
-                  # Tarball no longer needed — delete after confirming CMS is alive so retries can re-use it.
-                  rm -f '${DEPLOY_DIR}/cms-next-prebuilt.tar.gz'
-                else
-                  echo '::error::CMS dependency install failed — check npm output above'
-                  exit 1
-                fi
-
-                echo '--- deploy complete ---'" && break
-            if [ "$attempt" -lt 3 ]; then
-              echo "Pull & restart attempt $attempt failed, retrying in 10s..."
-              sleep 10
-            else
-              echo "::error::Pull & restart failed after 3 attempts."
-              exit 1
-            fi
-          done
-
-      # ── 5. Health check — verify the deployed site is responding ──────
       - name: Health check
         run: |
-          # Wait for CMS (Next.js / Payload) cold-start.  On Hostinger's
-          # constrained shared hosting it can take 40-60 s for the process
-          # to begin accepting requests after nohup / PM2 starts it.
-          echo "Waiting 45 seconds for the app and CMS to finish starting..."
-          sleep 45
+          sleep 20
           run_check() {
             local url="$1"
-            local label="$2"
-            local mode="$3"
+            local mode="$2"
             local status
-            for attempt in 1 2 3 4 5; do
-              status=$(curl -s -o /dev/null -w "%{http_code}" \
-                --max-time 20 "$url" || echo "000")
-              case "$mode:$status" in
-                strict:2[0-9][0-9]|redirect-ok:2[0-9][0-9]|redirect-ok:3[0-9][0-9])
-                  echo "✅ ${label} check passed (HTTP $status)"
-                  return 0
-                  ;;
-              esac
-              if [ "$attempt" -lt 5 ]; then
-                echo "${label} check attempt $attempt returned HTTP $status, retrying in 15s..."
-                sleep 15
-              else
-                echo "::error::${label} check failed after 5 attempts. Last status: HTTP $status"
-                echo "::group::${label} response body"
-                curl -s -L --max-time 30 "$url" || true
-                echo "::endgroup::"
-                return 1
-              fi
-            done
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo "000")
+            case "$mode:$status" in
+              strict:2[0-9][0-9]|redirect-ok:2[0-9][0-9]|redirect-ok:3[0-9][0-9]) return 0 ;;
+            esac
+            echo "::error::Health check failed for $url (HTTP $status)"
+            exit 1
           }
-          # After confirming HTTP status, also verify that the /admin page is
-          # serving real Payload CMS content and NOT the Express 503 fallback
-          # page ("Admin Panel Unavailable") that is returned when the CMS
-          # proxy target is unreachable.  Following redirects (-L) handles the
-          # typical Payload redirect: /admin → /admin/login.
-          check_admin_content() {
-            local body
-            for attempt in 1 2 3; do
-              body=$(curl -s -L --max-time 30 "https://egyptadvisortours.com/admin" || echo "")
-              if echo "$body" | grep -qF "Admin Panel Unavailable"; then
-                if [ "$attempt" -lt 3 ]; then
-                  echo "Admin content check attempt $attempt: CMS still returning 503 page, retrying in 20s..."
-                  sleep 20
-                else
-                  echo "::error::Admin panel is returning the 503 error page — the Payload CMS process is not serving content."
-                  echo "::error::Make sure the CMS started correctly. Check the 'CMS diagnostics on failure' step output."
-                  return 1
-                fi
-              else
-                echo "✅ Admin content check passed (CMS is serving Payload content, not 503 fallback)"
-                return 0
-              fi
-            done
-          }
-          run_check "https://egyptadvisortours.com/health" "API health" "strict"
-          run_check "https://egyptadvisortours.com/api/admin/health" "CMS admin API health" "strict"
-          run_check "https://egyptadvisortours.com/admin" "Admin health" "redirect-ok"
-          check_admin_content
+          run_check "https://egyptadvisortours.com/health" "strict"
+          run_check "https://egyptadvisortours.com/api/admin/health" "strict"
+          run_check "https://egyptadvisortours.com/admin" "redirect-ok"
 
-      - name: CMS diagnostics on failure
-        if: failure()
-        run: |
-          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
-          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
-          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
-          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
-          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
-          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
-            "set +e
-             echo '--- cms/.env.local keys (values hidden) ---'
-             if [ -f '${DEPLOY_DIR}/cms/.env.local' ]; then
-               cut -d '=' -f 1 '${DEPLOY_DIR}/cms/.env.local' | sed '/^$/d'
-             else
-               echo 'cms/.env.local missing'
-             fi
-             echo '--- pm2 describe egypt-cms ---'
-             if command -v pm2 >/dev/null 2>&1; then
-               pm2 describe egypt-cms || true
-               echo '--- pm2 logs egypt-cms (tail) ---'
-               pm2 logs egypt-cms --lines 120 --nostream || true
-             else
-               echo 'pm2 not installed on host'
-             fi
-             echo '--- cms.log tail ---'
-             tail -n 120 '${DEPLOY_DIR}/cms.log' || true"
-
-      # ── 6. Print deployment summary ───────────────────────────────────
       - name: Deployment summary
         run: |
           echo "✅ Deployed to https://egyptadvisortours.com"
-          echo "   Remote deployment completed successfully."
