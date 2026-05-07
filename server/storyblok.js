@@ -11,13 +11,17 @@ function wrapToursPayload(data) {
   };
 }
 
+function wrapObjectPayload(data) {
+  return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+}
+
 const RESOURCE_CONFIG = {
   tours: { slug: 'cms-tours', wrap: wrapToursPayload },
-  contact: { slug: 'cms-contact', wrap: (data) => data && typeof data === 'object' && !Array.isArray(data) ? data : {} },
+  contact: { slug: 'cms-contact', wrap: wrapObjectPayload },
   blogs: { slug: 'cms-blogs', wrap: (data) => (data && data.blogs ? data : { blogs: Array.isArray(data) ? data : [] }) },
   gallery: { slug: 'cms-gallery', wrap: (data) => (data && data.gallery ? data : { gallery: Array.isArray(data) ? data : [] }) },
   slideshow: { slug: 'cms-slideshow', wrap: (data) => (data && data.slides ? data : { slides: Array.isArray(data) ? data : [] }) },
-  settings: { slug: 'cms-settings', wrap: (data) => data && typeof data === 'object' && !Array.isArray(data) ? data : {} },
+  settings: { slug: 'cms-settings', wrap: wrapObjectPayload },
   promotions: { slug: 'cms-promotions', wrap: (data) => (data && data.promotions ? data : { promotions: Array.isArray(data) ? data : [] }) },
   destinations: { slug: 'cms-destinations', wrap: (data) => (data && data.destinations ? data : { destinations: Array.isArray(data) ? data : [] }) },
 };
@@ -187,8 +191,12 @@ async function updateStoryblokResource(resourceKey, payload, env = process.env) 
   const managementToken = env.STORYBLOK_MANAGEMENT_TOKEN;
   const spaceId = env.STORYBLOK_SPACE_ID;
 
-  if (!managementToken || !spaceId) {
-    return { persisted: false, reason: 'missing-management-config' };
+  if (!managementToken) {
+    return { persisted: false, reason: 'STORYBLOK_MANAGEMENT_TOKEN is required' };
+  }
+
+  if (!spaceId) {
+    return { persisted: false, reason: 'STORYBLOK_SPACE_ID is required' };
   }
 
   const story = await fetchStoryblokStory(resourceKey, {

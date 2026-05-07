@@ -145,7 +145,7 @@ const ADMIN_COOKIE_NAME = 'adminToken';
 const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
-function issueAdminSessionCookies(res, token) {
+function issueAdminSessionAndCsrfCookies(res, token) {
     const secure = process.env.NODE_ENV === 'production';
     const csrfToken = crypto.randomBytes(32).toString('hex');
 
@@ -453,6 +453,9 @@ async function persistCmsContent(key, data) {
     return { persisted: writeData(key, data), provider: 'filesystem' };
 }
 
+// Only reuse the in-memory store when Storyblok is not configured and the
+// request is for published content. Draft/preview requests must always bypass
+// the cache so editors see the latest Storyblok state immediately.
 function shouldUseMemoryStore(req) {
     return !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
 }
@@ -665,7 +668,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
         // Dev mode — no password configured, issue a token anyway so the
         // admin panel works without any setup.
         const devToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        issueAdminSessionCookies(res, devToken);
+        issueAdminSessionAndCsrfCookies(res, devToken);
         return res.json({ success: true, message: 'Logged in (dev mode — no password required).' });
     }
 
@@ -681,7 +684,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     }
 
     const sessionToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-    issueAdminSessionCookies(res, sessionToken);
+    issueAdminSessionAndCsrfCookies(res, sessionToken);
     res.json({ success: true, message: 'Logged in successfully.' });
 });
 

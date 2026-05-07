@@ -24,53 +24,61 @@ function requireMatch(content, regex, label) {
   return match;
 }
 
+function parseExtractedJson(value, label) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`Failed to parse ${label}: ${error.message}`);
+  }
+}
+
 const SOURCE_MAP = {
   tours: {
     jsonPath: path.join(DATA_DIR, 'tours.json'),
     jsPath: path.join(ROOT, 'client/src/data/tours-data.js'),
     readFromJs: (content) => {
-      const toursMatch = content.match(/export const tours\s*=\s*(\[[\s\S]*?\]);/);
-      const testimonialsMatch = content.match(/export const testimonials\s*=\s*(\[[\s\S]*?\]);/);
+      const toursMatch = requireMatch(content, /export const tours\s*=\s*(\[[\s\S]*?\]);/, 'tours');
+      const testimonialsMatch = requireMatch(content, /export const testimonials\s*=\s*(\[[\s\S]*?\]);/, 'testimonials');
       return {
-        tours: toursMatch ? JSON.parse(toursMatch[1]) : [],
-        testimonials: testimonialsMatch ? JSON.parse(testimonialsMatch[1]) : [],
+        tours: parseExtractedJson(toursMatch[1], 'tours from tours-data.js'),
+        testimonials: parseExtractedJson(testimonialsMatch[1], 'testimonials from tours-data.js'),
       };
     },
   },
   contact: {
     jsonPath: path.join(DATA_DIR, 'contact.json'),
     jsPath: path.join(ROOT, 'client/src/data/contact-info.js'),
-    readFromJs: (content) => JSON.parse(requireMatch(content, /export const contactInfo\s*=\s*({[\s\S]*?});/, 'contact info')[1]),
+    readFromJs: (content) => parseExtractedJson(requireMatch(content, /export const contactInfo\s*=\s*({[\s\S]*?});/, 'contact info')[1], 'contact info'),
   },
   blogs: {
     jsonPath: path.join(DATA_DIR, 'blogs.json'),
     jsPath: path.join(ROOT, 'client/src/data/blogs-data.js'),
-    readFromJs: (content) => ({ blogs: JSON.parse(requireMatch(content, /export const blogs\s*=\s*(\[[\s\S]*?\]);/, 'blogs')[1]) }),
+    readFromJs: (content) => ({ blogs: parseExtractedJson(requireMatch(content, /export const blogs\s*=\s*(\[[\s\S]*?\]);/, 'blogs')[1], 'blogs') }),
   },
   gallery: {
     jsonPath: path.join(DATA_DIR, 'gallery.json'),
     jsPath: path.join(ROOT, 'client/src/data/gallery-data.js'),
-    readFromJs: (content) => ({ gallery: JSON.parse(requireMatch(content, /export const gallery\s*=\s*(\[[\s\S]*?\]);/, 'gallery')[1]) }),
+    readFromJs: (content) => ({ gallery: parseExtractedJson(requireMatch(content, /export const gallery\s*=\s*(\[[\s\S]*?\]);/, 'gallery')[1], 'gallery') }),
   },
   slideshow: {
     jsonPath: path.join(DATA_DIR, 'slideshow.json'),
     jsPath: path.join(ROOT, 'client/src/data/slideshow-data.js'),
-    readFromJs: (content) => ({ slides: JSON.parse(requireMatch(content, /export const slides\s*=\s*(\[[\s\S]*?\]);/, 'slideshow')[1]) }),
+    readFromJs: (content) => ({ slides: parseExtractedJson(requireMatch(content, /export const slides\s*=\s*(\[[\s\S]*?\]);/, 'slideshow')[1], 'slideshow') }),
   },
   settings: {
     jsonPath: path.join(DATA_DIR, 'settings.json'),
     jsPath: path.join(ROOT, 'client/src/data/site-settings.js'),
-    readFromJs: (content) => JSON.parse(requireMatch(content, /export const siteSettings\s*=\s*({[\s\S]*?});/, 'site settings')[1]),
+    readFromJs: (content) => parseExtractedJson(requireMatch(content, /export const siteSettings\s*=\s*({[\s\S]*?});/, 'site settings')[1], 'site settings'),
   },
   promotions: {
     jsonPath: path.join(DATA_DIR, 'promotions.json'),
     jsPath: path.join(ROOT, 'client/src/data/promotions-data.js'),
-    readFromJs: (content) => ({ promotions: JSON.parse(requireMatch(content, /export const promotions\s*=\s*(\[[\s\S]*?\]);/, 'promotions')[1]) }),
+    readFromJs: (content) => ({ promotions: parseExtractedJson(requireMatch(content, /export const promotions\s*=\s*(\[[\s\S]*?\]);/, 'promotions')[1], 'promotions') }),
   },
   destinations: {
     jsonPath: path.join(DATA_DIR, 'destinations.json'),
     jsPath: path.join(ROOT, 'client/src/data/destinations-data.js'),
-    readFromJs: (content) => ({ destinations: JSON.parse(requireMatch(content, /export const destinations\s*=\s*(\[[\s\S]*?\]);/, 'destinations')[1]) }),
+    readFromJs: (content) => ({ destinations: parseExtractedJson(requireMatch(content, /export const destinations\s*=\s*(\[[\s\S]*?\]);/, 'destinations')[1], 'destinations') }),
   },
 };
 
