@@ -29,7 +29,7 @@ npm start
 - Site/API: `http://localhost:5000`
 - React dev server: `npm run dev:client`
 - Express dev server: `npm run dev:server`
-- Storyblok editor redirect: `http://localhost:5000/admin`
+- Embedded Storyblok admin shell: `http://localhost:5000/admin`
 
 ## Storyblok setup (exact UI + env steps)
 
@@ -97,7 +97,7 @@ http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
 npm start
 ```
 
-- `/admin` redirects to Storyblok editor
+- `/admin` serves an authenticated embedded admin shell with Storyblok in an iframe
 - `/api/tours` and other APIs serve Storyblok-backed content
 - `/api/admin/preview/<secret>` enables draft preview mode
 - `/api/admin/preview/exit` clears preview mode
@@ -132,7 +132,9 @@ https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
 - `STORYBLOK_PREVIEW_SECRET` is optional but recommended
 - The route sets a short-lived preview cookie so the API reads Storyblok draft content
 - `/api/admin/preview/exit` clears the preview cookie
-- `/admin` redirects to the Storyblok editor
+- `/admin` now embeds the Storyblok editor inside a protected first-party admin shell
+- `/api/admin/preview/status` reports preview state for authenticated admins
+- `/api/admin/preview/enable` lets the admin shell enable preview mode without exposing `STORYBLOK_PREVIEW_SECRET` in browser links
 
 ## Security note
 

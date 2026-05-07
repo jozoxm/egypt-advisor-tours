@@ -32,7 +32,13 @@ Visit:
 
 - `https://egyptadvisortours.com/admin`
 
-The application redirects that route to the configured Storyblok space/editor URL.
+`/admin` now serves a protected in-app admin shell and embeds Storyblok in an iframe.
+If `ADMIN_PASSWORD` (or legacy `ADMIN_SECRET`) is configured, unauthenticated users are redirected to `/admin/login`.
+
+Storyblok editor URL resolution:
+
+- `STORYBLOK_EDITOR_URL` (if provided)
+- otherwise derived from `STORYBLOK_SPACE_ID` as `https://app.storyblok.com/#/me/spaces/<space-id>/content/`
 
 ## Content structure
 
@@ -60,6 +66,12 @@ https://egyptadvisortours.com/api/admin/preview/YOUR_PREVIEW_SECRET
 ```
 
 That route enables draft mode for the public site so you can preview unpublished Storyblok changes.
+
+Admin shell preview controls:
+
+- Enable preview via `POST /api/admin/preview/enable` (authenticated; secret not exposed to browser URL)
+- Exit preview via `POST /api/admin/preview/exit` or `GET /api/admin/preview/exit`
+- Preview state indicator reads `GET /api/admin/preview/status`
 
 ## Server-managed data
 
