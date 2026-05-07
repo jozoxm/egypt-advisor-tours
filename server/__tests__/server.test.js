@@ -75,10 +75,10 @@ describe('GET /admin', () => {
 describe('Storyblok preview routes', () => {
     it('sets the preview cookie and redirects when the secret is valid', async () => {
         const res = await request(app)
-            .get('/api/admin/preview/storyblok-secret/tours');
+            .get('/api/admin/preview/storyblok-secret');
 
         expect(res.status).toBe(302);
-        expect(res.headers.location).toBe('/tours');
+        expect(res.headers.location).toBe('/');
         expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
     });
 

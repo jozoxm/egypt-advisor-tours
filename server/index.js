@@ -623,10 +623,9 @@ app.get('/api/admin/health', async (req, res) => {
     }
 });
 
-app.get(['/api/admin/preview/:secret', '/api/admin/preview/:secret/*'], (req, res) => {
+app.get('/api/admin/preview/:secret', (req, res) => {
     const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
     const providedSecret = req.params.secret;
-    const redirectSuffix = req.params[0] || '';
 
     if (configuredSecret && providedSecret !== configuredSecret) {
         return res.status(401).send('Invalid Storyblok preview secret.');
@@ -638,8 +637,7 @@ app.get(['/api/admin/preview/:secret', '/api/admin/preview/:secret/*'], (req, re
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 1000,
     });
-    const safeRedirectPath = redirectSuffix ? `/${redirectSuffix}` : '/';
-    return res.redirect(302, safeRedirectPath);
+    return res.redirect(302, '/');
 });
 
 app.post('/api/admin/preview/exit', (req, res) => {
