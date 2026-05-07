@@ -81,6 +81,26 @@ describe('GET /admin', () => {
         expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
         expect(res.text).toContain('<iframe');
         expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.text).toContain('id="switch-account"');
+        expect(res.text).toContain('/api/admin/logout');
+        expect(res.text).toContain('/admin/login?force=1');
+    });
+
+    it('includes the configured editor origin in admin CSP frame-src', async () => {
+        const originalEditorUrl = process.env.STORYBLOK_EDITOR_URL;
+        process.env.STORYBLOK_EDITOR_URL = 'https://custom-editor.example.com/editor';
+        const session = await adminSession();
+
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
+        } finally {
+            process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
+        }
     });
 });
 
@@ -100,6 +120,16 @@ describe('GET /admin/login', () => {
 
         expect(res.status).toBe(302);
         expect(res.headers.location).toBe('/admin');
+    });
+
+    it('renders login page when force=1 even if authenticated', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin/login?force=1')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('Admin login');
     });
 });
 

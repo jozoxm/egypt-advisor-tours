@@ -596,14 +596,32 @@ function escapeHtml(value = '') {
         .replace(/'/g, '&#39;');
 }
 
-function getAdminPageCsp(nonce) {
+function getAdminFrameSources(storyblokAdminUrl) {
+    const sources = new Set([
+        'https://app.storyblok.com',
+        'https://*.storyblok.com',
+    ]);
+
+    try {
+        const origin = new URL(storyblokAdminUrl).origin;
+        if (origin) {
+            sources.add(origin);
+        }
+    } catch (_error) {
+        // Ignore invalid URL values and fall back to Storyblok defaults.
+    }
+
+    return [...sources].join(' ');
+}
+
+function getAdminPageCsp(nonce, storyblokAdminUrl) {
     return [
         "default-src 'self'",
         `script-src 'self' 'nonce-${nonce}'`,
         `style-src 'self' 'nonce-${nonce}'`,
         "img-src 'self' data:",
         "connect-src 'self'",
-        "frame-src https://app.storyblok.com https://*.storyblok.com",
+        `frame-src ${getAdminFrameSources(storyblokAdminUrl)}`,
         "frame-ancestors 'self'",
         "base-uri 'none'",
         "object-src 'none'",
@@ -700,7 +718,7 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
         <button id="enable-preview" class="primary" type="button">Enable preview mode</button>
         <button id="exit-preview" type="button">Exit preview mode</button>
         <a href="/api/admin/preview/exit" target="_blank" rel="noreferrer">Open preview-exit URL</a>
-        <a href="/admin/login">Switch account</a>
+        <button id="switch-account" type="button">Switch account</button>
       </div>
     </aside>
     <main>
@@ -743,6 +761,10 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
 
     document.getElementById('enable-preview').addEventListener('click', () => postAction('/api/admin/preview/enable'));
     document.getElementById('exit-preview').addEventListener('click', () => postAction('/api/admin/preview/exit'));
+    document.getElementById('switch-account').addEventListener('click', async () => {
+      await postAction('/api/admin/logout');
+      window.location.href = '/admin/login?force=1';
+    });
     updateStatus();
   </script>
 </body>
@@ -762,7 +784,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/admin/login', readLimiter, (req, res) => {
-    if (isAdminAuthenticated(req)) {
+    if (isAdminAuthenticated(req) && req.query.force !== '1') {
         return res.redirect(302, '/admin');
     }
     return res.status(200).type('html').send(renderAdminLoginPage());
@@ -773,10 +795,10 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
         return res.redirect(302, ADMIN_LOGIN_PATH);
     }
 
-    const nonce = crypto.randomBytes(16).toString('base64');
-    res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce));
-    res.removeHeader('X-Frame-Options');
     const adminUrl = getStoryblokAdminUrl();
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminUrl));
+    res.removeHeader('X-Frame-Options');
     return res.status(200).type('html').send(renderAdminShellPage(adminUrl, nonce));
 });
 
