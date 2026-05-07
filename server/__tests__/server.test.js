@@ -169,6 +169,11 @@ describe('Storyblok preview routes', () => {
         expect(res.body.success).toBe(true);
         expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
     });
+
+    it('rejects unauthenticated preview enable requests', async () => {
+        const res = await request(app).post('/api/admin/preview/enable');
+        expect(res.status).toBe(401);
+    });
 });
 
 describe('GET /api', () => {

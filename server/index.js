@@ -77,7 +77,7 @@ const allowedOrigins = new Set(
 );
 
 app.use((req, res, next) => {
-    const isAdminPath = req.path === '/admin' || req.path === '/admin/login' || req.path.startsWith('/admin/');
+    const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
     if (getStoryblokVersion(req) === 'draft' || isAdminPath) {
         res.removeHeader('X-Frame-Options');
     }
@@ -146,6 +146,7 @@ const ADMIN_COOKIE_NAME = 'adminToken';
 const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 const ADMIN_LOGIN_PATH = '/admin/login';
+const PREVIEW_MODE_DRAFT = 'draft';
 
 function getAdminCookieOptions() {
     const secure = process.env.NODE_ENV === 'production';
@@ -633,7 +634,7 @@ function renderAdminLoginPage() {
     <p>Sign in to access the embedded Storyblok editor.</p>
     <form id="login-form">
       <label for="username">Username</label>
-      <input id="username" name="username" value="${escapeHtml(ADMIN_USERNAME)}" autocomplete="username" />
+      <input id="username" name="username" autocomplete="username" />
       <label for="password">Password</label>
       <input id="password" name="password" type="password" autocomplete="current-password" required />
       <div id="error"></div>
@@ -760,14 +761,14 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
-app.get('/admin/login', (req, res) => {
+app.get('/admin/login', readLimiter, (req, res) => {
     if (isAdminAuthenticated(req)) {
         return res.redirect(302, '/admin');
     }
     return res.status(200).type('html').send(renderAdminLoginPage());
 });
 
-app.get(['/admin', '/admin/*'], (req, res) => {
+app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
     if (!isAdminAuthenticated(req)) {
         return res.redirect(302, ADMIN_LOGIN_PATH);
     }
@@ -823,14 +824,14 @@ app.get('/api/admin/health', async (req, res) => {
     }
 });
 
-app.get('/api/admin/preview/status', requireAdminAuth, (req, res) => {
-    const active = req.cookies && req.cookies.storyblokPreview === 'draft';
-    return res.json({ active, mode: active ? 'draft' : 'published' });
+app.get('/api/admin/preview/status', readLimiter, requireAdminAuth, (req, res) => {
+    const active = req.cookies && req.cookies.storyblokPreview === PREVIEW_MODE_DRAFT;
+    return res.json({ active, mode: active ? PREVIEW_MODE_DRAFT : 'published' });
 });
 
-app.post('/api/admin/preview/enable', requireAdminAuth, (req, res) => {
-    res.cookie('storyblokPreview', 'draft', getPreviewCookieOptions());
-    return res.json({ success: true, mode: 'draft' });
+app.post('/api/admin/preview/enable', writeLimiter, requireAdminAuth, (req, res) => {
+    res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());
+    return res.json({ success: true, mode: PREVIEW_MODE_DRAFT });
 });
 
 app.post('/api/admin/preview/exit', (req, res) => {
@@ -857,7 +858,7 @@ app.get('/api/admin/preview/:secret', (req, res) => {
         return res.status(401).send('Invalid Storyblok preview secret.');
     }
 
-    res.cookie('storyblokPreview', 'draft', getPreviewCookieOptions());
+    res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());
     return res.redirect(302, '/');
 });
 
