@@ -61,6 +61,7 @@ cms/*.tsbuildinfo
 *.temp
 /tmp/
 .vercel
+/egypt-advisor-tours/
 .env*.local
 client/package-lock.json
 ".env" 
