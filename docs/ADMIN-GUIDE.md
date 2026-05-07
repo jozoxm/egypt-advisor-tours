@@ -1,72 +1,66 @@
 # Admin Guide
 
-The admin panel is available at **https://egyptadvisortours.com/admin**.
+Content editing now happens in **Storyblok**.
 
----
+## First-time Storyblok setup
 
-## Logging in
+1. In Storyblok, open your space and copy:
+   - **Preview token** (`Settings → Access Tokens`) → `STORYBLOK_PREVIEW_TOKEN`
+   - **Space ID** (space settings) → `STORYBLOK_SPACE_ID`
+   - **Management token** (optional, needed for `npm run sync:storyblok`) → `STORYBLOK_MANAGEMENT_TOKEN`
+2. Create component `json_document` with one field:
+   - `json` (Long text)
+3. Create required stories:
+   - `cms-tours`, `cms-contact`, `cms-blogs`, `cms-gallery`, `cms-slideshow`, `cms-settings`, `cms-promotions`, `cms-destinations`
+4. Set env values in `.env`:
+   - `STORYBLOK_PREVIEW_TOKEN`, `STORYBLOK_SPACE_ID`, `STORYBLOK_REGION`, `STORYBLOK_PREVIEW_SECRET`, `ADMIN_SECRET`, `ADMIN_PASSWORD`
+   - Add `STORYBLOK_MANAGEMENT_TOKEN` if using `npm run sync:storyblok`
+5. Set Storyblok preview URL:
+   - `https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
+   - Local: `http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
+6. Run:
+   - `npm install`
+   - `npm install --prefix server`
+   - `npm run sync:storyblok` (optional, recommended)
+   - `npm start`
 
-1. Navigate to `/admin` on your site.
-2. Enter your **username** and **password** (set via `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables on the server).
-3. Your session lasts 24 hours via an httpOnly cookie. Log out using the **Log Out** button in the admin navbar.
+If any token was exposed publicly, rotate/regenerate it in Storyblok immediately and update `.env`.
 
----
+## Opening the editor
 
-## Managing content
+Visit:
 
-Once logged in you'll see tabs across the top:
+- `https://egyptadvisortours.com/admin`
 
-| Tab | What you can edit |
+The application redirects that route to the configured Storyblok space/editor URL.
+
+## Content structure
+
+The app expects these Storyblok stories by default:
+
+| Content | Story slug |
 |---|---|
-| **Dashboard** | Overview of your content |
-| **Slideshow** | Hero homepage image slides |
-| **Tours** | Tour packages (name, description, prices, itinerary, photo URL) |
-| **Blogs** | Blog posts (title, content, cover image) |
-| **Gallery** | Gallery images |
-| **Bookings** | Customer booking records (view, update status, delete) |
-| **Testimonials** | Customer testimonials |
-| **Site Settings** | Hero section text & stats |
-| **Contact Info** | Phone, email, address, social media links |
-| **Help** | In-panel usage guide |
+| Tours + testimonials | `cms-tours` |
+| Contact info | `cms-contact` |
+| Blogs | `cms-blogs` |
+| Gallery | `cms-gallery` |
+| Slideshow | `cms-slideshow` |
+| Site settings | `cms-settings` |
+| Promotions | `cms-promotions` |
+| Destinations | `cms-destinations` |
 
-### Editing a tour
+Each story should use the `json_document` component with a `json` field containing the API payload for that resource.
 
-1. Click **Tours** tab.
-2. Find the tour and click **Edit**.
-3. Update any field. The `Photo URL` field controls the main tour image — paste a full URL (e.g. from Unsplash).
-4. Click **Save & Update** to publish the changes immediately.
+## Preview mode
 
-### How data is stored
+Configure Storyblok's preview URL as:
 
-Content is saved as JSON files in the `DATA_PATH` directory on the server. Changes take effect instantly without a redeploy. The data directory is backed up nightly to the `data-backup` branch via GitHub Actions.
+```text
+https://egyptadvisortours.com/api/admin/preview/YOUR_PREVIEW_SECRET
+```
 
----
+That route enables draft mode for the public site so you can preview unpublished Storyblok changes.
 
-## Bookings
+## Server-managed data
 
-Customer bookings are recorded in two ways:
-1. **Email** — via EmailJS when the booking form is submitted.
-2. **Server record** — automatically saved to the bookings list and visible in the Bookings tab.
-
-To update a booking status: open the Bookings tab → find the booking → use the status dropdown.
-
----
-
-## Logo
-
-Place your logo file at `client/public/Gold Logo.png`.  
-The logo is served from `https://egyptadvisortours.com/Gold Logo.png?v=5`.  
-After replacing the file, increment the `?v=` query string everywhere that URL is referenced to bust browser caches. Known locations currently include `Navbar.jsx`, `AdminRoute.jsx`, `App.js`, and `AdminLogin.jsx`. Before finishing a logo update, run a repo-wide search for `Gold Logo.png?v=` and update every match so no stale references remain.
-
----
-
-## Troubleshooting
-
-**Changes not showing after save?**  
-Hard-refresh the browser (Ctrl+Shift+R / Cmd+Shift+R) to clear the cache.
-
-**Admin panel shows "Session expired"?**  
-Log out and log in again. Sessions expire after 24 hours.
-
-**Bookings tab empty after deploy?**  
-Make sure `DATA_PATH` points to a directory outside the repo (see Deployment guide). JSON data files inside the repo are wiped on `git pull`.
+Bookings are still stored on the server because they contain customer submission data and are not editor-authored CMS content.

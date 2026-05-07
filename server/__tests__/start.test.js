@@ -1,181 +1,65 @@
-const path = require('path');
-const http = require('http');
-const net = require('net');
-const fs = require('fs');
-
-const {
-  buildRuntimeEnv,
-  waitForCms,
-  validateRuntimeEnv,
-  getStartupRetryDelayMs,
-  isPortInUse,
-  checkCmsPrerequisites,
-} = require('../../start');
+const { buildRuntimeEnv, validateRuntimeEnv } = require('../../start');
 
 describe('production startup environment', () => {
-  it('applies Hostinger-friendly defaults for both Express and CMS', () => {
+  it('applies Storyblok-friendly defaults for Express startup', () => {
     const env = buildRuntimeEnv({});
 
     expect(env.PORT).toBe('5000');
-    expect(env.CMS_PORT).toBe('3001');
-    expect(env.CMS_PM2_NAME).toBe('egypt-cms');
-    expect(env.CMS_URL).toBe('http://localhost:3001');
-    expect(env.PAYLOAD_SERVER_URL).toBe('http://localhost:5000');
-    expect(env.CMS_READY_TIMEOUT_MS).toBe('180000');
-    expect(env.CMS_MAX_STARTUP_ATTEMPTS).toBe('3');
-    expect(env.DATABASE_PATH).toBe(
-      path.join(path.resolve(__dirname, '..', '..'), 'data', 'payload.db')
+    expect(env.STORYBLOK_REGION).toBe('eu');
+    expect(env.STORYBLOK_EDITOR_URL).toBe('https://app.storyblok.com/');
+  });
+
+  it('derives the Storyblok editor URL from the configured space id', () => {
+    const env = buildRuntimeEnv({
+      STORYBLOK_SPACE_ID: '123456',
+    });
+
+    expect(env.STORYBLOK_EDITOR_URL).toBe(
+      'https://app.storyblok.com/#/me/spaces/123456/content/'
     );
   });
 
-  it('preserves explicitly provided production values', () => {
+  it('preserves explicitly provided runtime values', () => {
     const env = buildRuntimeEnv({
       PORT: '8080',
-      CMS_PORT: '3010',
-      CMS_PM2_NAME: 'custom-cms',
-      CMS_URL: 'http://127.0.0.1:3010',
-      PAYLOAD_SERVER_URL: 'https://egyptadvisortours.com',
-      DATABASE_PATH: '/home/u123/admin_data/payload.db',
-      CMS_READY_TIMEOUT_MS: '60000',
-      CMS_MAX_STARTUP_ATTEMPTS: '3',
+      STORYBLOK_REGION: 'us',
+      STORYBLOK_EDITOR_URL: 'https://app.storyblok.com/#/me/spaces/999/content/',
     });
 
     expect(env.PORT).toBe('8080');
-    expect(env.CMS_PORT).toBe('3010');
-    expect(env.CMS_PM2_NAME).toBe('custom-cms');
-    expect(env.CMS_URL).toBe('http://127.0.0.1:3010');
-    expect(env.PAYLOAD_SERVER_URL).toBe('https://egyptadvisortours.com');
-    expect(env.DATABASE_PATH).toBe('/home/u123/admin_data/payload.db');
-    expect(env.CMS_READY_TIMEOUT_MS).toBe('60000');
-    expect(env.CMS_MAX_STARTUP_ATTEMPTS).toBe('3');
-  });
-});
-
-describe('waitForCms', () => {
-  it('resolves when the CMS URL responds with any HTTP status', async () => {
-    const server = http.createServer((req, res) => {
-      res.writeHead(200);
-      res.end();
-    });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const { port } = server.address();
-
-    try {
-      await waitForCms(`http://127.0.0.1:${port}`, { pollIntervalMs: 100, timeoutMs: 5000 });
-    } finally {
-      await new Promise((resolve) => server.close(resolve));
-    }
-  });
-
-  it('rejects when the CMS URL is unreachable within the timeout', async () => {
-    await expect(
-      waitForCms('http://127.0.0.1:19999', { pollIntervalMs: 100, timeoutMs: 400 })
-    ).rejects.toThrow(/did not become ready/);
-  });
-
-  it('rejects immediately when isProcessAlive returns false', async () => {
-    await expect(
-      waitForCms('http://127.0.0.1:19999', {
-        pollIntervalMs: 100,
-        timeoutMs: 5000,
-        isProcessAlive: () => false,
-      })
-    ).rejects.toThrow(/CMS process exited before becoming ready/);
+    expect(env.STORYBLOK_REGION).toBe('us');
+    expect(env.STORYBLOK_EDITOR_URL).toBe(
+      'https://app.storyblok.com/#/me/spaces/999/content/'
+    );
   });
 });
 
 describe('validateRuntimeEnv', () => {
-  it('throws a clear error when CMS_URL is invalid', () => {
+  it('requires STORYBLOK_PREVIEW_TOKEN in production', () => {
     expect(() =>
       validateRuntimeEnv({
-        DATABASE_PATH: '/tmp/payload.db',
-        CMS_URL: 'localhost:3001',
+        NODE_ENV: 'production',
+        STORYBLOK_EDITOR_URL: 'https://app.storyblok.com/',
       })
-    ).toThrow(/CMS_URL is invalid/);
+    ).toThrow(/STORYBLOK_PREVIEW_TOKEN is required in production/);
   });
 
-  it('accepts a valid CMS_URL with protocol', () => {
+  it('throws a clear error when STORYBLOK_EDITOR_URL is invalid', () => {
     expect(() =>
       validateRuntimeEnv({
-        DATABASE_PATH: '/tmp/payload.db',
-        CMS_URL: 'http://127.0.0.1:3001',
+        STORYBLOK_PREVIEW_TOKEN: 'token',
+        STORYBLOK_EDITOR_URL: 'app.storyblok.com',
+      })
+    ).toThrow(/STORYBLOK_EDITOR_URL is invalid/);
+  });
+
+  it('accepts a valid Storyblok runtime configuration', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        NODE_ENV: 'production',
+        STORYBLOK_PREVIEW_TOKEN: 'token',
+        STORYBLOK_EDITOR_URL: 'https://app.storyblok.com/',
       })
     ).not.toThrow();
-  });
-});
-
-describe('getStartupRetryDelayMs', () => {
-  it('uses incremental backoff per startup attempt', () => {
-    expect(getStartupRetryDelayMs(1)).toBe(5000);
-    expect(getStartupRetryDelayMs(2)).toBe(10000);
-    expect(getStartupRetryDelayMs(3)).toBe(15000);
-  });
-});
-
-describe('isPortInUse', () => {
-  it('resolves true when a server is listening on the port', async () => {
-    const server = net.createServer();
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const { port } = server.address();
-
-    try {
-      await expect(isPortInUse(port)).resolves.toBe(true);
-    } finally {
-      await new Promise((resolve) => server.close(resolve));
-    }
-  });
-
-  it('resolves false when nothing is listening on the port', async () => {
-    // Pick a port that is almost certainly free by binding then immediately closing
-    const server = net.createServer();
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const { port } = server.address();
-    await new Promise((resolve) => server.close(resolve));
-
-    await expect(isPortInUse(port)).resolves.toBe(false);
-  });
-
-  it('resolves false for an out-of-range port number', async () => {
-    await expect(isPortInUse(99999)).resolves.toBe(false);
-    await expect(isPortInUse(-1)).resolves.toBe(false);
-  });
-
-  it('resolves false for a non-numeric port value', async () => {
-    await expect(isPortInUse('abc')).resolves.toBe(false);
-  });
-});
-
-describe('checkCmsPrerequisites', () => {
-  // checkCmsPrerequisites reads CMS_DIR which is hard-wired to the real cms/
-  // directory.  We verify the two failure cases by monkey-patching
-  // fs.existsSync (via jest.spyOn) so the check sees the directories as absent
-  // without touching the filesystem.
-
-  it('throws when cms/node_modules is missing', () => {
-    // Monkey-patch fs.existsSync to simulate missing node_modules
-    const realExistsSync = fs.existsSync;
-    jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
-      if (p.endsWith('node_modules')) return false;
-      return realExistsSync(p);
-    });
-    try {
-      expect(() => checkCmsPrerequisites()).toThrow(/npm run setup/);
-    } finally {
-      jest.restoreAllMocks();
-    }
-  });
-
-  it('throws when cms/.next build directory is missing', () => {
-    const realExistsSync = fs.existsSync;
-    jest.spyOn(fs, 'existsSync').mockImplementation((p) => {
-      if (p.endsWith('node_modules')) return true;
-      if (p.endsWith('.next')) return false;
-      return realExistsSync(p);
-    });
-    try {
-      expect(() => checkCmsPrerequisites()).toThrow(/npm run setup/);
-    } finally {
-      jest.restoreAllMocks();
-    }
   });
 });

@@ -11,6 +11,7 @@ import DestinationsPage from './pages/DestinationsPage';
 import TailorTripModal from './components/TailorTripModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import useTitle from './hooks/useTitle';
+import useStoryblokPreview from './hooks/useStoryblokPreview';
 import { useData } from './context/DataContext';
 
 // App version for cache busting - increment when Admin button issues occur
@@ -29,6 +30,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const scrollTimeoutsRef = useRef([]);
+  useStoryblokPreview();
 
   // Set page title based on current route (individual pages override this via useTitle)
   const routeTitles = { '/tours': 'All Tours', '/': null };

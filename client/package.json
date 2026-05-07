@@ -4,6 +4,7 @@
   "private": true,
   "homepage": ".",
   "dependencies": {
+    "@storyblok/preview-bridge": "^2.1.6",
     "@emailjs/browser": "^4.4.1",
     "cross-env": "^10.1.0",
     "react": "^18.2.0",

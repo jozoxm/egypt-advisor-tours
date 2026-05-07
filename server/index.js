@@ -2,11 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const {
+    fetchStoryblokResource,
+    getStoryblokAdminUrl,
+    getStoryblokVersion,
+    isStoryblokConfigured,
+    updateStoryblokResource,
+} = require('./storyblok');
 require('dotenv').config();
 
 const app = express();
@@ -18,84 +25,10 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 
 // ============================================
-// PAYLOAD CMS PROXY
-// ============================================
-// The Payload CMS admin panel (Next.js) runs on its own port (CMS_PORT,
-// default 3001).  Requests for /admin, /_next, /api/media, and /media are
-// transparently proxied to it so the browser sees everything on the same
-// origin.
-//
-// IMPORTANT: the proxy is mounted at root ('/') with a pathFilter instead of
-// using separate app.use('/admin', proxy) calls.  When mounted at a subpath,
-// Express strips the matched prefix from req.url before passing it to the
-// proxy middleware — so /admin would be forwarded to the CMS as / (triggering
-// an infinite redirect loop) and /_next/static/... would lose its /_next
-// prefix (causing genuine 404s for JS bundles).  Mounting at root with
-// pathFilter preserves the full path end-to-end.
-//
-// Set CMS_URL in .env to override (e.g. CMS_URL=http://localhost:3001).
-// If the CMS service is not running, the proxy returns a 503 with a clear
-// error message rather than crashing the main Express server.
-//
-// Registered BEFORE helmet so that the CMS's own Next.js headers are not
-// overwritten by Express's CSP headers.
-const CMS_URL = process.env.CMS_URL || 'http://localhost:3001';
-// Path prefixes that must be forwarded to the CMS process.  Defined at
-// module level so the constant is not reallocated on every request.
-const CMS_PROXY_PATHS = ['/admin', '/_next', '/api/media', '/media'];
-const cmsProxyOptions = {
-    target: CMS_URL,
-    changeOrigin: true,
-    // Only proxy requests that belong to the CMS; everything else falls
-    // through to the next middleware (helmet, static files, API routes, etc.).
-    // Note: http-proxy-middleware strips query strings from `pathname` before
-    // calling pathFilter, so startsWith checks are safe against ?foo=bar.
-    pathFilter: (pathname) =>
-        CMS_PROXY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/')),
-    on: {
-        error: (err, req, res) => {
-            const errorCode = err?.code ?? 'UNKNOWN';
-            const requestMethod = req?.method ?? 'UNKNOWN_METHOD';
-            const requestPath = req?.originalUrl ?? req?.url ?? 'UNKNOWN_PATH';
-            const errorMessage = err?.message ?? 'Unknown proxy error';
-            console.error(
-                `[CMS Proxy] ${requestMethod} ${requestPath} -> ${CMS_URL} failed (${errorCode}): ${errorMessage}`
-            );
-            if (res && !res.headersSent) {
-                res.status(503).send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Admin Panel — Unavailable</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 600px; margin: 80px auto; padding: 0 24px; text-align: center; color: #333; }
-    h1  { color: #c0392b; margin-bottom: 12px; }
-    p   { line-height: 1.6; color: #555; }
-    code { background: #f4f4f4; padding: 2px 8px; border-radius: 4px; font-size: .9em; }
-    .hint { margin-top: 32px; font-size: .875rem; color: #888; }
-  </style>
-</head>
-<body>
-  <h1>Admin Panel Unavailable</h1>
-  <p>The CMS service is not running or is still starting up.</p>
-  <p>If this is a fresh deployment, please wait about 30 seconds and then
-     <a href="/admin">refresh this page</a>.</p>
-  <p class="hint">If the problem persists, make sure the CMS process is running:<br>
-     <code>npm run start --prefix cms</code></p>
-</body>
-</html>`);
-            }
-        },
-    },
-};
-app.use(createProxyMiddleware(cmsProxyOptions));
-
-// ============================================
 // SECURITY HEADERS (helmet)
 // ============================================
-// Applied AFTER the CMS proxy so that Next.js can set its own headers for
-// /admin and /_next responses without being overridden.
+// Storyblok's visual editor embeds the site in an iframe, so frame ancestors
+// must explicitly allow Storyblok while still blocking arbitrary framing.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -106,11 +39,13 @@ app.use(helmet({
             imgSrc: ["'self'", "data:", "https:", "blob:"],
             connectSrc: ["'self'", "https://api.emailjs.com"],
             frameSrc: ["'none'"],
+            frameAncestors: ["'self'", "https://app.storyblok.com", "https://*.storyblok.com"],
             objectSrc: ["'none'"],
         },
     },
     // Strict-Transport-Security is sent automatically by helmet
     crossOriginEmbedderPolicy: false, // Allow Unsplash images
+    frameguard: { action: 'sameorigin' },
 }));
 
 // Enable CORS.
@@ -129,6 +64,64 @@ app.use(express.json({ limit: '10mb' }));
 // API-only clients (non-browser) authenticate via the same SameSite=Strict cookie
 // and are expected to operate from the same origin.
 app.use(cookieParser());
+
+const allowedOrigins = new Set(
+    [
+        corsOrigin,
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000',
+        'https://egyptadvisortours.com',
+    ].filter(Boolean)
+);
+
+app.use((req, res, next) => {
+    if (getStoryblokVersion(req) === 'draft') {
+        res.removeHeader('X-Frame-Options');
+    }
+
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        return next();
+    }
+
+    const origin = req.get('origin');
+    if (!origin) {
+        return next();
+    }
+
+    let normalizedOrigin;
+    try {
+        normalizedOrigin = new URL(origin).origin;
+    } catch (_error) {
+        return res.status(403).json({ error: 'Invalid request origin.' });
+    }
+
+    if (!allowedOrigins.has(normalizedOrigin)) {
+        return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
+    }
+
+    return next();
+});
+
+app.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        return next();
+    }
+
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (!cookieToken) {
+        return next();
+    }
+
+    const csrfCookie = req.cookies && req.cookies[CSRF_COOKIE_NAME];
+    const csrfHeader = req.get(CSRF_HEADER_NAME);
+    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+        return res.status(403).json({ error: 'Invalid or missing CSRF token.' });
+    }
+
+    return next();
+});
 
 // ============================================
 // AUTHENTICATION — JWT-BASED ADMIN AUTH
@@ -149,6 +142,47 @@ const JWT_SECRET     = ADMIN_SECRET || 'dev-jwt-secret-not-for-production';
 const JWT_EXPIRES_IN = '24h';
 
 const ADMIN_COOKIE_NAME = 'adminToken';
+const CSRF_COOKIE_NAME = 'adminCsrfToken';
+const CSRF_HEADER_NAME = 'x-csrf-token';
+
+function getAdminCookieOptions() {
+    const secure = process.env.NODE_ENV === 'production';
+    return {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'strict',
+        secure,
+        maxAge: 24 * 60 * 60 * 1000,
+    };
+}
+
+function getCsrfCookieOptions() {
+    const secure = process.env.NODE_ENV === 'production';
+    return {
+        path: '/',
+        httpOnly: false,
+        sameSite: 'strict',
+        secure,
+        maxAge: 24 * 60 * 60 * 1000,
+    };
+}
+
+function getPreviewCookieOptions() {
+    return {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 1000,
+    };
+}
+
+function issueAdminSessionAndCsrfCookies(res, token) {
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+
+    res.cookie(ADMIN_COOKIE_NAME, token, getAdminCookieOptions());
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, getCsrfCookieOptions());
+}
 
 // Strict rate-limiter for the login endpoint to slow brute-force attempts.
 const loginLimiter = rateLimit({
@@ -402,6 +436,51 @@ function writeData(key, data) {
     }
 }
 
+async function readCmsContent(key, req, jsRegex) {
+    if (isStoryblokConfigured()) {
+        try {
+            const storyblokData = await fetchStoryblokResource(key, { source: req });
+            if (storyblokData) {
+                store[key] = storyblokData;
+                return storyblokData;
+            }
+        } catch (error) {
+            console.warn(`[Storyblok] Failed to load "${key}" from Storyblok:`, error.message);
+        }
+    }
+
+    const fallbackData = readData(key, jsRegex);
+    if (fallbackData) {
+        store[key] = fallbackData;
+        return fallbackData;
+    }
+
+    return null;
+}
+
+async function persistCmsContent(key, data) {
+    if (isStoryblokConfigured()) {
+        try {
+            const result = await updateStoryblokResource(key, data);
+            if (result.persisted) {
+                return { persisted: true, provider: 'storyblok' };
+            }
+        } catch (error) {
+            console.warn(`[Storyblok] Failed to save "${key}" to Storyblok:`, error.message);
+            return { persisted: false, provider: 'storyblok', error };
+        }
+    }
+
+    return { persisted: writeData(key, data), provider: 'filesystem' };
+}
+
+// Only reuse the in-memory store when Storyblok is not configured and the
+// request is for published content. Draft/preview requests must always bypass
+// the cache so editors see the latest Storyblok state immediately.
+function shouldUseMemoryStore(req) {
+    return !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
+}
+
 // Seed all JSON data files from their JS source equivalents on startup so that
 // the server always has up-to-date JSON files from day one — even on a fresh
 // Hostinger deployment where server/data/*.json are gitignored and therefore
@@ -519,12 +598,17 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
+app.get(['/admin', '/admin/*'], (req, res) => {
+    const adminUrl = getStoryblokAdminUrl();
+    res.redirect(302, adminUrl);
+});
+
 // ============================================
 // CMS HEALTH ENDPOINT
 // ============================================
 // GET /api/admin/health
-// Probes the Payload CMS process and returns its status.  Useful for
-// monitoring and for diagnosing "Admin Panel Unavailable" errors.
+// Checks Storyblok delivery access so operators can quickly verify that the
+// content source is reachable from the server.
 //
 // In production the response body is intentionally minimal — no internal
 // URLs, error codes, or hints — to avoid leaking infrastructure details.
@@ -534,48 +618,55 @@ app.get('/health', (req, res) => {
 //   200  { status: 'ok',       cms: 'up',   ...diagnostics? }
 //   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
-    const cmsUrl = process.env.CMS_URL || 'http://localhost:3001';
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // Helper: attempt a single HTTP GET and resolve with { ok, statusCode, error }.
-    const probe = (url) =>
-        new Promise((resolve) => {
-            const lib = url.startsWith('https') ? require('https') : require('http');
-            const request = lib.get(url, { timeout: 5000 }, (r) => {
-                r.resume(); // consume body so the socket is released
-                resolve({ ok: true, statusCode: r.statusCode });
-            });
-            request.on('timeout', () => {
-                request.destroy();
-                resolve({ ok: false, error: 'ETIMEDOUT' });
-            });
-            request.on('error', (err) => {
-                resolve({ ok: false, error: err.code || err.message });
-            });
-        });
-
-    // Try /api/payload-health first; fall back to CMS root.
-    let result = await probe(`${cmsUrl}/api/payload-health`);
-    if (!result.ok) {
-        result = await probe(cmsUrl);
+    if (!isStoryblokConfigured()) {
+        const body = { status: 'degraded', cms: 'down' };
+        if (!isProduction) {
+            body.errorCode = 'STORYBLOK_NOT_CONFIGURED';
+            body.hint = 'Set STORYBLOK_PREVIEW_TOKEN (and optionally STORYBLOK_SPACE_ID / STORYBLOK_MANAGEMENT_TOKEN).';
+        }
+        return res.status(503).json(body);
     }
 
-    if (result.ok) {
+    try {
+        await fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) });
         const body = { status: 'ok', cms: 'up' };
         if (!isProduction) {
-            body.cmsUrl = cmsUrl;
-            body.httpStatus = result.statusCode;
+            body.provider = 'storyblok';
+            body.version = getStoryblokVersion(req);
         }
         return res.status(200).json(body);
+    } catch (error) {
+        const body = { status: 'degraded', cms: 'down' };
+        if (!isProduction) {
+            body.errorCode = error.code || error.message;
+            body.hint = 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
+        }
+        return res.status(503).json(body);
+    }
+});
+
+app.get('/api/admin/preview/:secret', (req, res) => {
+    const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
+    const providedSecret = req.params.secret;
+
+    if (process.env.NODE_ENV === 'production' && !configuredSecret) {
+        return res.status(404).send('Not found');
     }
 
-    const body = { status: 'degraded', cms: 'down' };
-    if (!isProduction) {
-        body.cmsUrl = cmsUrl;
-        body.errorCode = result.error;
-        body.hint = 'Run: npm run start --prefix cms';
+    if (configuredSecret && providedSecret !== configuredSecret) {
+        return res.status(401).send('Invalid Storyblok preview secret.');
     }
-    return res.status(503).json(body);
+
+    res.cookie('storyblokPreview', 'draft', getPreviewCookieOptions());
+    return res.redirect(302, '/');
+});
+
+app.post('/api/admin/preview/exit', (req, res) => {
+    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
+    res.clearCookie('storyblokPreview', previewCookieOptions);
+    return res.json({ success: true, message: 'Storyblok preview disabled.' });
 });
 
 // ============================================
@@ -594,12 +685,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
         // Dev mode — no password configured, issue a token anyway so the
         // admin panel works without any setup.
         const devToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        res.cookie(ADMIN_COOKIE_NAME, devToken, {
-            httpOnly: true,
-            sameSite: 'strict',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 24 * 60 * 60 * 1000,
-        });
+        issueAdminSessionAndCsrfCookies(res, devToken);
         return res.json({ success: true, message: 'Logged in (dev mode — no password required).' });
     }
 
@@ -615,12 +701,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     }
 
     const sessionToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-    res.cookie(ADMIN_COOKIE_NAME, sessionToken, {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    issueAdminSessionAndCsrfCookies(res, sessionToken);
     res.json({ success: true, message: 'Logged in successfully.' });
 });
 
@@ -644,7 +725,10 @@ app.get('/api/admin/verify', loginLimiter, (req, res) => {
 
 // POST /api/admin/logout — clears the session cookie.
 app.post('/api/admin/logout', (req, res) => {
-    res.clearCookie(ADMIN_COOKIE_NAME, { httpOnly: true, sameSite: 'strict' });
+    const { maxAge: _adminMaxAge, ...adminCookieOptions } = getAdminCookieOptions();
+    const { maxAge: _csrfMaxAge, ...csrfCookieOptions } = getCsrfCookieOptions();
+    res.clearCookie(ADMIN_COOKIE_NAME, adminCookieOptions);
+    res.clearCookie(CSRF_COOKIE_NAME, csrfCookieOptions);
     res.json({ success: true, message: 'Logged out.' });
 });
 
@@ -652,35 +736,38 @@ app.post('/api/admin/logout', (req, res) => {
 // TOURS API ENDPOINTS
 // ============================================
 
-app.get('/api/tours', readLimiter, (req, res) => {
-    if (store.tours) return res.json(store.tours);
-    const data = readData('tours', /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/);
+app.get('/api/tours', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.tours) return res.json(store.tours);
+    const data = await readCmsContent('tours', req, /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/);
     if (data) {
-        store.tours = data;
-        return res.json(store.tours);
+        return res.json(data);
     }
     // Try extracting separately
     const jsContent = fs.existsSync(JS_FILES.tours) ? fs.readFileSync(JS_FILES.tours, 'utf8') : '';
     const toursMatch = jsContent.match(/export const tours = (\[[\s\S]*?\]);/);
     const testimonialsMatch = jsContent.match(/export const testimonials = (\[[\s\S]*?\]);/);
     if (toursMatch) {
-        store.tours = {
+        const fallback = {
             tours: JSON.parse(toursMatch[1]),
             testimonials: testimonialsMatch ? JSON.parse(testimonialsMatch[1]) : []
         };
-        return res.json(store.tours);
+        if (shouldUseMemoryStore(req)) {
+            store.tours = fallback;
+        }
+        return res.json(fallback);
     }
     res.status(500).json({ error: 'Failed to read tours data' });
 });
 
-app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/tours', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateArray(req.body, 'tours');
     if (err) return res.status(400).json({ error: err });
     try {
         const tours = sanitize(req.body.tours);
         const testimonials = sanitize(req.body.testimonials || []);
-        store.tours = { tours, testimonials };
-        const persisted = writeData('tours', { tours, testimonials });
+        const content = { tours, testimonials };
+        store.tours = content;
+        const { persisted } = await persistCmsContent('tours', content);
         res.json({
             success: true,
             persisted,
@@ -696,23 +783,22 @@ app.post('/api/tours', writeLimiter, requireAdminAuth, (req, res) => {
 // CONTACT API ENDPOINTS
 // ============================================
 
-app.get('/api/contact', readLimiter, (req, res) => {
-    if (store.contact) return res.json(store.contact);
-    const data = readData('contact', /export const contactInfo = ({[\s\S]*?});[\s\n]*$/);
+app.get('/api/contact', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.contact) return res.json(store.contact);
+    const data = await readCmsContent('contact', req, /export const contactInfo = ({[\s\S]*?});[\s\n]*$/);
     if (data) {
-        store.contact = data;
-        return res.json(store.contact);
+        return res.json(data);
     }
     res.status(500).json({ error: 'Failed to read contact info' });
 });
 
-app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/contact', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateObject(req.body);
     if (err) return res.status(400).json({ error: err });
     try {
         const contactInfo = sanitize(req.body);
         store.contact = contactInfo;
-        const persisted = writeData('contact', contactInfo);
+        const { persisted } = await persistCmsContent('contact', contactInfo);
         res.json({
             success: true,
             persisted,
@@ -728,23 +814,23 @@ app.post('/api/contact', writeLimiter, requireAdminAuth, (req, res) => {
 // BLOGS API ENDPOINTS
 // ============================================
 
-app.get('/api/blogs', readLimiter, (req, res) => {
-    if (store.blogs) return res.json(store.blogs);
-    const data = readData('blogs', /export const blogs = (\[[\s\S]*?\]);/);
+app.get('/api/blogs', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.blogs) return res.json(store.blogs);
+    const data = await readCmsContent('blogs', req, /export const blogs = (\[[\s\S]*?\]);/);
     if (data) {
-        store.blogs = data.blogs ? data : { blogs: data };
-        return res.json(store.blogs);
+        return res.json(data.blogs ? data : { blogs: data });
     }
     res.status(500).json({ error: 'Failed to read blogs data' });
 });
 
-app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/blogs', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateArray(req.body, 'blogs');
     if (err) return res.status(400).json({ error: err });
     try {
         const blogs = sanitize(req.body.blogs);
-        store.blogs = { blogs };
-        const persisted = writeData('blogs', { blogs });
+        const content = { blogs };
+        store.blogs = content;
+        const { persisted } = await persistCmsContent('blogs', content);
         res.json({
             success: true,
             persisted,
@@ -762,23 +848,23 @@ app.post('/api/blogs', writeLimiter, requireAdminAuth, (req, res) => {
 // GALLERY API ENDPOINTS
 // ============================================
 
-app.get('/api/gallery', readLimiter, (req, res) => {
-    if (store.gallery) return res.json(store.gallery);
-    const data = readData('gallery', /export const gallery = (\[[\s\S]*?\]);/);
+app.get('/api/gallery', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.gallery) return res.json(store.gallery);
+    const data = await readCmsContent('gallery', req, /export const gallery = (\[[\s\S]*?\]);/);
     if (data) {
-        store.gallery = data.gallery ? data : { gallery: data };
-        return res.json(store.gallery);
+        return res.json(data.gallery ? data : { gallery: data });
     }
     res.status(500).json({ error: 'Failed to read gallery data' });
 });
 
-app.post('/api/gallery', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/gallery', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateArray(req.body, 'gallery');
     if (err) return res.status(400).json({ error: err });
     try {
         const gallery = sanitize(req.body.gallery);
-        store.gallery = { gallery };
-        const persisted = writeData('gallery', { gallery });
+        const content = { gallery };
+        store.gallery = content;
+        const { persisted } = await persistCmsContent('gallery', content);
         res.json({
             success: true,
             persisted,
@@ -891,23 +977,23 @@ app.post('/api/bookings/customer', customerBookingLimiter, (req, res) => {
 // SLIDESHOW API ENDPOINTS
 // ============================================
 
-app.get('/api/slideshow', readLimiter, (req, res) => {
-    if (store.slideshow) return res.json(store.slideshow);
-    const data = readData('slideshow', /export const slides = (\[[\s\S]*?\]);?/);
+app.get('/api/slideshow', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.slideshow) return res.json(store.slideshow);
+    const data = await readCmsContent('slideshow', req, /export const slides = (\[[\s\S]*?\]);?/);
     if (data) {
-        store.slideshow = data.slides ? data : { slides: data };
-        return res.json(store.slideshow);
+        return res.json(data.slides ? data : { slides: data });
     }
     res.status(500).json({ error: 'Failed to read slideshow data' });
 });
 
-app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/slideshow', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateArray(req.body, 'slides');
     if (err) return res.status(400).json({ error: err });
     try {
         const slides = sanitize(req.body.slides);
-        store.slideshow = { slides };
-        const persisted = writeData('slideshow', { slides });
+        const content = { slides };
+        store.slideshow = content;
+        const { persisted } = await persistCmsContent('slideshow', content);
         res.json({
             success: true,
             persisted,
@@ -923,23 +1009,22 @@ app.post('/api/slideshow', writeLimiter, requireAdminAuth, (req, res) => {
 // SITE SETTINGS API ENDPOINTS
 // ============================================
 
-app.get('/api/settings', readLimiter, (req, res) => {
-    if (store.settings) return res.json(store.settings);
-    const data = readData('settings', /export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
+app.get('/api/settings', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.settings) return res.json(store.settings);
+    const data = await readCmsContent('settings', req, /export const siteSettings = ({[\s\S]*?});[\s\n]*$/);
     if (data) {
-        store.settings = data;
-        return res.json(store.settings);
+        return res.json(data);
     }
     res.status(500).json({ error: 'Failed to read site settings' });
 });
 
-app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/settings', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateObject(req.body);
     if (err) return res.status(400).json({ error: err });
     try {
         const settings = sanitize(req.body);
         store.settings = settings;
-        const persisted = writeData('settings', settings);
+        const { persisted } = await persistCmsContent('settings', settings);
         res.json({
             success: true,
             persisted,
@@ -955,12 +1040,11 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, (req, res) => {
 // PROMOTIONS API ENDPOINTS
 // ============================================
 
-app.get('/api/promotions', readLimiter, (req, res) => {
-    if (store.promotions) return res.json(store.promotions);
-    const data = readData('promotions', /export const promotions\s*=\s*(\[[\s\S]*?\]);/);
+app.get('/api/promotions', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.promotions) return res.json(store.promotions);
+    const data = await readCmsContent('promotions', req, /export const promotions\s*=\s*(\[[\s\S]*?\]);/);
     if (data) {
-        store.promotions = data.promotions ? data : { promotions: data };
-        return res.json(store.promotions);
+        return res.json(data.promotions ? data : { promotions: data });
     }
     // No data file yet — return an empty list rather than a 500 so the
     // front-end degrades gracefully on a fresh deployment.
@@ -968,13 +1052,14 @@ app.get('/api/promotions', readLimiter, (req, res) => {
     res.json(store.promotions);
 });
 
-app.post('/api/promotions', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/promotions', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateArray(req.body, 'promotions');
     if (err) return res.status(400).json({ error: err });
     try {
         const promotions = sanitize(req.body.promotions);
-        store.promotions = { promotions };
-        const persisted = writeData('promotions', { promotions });
+        const content = { promotions };
+        store.promotions = content;
+        const { persisted } = await persistCmsContent('promotions', content);
         res.json({
             success: true,
             persisted,
@@ -990,24 +1075,24 @@ app.post('/api/promotions', writeLimiter, requireAdminAuth, (req, res) => {
 // DESTINATIONS API ENDPOINTS
 // ============================================
 
-app.get('/api/destinations', readLimiter, (req, res) => {
-    if (store.destinations) return res.json(store.destinations);
-    const data = readData('destinations', /export const destinations\s*=\s*(\[[\s\S]*?\]);/);
+app.get('/api/destinations', readLimiter, async (req, res) => {
+    if (shouldUseMemoryStore(req) && store.destinations) return res.json(store.destinations);
+    const data = await readCmsContent('destinations', req, /export const destinations\s*=\s*(\[[\s\S]*?\]);/);
     if (data) {
-        store.destinations = data.destinations ? data : { destinations: data };
-        return res.json(store.destinations);
+        return res.json(data.destinations ? data : { destinations: data });
     }
     store.destinations = { destinations: [] };
     res.json(store.destinations);
 });
 
-app.post('/api/destinations', writeLimiter, requireAdminAuth, (req, res) => {
+app.post('/api/destinations', writeLimiter, requireAdminAuth, async (req, res) => {
     const err = validateArray(req.body, 'destinations');
     if (err) return res.status(400).json({ error: err });
     try {
         const destinations = sanitize(req.body.destinations);
-        store.destinations = { destinations };
-        const persisted = writeData('destinations', { destinations });
+        const content = { destinations };
+        store.destinations = content;
+        const { persisted } = await persistCmsContent('destinations', content);
         res.json({
             success: true,
             persisted,
@@ -1034,21 +1119,13 @@ app.use('/api', (req, res) => {
 const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath));
-    app.get('*', (req, res) => {
-        // Admin-panel, CMS asset, and media paths must never reach this SPA
-        // fallback.  They are intercepted by the CMS proxy middleware above.
-        // This guard exists as a safety net: if they do somehow slip through
-        // (e.g. proxy middleware not yet initialised), return 404 rather than
-        // serving index.html, which would cause React Router's catch-all to
-        // silently redirect the browser to /.
-        // Match only the exact path segments used by the CMS proxy.
-        // Test for "/admin", "/admin/", "/admin/anything" — but not
-        // "/admin-foo" — by checking that the character immediately after
-        // the prefix is either absent, a slash, or a query string.
+    app.get('*', readLimiter, (req, res) => {
+        // Admin redirects are handled above; if a request somehow reaches the
+        // SPA fallback, return 404 rather than letting React Router swallow it.
         const isCmsPath = (prefix) =>
             req.path === prefix ||
             req.path.startsWith(prefix + '/');
-        if (isCmsPath('/admin') || isCmsPath('/_next') || isCmsPath('/media')) {
+        if (isCmsPath('/admin')) {
             return res.status(404).send('Not found');
         }
         res.sendFile(path.join(buildPath, 'index.html'));

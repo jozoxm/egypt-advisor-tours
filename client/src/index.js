@@ -5,10 +5,8 @@ import './index.css';
 import App from './App';
 import { DataProvider } from './context/DataContext';
 
-// /admin is now served by Payload CMS (a Next.js app) and proxied from the
-// Express server — it is no longer part of the React bundle.  Any direct
-// navigation to /admin goes straight through to the Payload admin panel via
-// the server-level proxy, bypassing the React router entirely.
+// /admin is handled by the Express server, which redirects editors to the
+// configured Storyblok space. Any direct navigation bypasses the React router.
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

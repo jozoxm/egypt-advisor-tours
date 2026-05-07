@@ -19,18 +19,22 @@ process.env.NODE_ENV        = 'test';
 process.env.ADMIN_SECRET    = 'test-jwt-secret';
 process.env.ADMIN_PASSWORD  = 'test-password';
 process.env.ADMIN_USERNAME  = 'testadmin';
+process.env.STORYBLOK_EDITOR_URL = 'https://app.storyblok.com/#/me/spaces/123/content/';
+process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
 
 // Load the app AFTER setting env vars.
 const app = require('../index.js');
 const jwt = require('jsonwebtoken');
 
-// Helper: obtain a valid admin session cookie.
-async function adminCookie() {
+// Helper: obtain a valid admin session + CSRF token.
+async function adminSession() {
     const res = await request(app)
         .post('/api/admin/login')
         .send({ username: 'testadmin', password: 'test-password' });
-    // Extract Set-Cookie header
-    return res.headers['set-cookie'];
+    const cookies = res.headers['set-cookie'] || [];
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('adminCsrfToken='));
+    const csrfToken = csrfCookie ? csrfCookie.split(';')[0].split('=')[1] : '';
+    return { cookies, csrfToken };
 }
 
 // ─────────────────────────────────────────────────
@@ -45,9 +49,7 @@ describe('GET /health', () => {
 });
 
 describe('GET /api/admin/health', () => {
-    // In the test environment the CMS process is not running, so the endpoint
-    // should report the CMS as down (503) — but it must not crash Express.
-    it('returns 503 with degraded status when CMS is unreachable', async () => {
+    it('returns 503 with degraded status when Storyblok is not configured', async () => {
         const res = await request(app).get('/api/admin/health');
         expect(res.status).toBe(503);
         expect(res.body.status).toBe('degraded');
@@ -57,9 +59,56 @@ describe('GET /api/admin/health', () => {
     it('includes diagnostic details in non-production mode', async () => {
         const res = await request(app).get('/api/admin/health');
         // NODE_ENV is 'test' so diagnostics should be included
-        expect(res.body).toHaveProperty('cmsUrl');
-        expect(res.body).toHaveProperty('errorCode');
+        expect(res.body).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
         expect(res.body).toHaveProperty('hint');
+    });
+});
+
+describe('GET /admin', () => {
+    it('redirects to the configured Storyblok editor URL', async () => {
+        const res = await request(app).get('/admin');
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe(process.env.STORYBLOK_EDITOR_URL);
+    });
+});
+
+describe('Storyblok preview routes', () => {
+    it('sets the preview cookie and redirects when the secret is valid', async () => {
+        const res = await request(app)
+            .get('/api/admin/preview/storyblok-secret');
+
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe('/');
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
+    });
+
+    it('rejects invalid preview secrets', async () => {
+        const res = await request(app)
+            .get('/api/admin/preview/wrong-secret');
+
+        expect(res.status).toBe(401);
+    });
+
+    it('requires a configured preview secret in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalPreviewSecret = process.env.STORYBLOK_PREVIEW_SECRET;
+        process.env.NODE_ENV = 'production';
+        delete process.env.STORYBLOK_PREVIEW_SECRET;
+
+        try {
+            const res = await request(app).get('/api/admin/preview/any-secret');
+            expect(res.status).toBe(404);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+            process.env.STORYBLOK_PREVIEW_SECRET = originalPreviewSecret;
+        }
+    });
+
+    it('clears the preview cookie', async () => {
+        const res = await request(app).post('/api/admin/preview/exit');
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=/);
     });
 });
 
@@ -84,6 +133,7 @@ describe('POST /api/admin/login', () => {
         expect(res.headers['set-cookie']).toBeDefined();
         expect(res.headers['set-cookie'][0]).toMatch(/adminToken=/);
         expect(res.headers['set-cookie'][0]).toMatch(/HttpOnly/i);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/adminCsrfToken=/);
     });
 
     it('returns 401 on wrong password', async () => {
@@ -110,10 +160,10 @@ describe('GET /api/admin/verify', () => {
     });
 
     it('returns 200 when a valid cookie is sent', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .get('/api/admin/verify')
-            .set('Cookie', cookie);
+            .set('Cookie', session.cookies);
         expect(res.status).toBe(200);
         expect(res.body.authenticated).toBe(true);
     });
@@ -129,15 +179,37 @@ describe('GET /api/admin/verify', () => {
 
 describe('POST /api/admin/logout', () => {
     it('returns 200 and clears the cookie', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .post('/api/admin/logout')
-            .set('Cookie', cookie);
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
         // The Set-Cookie header should clear the adminToken cookie
         const setCookie = (res.headers['set-cookie'] || []).join(';');
         expect(setCookie).toMatch(/adminToken=/);
+    });
+
+    it('clears cookies with the same secure attributes in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        try {
+            const session = await adminSession();
+            const res = await request(app)
+                .post('/api/admin/logout')
+                .set('Cookie', session.cookies)
+                .set('x-csrf-token', session.csrfToken);
+
+            const setCookie = (res.headers['set-cookie'] || []).join(';');
+            expect(setCookie).toMatch(/adminToken=/);
+            expect(setCookie).toMatch(/adminCsrfToken=/);
+            expect(setCookie).toMatch(/Secure/i);
+            expect(setCookie).toMatch(/SameSite=Strict/i);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+        }
     });
 });
 
@@ -202,10 +274,10 @@ describe('GET /api/bookings (admin protected)', () => {
     });
 
     it('returns 200 with admin cookie', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .get('/api/bookings')
-            .set('Cookie', cookie);
+            .set('Cookie', session.cookies);
         expect(res.status).toBe(200);
     });
 });
@@ -219,10 +291,11 @@ describe('POST /api/tours (admin protected)', () => {
     });
 
     it('accepts a valid tours payload with admin cookie', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .post('/api/tours')
-            .set('Cookie', cookie)
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken)
             .send({ tours: [], testimonials: [] });
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
@@ -266,107 +339,6 @@ describe('POST /api/bookings/customer', () => {
                 customerEmail: 'john@example.com',
             });
         expect(res.status).toBe(201);
-    });
-});
-
-// ─────────────────────────────────────────────────
-// CMS Proxy — path forwarding
-// ─────────────────────────────────────────────────
-// These tests verify that the root-mounted proxy preserves the full request
-// path when forwarding to the CMS.  A lightweight HTTP server plays the role
-// of the CMS (target); we assert that the path it receives matches exactly
-// what the browser sent.  If the proxy were mounted at a subpath
-// (app.use('/admin', proxy)) Express would strip the prefix and the CMS
-// would receive '/' instead of '/admin', causing an infinite redirect loop.
-describe('CMS proxy — path preservation', () => {
-    const http = require('http');
-    const CMS_PATHS = ['/admin', '/_next', '/api/media', '/media'];
-
-    const cases = [
-        ['/admin',                '/admin'],
-        ['/admin/',               '/admin/'],
-        ['/admin/login',          '/admin/login'],
-        ['/admin/collections/foo','/admin/collections/foo'],
-        ['/_next/static/js/a.js', '/_next/static/js/a.js'],
-        ['/api/media/123',        '/api/media/123'],
-        ['/media/photo.jpg',      '/media/photo.jpg'],
-    ];
-
-    test.each(cases)(
-        'GET %s is forwarded to CMS as %s',
-        async (requestPath, expectedCmsPath) => {
-            // Use a small isolated Express app with a fresh proxy target so
-            // each case can assert the exact path received by the CMS stub.
-            const express2 = require('express');
-            const { createProxyMiddleware: cpm } = require('http-proxy-middleware');
-            const mini = express2();
-            const proxiedPaths = [];
-            const miniCms = http.createServer((req, res) => {
-                proxiedPaths.push(req.url.split('?')[0]);
-                res.writeHead(200);
-                res.end('ok');
-            });
-            await new Promise((r) => miniCms.listen(0, '127.0.0.1', r));
-            const miniPort = miniCms.address().port;
-
-            mini.use(cpm({
-                target: `http://127.0.0.1:${miniPort}`,
-                changeOrigin: true,
-                pathFilter: (p) => CMS_PATHS.some((prefix) => p === prefix || p.startsWith(prefix + '/')),
-                on: { error: (_e, _r, res2) => { res2.status(502).end(); } },
-            }));
-            const miniServer = http.createServer(mini);
-            await new Promise((r) => miniServer.listen(0, '127.0.0.1', r));
-            const miniMainPort = miniServer.address().port;
-
-            await new Promise((resolve, reject) => {
-                http.get(`http://127.0.0.1:${miniMainPort}${requestPath}`, (res2) => {
-                    res2.resume(); res2.on('end', resolve);
-                }).on('error', reject);
-            });
-
-            await new Promise((r) => miniServer.close(r));
-            await new Promise((r) => miniCms.close(r));
-
-            expect(proxiedPaths).toHaveLength(1);
-            expect(proxiedPaths[0]).toBe(expectedCmsPath);
-        }
-    );
-
-    it('does NOT proxy non-CMS paths (e.g. /api/tours)', async () => {
-        const express2 = require('express');
-        const { createProxyMiddleware: cpm } = require('http-proxy-middleware');
-        const proxiedPaths = [];
-        const miniCms = http.createServer((req, res) => {
-            proxiedPaths.push(req.url);
-            res.writeHead(200);
-            res.end('ok');
-        });
-        await new Promise((r) => miniCms.listen(0, '127.0.0.1', r));
-        const miniPort = miniCms.address().port;
-
-        const mini = express2();
-        mini.use(cpm({
-            target: `http://127.0.0.1:${miniPort}`,
-            changeOrigin: true,
-            pathFilter: (p) => CMS_PATHS.some((prefix) => p === prefix || p.startsWith(prefix + '/')),
-            on: { error: (_e, _r, res2) => { res2.status(502).end(); } },
-        }));
-        mini.get('/api/tours', (_req, res2) => res2.json({ tours: [] }));
-        const miniServer = http.createServer(mini);
-        await new Promise((r) => miniServer.listen(0, '127.0.0.1', r));
-        const miniMainPort = miniServer.address().port;
-
-        await new Promise((resolve, reject) => {
-            http.get(`http://127.0.0.1:${miniMainPort}/api/tours`, (res2) => {
-                res2.resume(); res2.on('end', resolve);
-            }).on('error', reject);
-        });
-
-        await new Promise((r) => miniServer.close(r));
-        await new Promise((r) => miniCms.close(r));
-
-        expect(proxiedPaths).toHaveLength(0);
     });
 });
 
