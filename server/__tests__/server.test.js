@@ -65,10 +65,71 @@ describe('GET /api/admin/health', () => {
 });
 
 describe('GET /admin', () => {
-    it('redirects to the configured Storyblok editor URL', async () => {
+    it('redirects unauthenticated users to /admin/login', async () => {
         const res = await request(app).get('/admin');
         expect(res.status).toBe(302);
-        expect(res.headers.location).toBe(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.headers.location).toBe('/admin/login');
+    });
+
+    it('serves an embedded admin shell for authenticated users', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(200);
+        expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
+        expect(res.text).toContain('<iframe');
+        expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.text).toContain('id="switch-account"');
+        expect(res.text).toContain('/api/admin/logout');
+        expect(res.text).toContain('/admin/login?force=1');
+    });
+
+    it('includes the configured editor origin in admin CSP frame-src', async () => {
+        const originalEditorUrl = process.env.STORYBLOK_EDITOR_URL;
+        process.env.STORYBLOK_EDITOR_URL = 'https://custom-editor.example.com/editor';
+        const session = await adminSession();
+
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
+        } finally {
+            process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
+        }
+    });
+});
+
+describe('GET /admin/login', () => {
+    it('renders a login form', async () => {
+        const res = await request(app).get('/admin/login');
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('Admin login');
+        expect(res.text).toContain('Sign in');
+    });
+
+    it('redirects authenticated users to /admin', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin/login')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe('/admin');
+    });
+
+    it('renders login page when force=1 even if authenticated', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin/login?force=1')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('Admin login');
     });
 });
 
@@ -109,6 +170,39 @@ describe('Storyblok preview routes', () => {
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
         expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=/);
+    });
+
+    it('returns preview status for authenticated admin', async () => {
+        const session = await adminSession();
+        const enableRes = await request(app)
+            .post('/api/admin/preview/enable')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+
+        const statusCookies = [...session.cookies, ...(enableRes.headers['set-cookie'] || [])];
+        const res = await request(app)
+            .get('/api/admin/preview/status')
+            .set('Cookie', statusCookies);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ active: true, mode: 'draft' });
+    });
+
+    it('enables preview mode for authenticated admin', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .post('/api/admin/preview/enable')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
+    });
+
+    it('rejects unauthenticated preview enable requests', async () => {
+        const res = await request(app).post('/api/admin/preview/enable');
+        expect(res.status).toBe(401);
     });
 });
 

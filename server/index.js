@@ -77,7 +77,8 @@ const allowedOrigins = new Set(
 );
 
 app.use((req, res, next) => {
-    if (getStoryblokVersion(req) === 'draft') {
+    const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
+    if (getStoryblokVersion(req) === 'draft' || isAdminPath) {
         res.removeHeader('X-Frame-Options');
     }
 
@@ -144,6 +145,8 @@ const JWT_EXPIRES_IN = '24h';
 const ADMIN_COOKIE_NAME = 'adminToken';
 const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
+const ADMIN_LOGIN_PATH = '/admin/login';
+const PREVIEW_MODE_DRAFT = 'draft';
 
 function getAdminCookieOptions() {
     const secure = process.env.NODE_ENV === 'production';
@@ -184,6 +187,25 @@ function issueAdminSessionAndCsrfCookies(res, token) {
     res.cookie(CSRF_COOKIE_NAME, csrfToken, getCsrfCookieOptions());
 }
 
+function isAdminAuthenticated(req) {
+    if (!ADMIN_PASSWORD) {
+        return true;
+    }
+
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (cookieToken) {
+        try {
+            jwt.verify(cookieToken, JWT_SECRET);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    const legacyToken = req.headers['x-admin-secret'] || '';
+    return Boolean(legacyToken && legacyToken === ADMIN_SECRET);
+}
+
 // Strict rate-limiter for the login endpoint to slow brute-force attempts.
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -194,30 +216,9 @@ const loginLimiter = rateLimit({
 });
 
 const requireAdminAuth = (req, res, next) => {
-    if (!ADMIN_PASSWORD) {
-        // No password configured — open access (development mode)
+    if (isAdminAuthenticated(req)) {
         return next();
     }
-
-    // Prefer the httpOnly JWT cookie (new path).
-    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
-    if (cookieToken) {
-        try {
-            jwt.verify(cookieToken, JWT_SECRET);
-            return next();
-        } catch {
-            return res.status(401).json({ error: 'Session expired. Please log in again.' });
-        }
-    }
-
-    // Backward-compat: also accept the legacy X-Admin-Secret header so that
-    // existing clients (e.g. still using the old REACT_APP_ADMIN_SECRET) keep
-    // working during a rolling upgrade.
-    const legacyToken = req.headers['x-admin-secret'] || '';
-    if (legacyToken && legacyToken === ADMIN_SECRET) {
-        return next();
-    }
-
     return res.status(401).json({ error: 'Unauthorized: please log in at /admin.' });
 };
 
@@ -586,6 +587,190 @@ function validateDataFiles() {
 }
 validateDataFiles();
 
+function escapeHtml(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getAdminFrameSources(storyblokAdminUrl) {
+    const sources = new Set([
+        'https://app.storyblok.com',
+        'https://*.storyblok.com',
+    ]);
+
+    try {
+        const origin = new URL(storyblokAdminUrl).origin;
+        if (origin) {
+            sources.add(origin);
+        }
+    } catch (_error) {
+        // Ignore invalid URL values and fall back to Storyblok defaults.
+    }
+
+    return [...sources].join(' ');
+}
+
+function getAdminPageCsp(nonce, storyblokAdminUrl) {
+    return [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}'`,
+        `style-src 'self' 'nonce-${nonce}'`,
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        `frame-src ${getAdminFrameSources(storyblokAdminUrl)}`,
+        "frame-ancestors 'self'",
+        "base-uri 'none'",
+        "object-src 'none'",
+    ].join('; ');
+}
+
+function renderAdminLoginPage() {
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Login</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b1220; color: #e5e7eb; min-height: 100vh; display: grid; place-items: center; }
+    .card { width: min(420px, calc(100vw - 32px)); background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 20px; box-sizing: border-box; }
+    h1 { font-size: 1.1rem; margin: 0 0 12px; }
+    p { margin: 0 0 14px; color: #9ca3af; }
+    label { display: block; margin-bottom: 6px; font-size: 0.9rem; }
+    input { width: 100%; box-sizing: border-box; border: 1px solid #374151; border-radius: 8px; background: #0f172a; color: #f9fafb; padding: 10px; margin-bottom: 12px; }
+    button { width: 100%; border: 0; border-radius: 8px; padding: 10px; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }
+    #error { min-height: 20px; color: #fca5a5; font-size: 0.9rem; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Admin login</h1>
+    <p>Sign in to access the embedded Storyblok editor.</p>
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" name="username" autocomplete="username" />
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <div id="error"></div>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+  <script>
+    const form = document.getElementById('login-form');
+    const errorEl = document.getElementById('error');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      errorEl.textContent = '';
+      const payload = {
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      };
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        errorEl.textContent = body.error || 'Login failed.';
+        return;
+      }
+      window.location.href = '/admin';
+    });
+  </script>
+</body>
+</html>`;
+}
+
+function renderAdminShellPage(storyblokAdminUrl, nonce) {
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Editor</title>
+  <style nonce="${nonce}">
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #e5e7eb; background: #0b1220; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    aside { background: #111827; border-right: 1px solid #1f2937; padding: 16px; box-sizing: border-box; }
+    h1 { font-size: 1rem; margin: 0 0 8px; }
+    .hint { color: #9ca3af; font-size: 0.85rem; margin: 0 0 12px; }
+    .status { margin: 0 0 16px; font-size: 0.9rem; padding: 8px; border-radius: 8px; background: #0f172a; border: 1px solid #1f2937; }
+    .status[data-active="true"] { border-color: #065f46; color: #86efac; }
+    .actions { display: grid; gap: 8px; }
+    button, a { appearance: none; border: 1px solid #374151; background: #1f2937; color: #f3f4f6; border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; text-decoration: none; text-align: center; cursor: pointer; }
+    button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    main { background: #000; }
+    iframe { width: 100%; height: 100vh; border: 0; display: block; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <h1>Egypt Advisor Admin</h1>
+      <p class="hint">Embedded Storyblok visual editor</p>
+      <div id="preview-status" class="status" data-active="false">Preview: checking…</div>
+      <div class="actions">
+        <button id="enable-preview" class="primary" type="button">Enable preview mode</button>
+        <button id="exit-preview" type="button">Exit preview mode</button>
+        <a href="/api/admin/preview/exit" target="_blank" rel="noreferrer">Open preview-exit URL</a>
+        <button id="switch-account" type="button">Switch account</button>
+      </div>
+    </aside>
+    <main>
+      <iframe src="${escapeHtml(storyblokAdminUrl)}" title="Storyblok Visual Editor" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </main>
+  </div>
+  <script nonce="${nonce}">
+    const statusEl = document.getElementById('preview-status');
+    const getCookie = (name) => {
+      const value = document.cookie.split(';').map((entry) => entry.trim()).find((entry) => entry.startsWith(name + '='));
+      return value ? decodeURIComponent(value.split('=').slice(1).join('=')) : '';
+    };
+
+    const csrfToken = () => getCookie('adminCsrfToken');
+
+    const updateStatus = async () => {
+      const response = await fetch('/api/admin/preview/status', { credentials: 'same-origin' });
+      if (!response.ok) {
+        statusEl.textContent = 'Preview: unavailable';
+        statusEl.dataset.active = 'false';
+        return;
+      }
+      const body = await response.json();
+      statusEl.textContent = body.active ? 'Preview: draft (active)' : 'Preview: published';
+      statusEl.dataset.active = body.active ? 'true' : 'false';
+    };
+
+    const postAction = async (path) => {
+      const response = await fetch(path, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'x-csrf-token': csrfToken() },
+      });
+      if (response.ok) {
+        await updateStatus();
+      } else {
+        statusEl.textContent = 'Action failed. Please refresh.';
+      }
+    };
+
+    document.getElementById('enable-preview').addEventListener('click', () => postAction('/api/admin/preview/enable'));
+    document.getElementById('exit-preview').addEventListener('click', () => postAction('/api/admin/preview/exit'));
+    document.getElementById('switch-account').addEventListener('click', async () => {
+      await postAction('/api/admin/logout');
+      window.location.href = '/admin/login?force=1';
+    });
+    updateStatus();
+  </script>
+</body>
+</html>`;
+}
+
 app.get('/api', (req, res) => {
     res.json({
         message: 'Welcome to Egypt Advisor Tours API',
@@ -598,9 +783,23 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK', timestamp: new Date() });
 });
 
-app.get(['/admin', '/admin/*'], (req, res) => {
+app.get('/admin/login', readLimiter, (req, res) => {
+    if (isAdminAuthenticated(req) && req.query.force !== '1') {
+        return res.redirect(302, '/admin');
+    }
+    return res.status(200).type('html').send(renderAdminLoginPage());
+});
+
+app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
+    if (!isAdminAuthenticated(req)) {
+        return res.redirect(302, ADMIN_LOGIN_PATH);
+    }
+
     const adminUrl = getStoryblokAdminUrl();
-    res.redirect(302, adminUrl);
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminUrl));
+    res.removeHeader('X-Frame-Options');
+    return res.status(200).type('html').send(renderAdminShellPage(adminUrl, nonce));
 });
 
 // ============================================
@@ -647,6 +846,28 @@ app.get('/api/admin/health', async (req, res) => {
     }
 });
 
+app.get('/api/admin/preview/status', readLimiter, requireAdminAuth, (req, res) => {
+    const active = req.cookies && req.cookies.storyblokPreview === PREVIEW_MODE_DRAFT;
+    return res.json({ active, mode: active ? PREVIEW_MODE_DRAFT : 'published' });
+});
+
+app.post('/api/admin/preview/enable', writeLimiter, requireAdminAuth, (req, res) => {
+    res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());
+    return res.json({ success: true, mode: PREVIEW_MODE_DRAFT });
+});
+
+app.post('/api/admin/preview/exit', (req, res) => {
+    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
+    res.clearCookie('storyblokPreview', previewCookieOptions);
+    return res.json({ success: true, message: 'Storyblok preview disabled.' });
+});
+
+app.get('/api/admin/preview/exit', (req, res) => {
+    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
+    res.clearCookie('storyblokPreview', previewCookieOptions);
+    return res.redirect(302, '/admin');
+});
+
 app.get('/api/admin/preview/:secret', (req, res) => {
     const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
     const providedSecret = req.params.secret;
@@ -659,14 +880,8 @@ app.get('/api/admin/preview/:secret', (req, res) => {
         return res.status(401).send('Invalid Storyblok preview secret.');
     }
 
-    res.cookie('storyblokPreview', 'draft', getPreviewCookieOptions());
+    res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());
     return res.redirect(302, '/');
-});
-
-app.post('/api/admin/preview/exit', (req, res) => {
-    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
-    res.clearCookie('storyblokPreview', previewCookieOptions);
-    return res.json({ success: true, message: 'Storyblok preview disabled.' });
 });
 
 // ============================================
