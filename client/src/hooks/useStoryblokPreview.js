@@ -33,7 +33,11 @@ export default function useStoryblokPreview() {
           window.location.reload();
         });
       })
-      .catch(() => {});
+      .catch((error) => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('Storyblok preview bridge failed to load.', error);
+        }
+      });
 
     return () => {
       active = false;

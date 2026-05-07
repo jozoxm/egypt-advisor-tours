@@ -26,13 +26,15 @@ process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
 const app = require('../index.js');
 const jwt = require('jsonwebtoken');
 
-// Helper: obtain a valid admin session cookie.
-async function adminCookie() {
+// Helper: obtain a valid admin session + CSRF token.
+async function adminSession() {
     const res = await request(app)
         .post('/api/admin/login')
         .send({ username: 'testadmin', password: 'test-password' });
-    // Extract Set-Cookie header
-    return res.headers['set-cookie'];
+    const cookies = res.headers['set-cookie'] || [];
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('adminCsrfToken='));
+    const csrfToken = csrfCookie ? csrfCookie.split(';')[0].split('=')[1] : '';
+    return { cookies, csrfToken };
 }
 
 // ─────────────────────────────────────────────────
@@ -73,8 +75,7 @@ describe('GET /admin', () => {
 describe('Storyblok preview routes', () => {
     it('sets the preview cookie and redirects when the secret is valid', async () => {
         const res = await request(app)
-            .get('/api/admin/preview/storyblok-secret')
-            .query({ path: '/tours' });
+            .get('/api/admin/preview/storyblok-secret/tours');
 
         expect(res.status).toBe(302);
         expect(res.headers.location).toBe('/tours');
@@ -83,8 +84,7 @@ describe('Storyblok preview routes', () => {
 
     it('rejects invalid preview secrets', async () => {
         const res = await request(app)
-            .get('/api/admin/preview/wrong-secret')
-            .query({ path: '/' });
+            .get('/api/admin/preview/wrong-secret');
 
         expect(res.status).toBe(401);
     });
@@ -118,6 +118,7 @@ describe('POST /api/admin/login', () => {
         expect(res.headers['set-cookie']).toBeDefined();
         expect(res.headers['set-cookie'][0]).toMatch(/adminToken=/);
         expect(res.headers['set-cookie'][0]).toMatch(/HttpOnly/i);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/adminCsrfToken=/);
     });
 
     it('returns 401 on wrong password', async () => {
@@ -144,10 +145,10 @@ describe('GET /api/admin/verify', () => {
     });
 
     it('returns 200 when a valid cookie is sent', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .get('/api/admin/verify')
-            .set('Cookie', cookie);
+            .set('Cookie', session.cookies);
         expect(res.status).toBe(200);
         expect(res.body.authenticated).toBe(true);
     });
@@ -163,10 +164,11 @@ describe('GET /api/admin/verify', () => {
 
 describe('POST /api/admin/logout', () => {
     it('returns 200 and clears the cookie', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .post('/api/admin/logout')
-            .set('Cookie', cookie);
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
         // The Set-Cookie header should clear the adminToken cookie
@@ -236,10 +238,10 @@ describe('GET /api/bookings (admin protected)', () => {
     });
 
     it('returns 200 with admin cookie', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .get('/api/bookings')
-            .set('Cookie', cookie);
+            .set('Cookie', session.cookies);
         expect(res.status).toBe(200);
     });
 });
@@ -253,10 +255,11 @@ describe('POST /api/tours (admin protected)', () => {
     });
 
     it('accepts a valid tours payload with admin cookie', async () => {
-        const cookie = await adminCookie();
+        const session = await adminSession();
         const res = await request(app)
             .post('/api/tours')
-            .set('Cookie', cookie)
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken)
             .send({ tours: [], testimonials: [] });
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);

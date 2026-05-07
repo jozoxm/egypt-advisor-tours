@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
@@ -103,6 +104,25 @@ app.use((req, res, next) => {
     return next();
 });
 
+app.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+        return next();
+    }
+
+    const cookieToken = req.cookies && req.cookies[ADMIN_COOKIE_NAME];
+    if (!cookieToken) {
+        return next();
+    }
+
+    const csrfCookie = req.cookies && req.cookies[CSRF_COOKIE_NAME];
+    const csrfHeader = req.get(CSRF_HEADER_NAME);
+    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+        return res.status(403).json({ error: 'Invalid or missing CSRF token.' });
+    }
+
+    return next();
+});
+
 // ============================================
 // AUTHENTICATION — JWT-BASED ADMIN AUTH
 // ============================================
@@ -122,6 +142,26 @@ const JWT_SECRET     = ADMIN_SECRET || 'dev-jwt-secret-not-for-production';
 const JWT_EXPIRES_IN = '24h';
 
 const ADMIN_COOKIE_NAME = 'adminToken';
+const CSRF_COOKIE_NAME = 'adminCsrfToken';
+const CSRF_HEADER_NAME = 'x-csrf-token';
+
+function issueAdminSessionCookies(res, token) {
+    const secure = process.env.NODE_ENV === 'production';
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+
+    res.cookie(ADMIN_COOKIE_NAME, token, {
+        httpOnly: true,
+        sameSite: 'strict',
+        secure,
+        maxAge: 24 * 60 * 60 * 1000,
+    });
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, {
+        httpOnly: false,
+        sameSite: 'strict',
+        secure,
+        maxAge: 24 * 60 * 60 * 1000,
+    });
+}
 
 // Strict rate-limiter for the login endpoint to slow brute-force attempts.
 const loginLimiter = rateLimit({
@@ -583,10 +623,10 @@ app.get('/api/admin/health', async (req, res) => {
     }
 });
 
-app.get('/api/admin/preview/:secret?', (req, res) => {
+app.get(['/api/admin/preview/:secret', '/api/admin/preview/:secret/*'], (req, res) => {
     const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
     const providedSecret = req.params.secret;
-    const { path: redirectPath = '/' } = req.query || {};
+    const redirectSuffix = req.params[0] || '';
 
     if (configuredSecret && providedSecret !== configuredSecret) {
         return res.status(401).send('Invalid Storyblok preview secret.');
@@ -598,15 +638,7 @@ app.get('/api/admin/preview/:secret?', (req, res) => {
         secure: process.env.NODE_ENV === 'production',
         maxAge: 60 * 60 * 1000,
     });
-    let safeRedirectPath = '/';
-    if (typeof redirectPath === 'string') {
-        try {
-            const parsed = new URL(redirectPath, 'http://localhost');
-            if (parsed.origin === 'http://localhost' && !redirectPath.startsWith('//')) {
-                safeRedirectPath = `${parsed.pathname}${parsed.search}${parsed.hash}`;
-            }
-        } catch (_error) {}
-    }
+    const safeRedirectPath = redirectSuffix ? `/${redirectSuffix}` : '/';
     return res.redirect(302, safeRedirectPath);
 });
 
@@ -635,12 +667,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
         // Dev mode — no password configured, issue a token anyway so the
         // admin panel works without any setup.
         const devToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        res.cookie(ADMIN_COOKIE_NAME, devToken, {
-            httpOnly: true,
-            sameSite: 'strict',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 24 * 60 * 60 * 1000,
-        });
+        issueAdminSessionCookies(res, devToken);
         return res.json({ success: true, message: 'Logged in (dev mode — no password required).' });
     }
 
@@ -656,12 +683,7 @@ app.post('/api/admin/login', loginLimiter, (req, res) => {
     }
 
     const sessionToken = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-    res.cookie(ADMIN_COOKIE_NAME, sessionToken, {
-        httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
+    issueAdminSessionCookies(res, sessionToken);
     res.json({ success: true, message: 'Logged in successfully.' });
 });
 
@@ -686,6 +708,7 @@ app.get('/api/admin/verify', loginLimiter, (req, res) => {
 // POST /api/admin/logout — clears the session cookie.
 app.post('/api/admin/logout', (req, res) => {
     res.clearCookie(ADMIN_COOKIE_NAME, { httpOnly: true, sameSite: 'strict' });
+    res.clearCookie(CSRF_COOKIE_NAME, { httpOnly: false, sameSite: 'strict' });
     res.json({ success: true, message: 'Logged out.' });
 });
 

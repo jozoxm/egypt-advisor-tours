@@ -1,7 +1,18 @@
 const { storyblokInit, apiPlugin } = require('@storyblok/js');
 
+function wrapToursPayload(data) {
+  if (data && data.tours) {
+    return data;
+  }
+
+  return {
+    tours: Array.isArray(data) ? data : [],
+    testimonials: Array.isArray(data?.testimonials) ? data.testimonials : [],
+  };
+}
+
 const RESOURCE_CONFIG = {
-  tours: { slug: 'cms-tours', wrap: (data) => (data && data.tours ? data : { tours: Array.isArray(data) ? data : [], testimonials: data?.testimonials || [] }) },
+  tours: { slug: 'cms-tours', wrap: wrapToursPayload },
   contact: { slug: 'cms-contact', wrap: (data) => data && typeof data === 'object' && !Array.isArray(data) ? data : {} },
   blogs: { slug: 'cms-blogs', wrap: (data) => (data && data.blogs ? data : { blogs: Array.isArray(data) ? data : [] }) },
   gallery: { slug: 'cms-gallery', wrap: (data) => (data && data.gallery ? data : { gallery: Array.isArray(data) ? data : [] }) },
@@ -98,7 +109,11 @@ function parseJsonString(value) {
     return null;
   }
 
-  return JSON.parse(value);
+  try {
+    return JSON.parse(value);
+  } catch (_error) {
+    return null;
+  }
 }
 
 function stripStoryblokMetaFields(content = {}) {

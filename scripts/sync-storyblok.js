@@ -16,6 +16,14 @@ const DATA_DIR = process.env.DATA_PATH && path.isAbsolute(process.env.DATA_PATH)
   ? process.env.DATA_PATH
   : path.join(ROOT, 'server', 'data');
 
+function requireMatch(content, regex, label) {
+  const match = content.match(regex);
+  if (!match) {
+    throw new Error(`Could not extract ${label} from source content.`);
+  }
+  return match;
+}
+
 const SOURCE_MAP = {
   tours: {
     jsonPath: path.join(DATA_DIR, 'tours.json'),
@@ -32,37 +40,37 @@ const SOURCE_MAP = {
   contact: {
     jsonPath: path.join(DATA_DIR, 'contact.json'),
     jsPath: path.join(ROOT, 'client/src/data/contact-info.js'),
-    readFromJs: (content) => JSON.parse(content.match(/export const contactInfo\s*=\s*({[\s\S]*?});/)[1]),
+    readFromJs: (content) => JSON.parse(requireMatch(content, /export const contactInfo\s*=\s*({[\s\S]*?});/, 'contact info')[1]),
   },
   blogs: {
     jsonPath: path.join(DATA_DIR, 'blogs.json'),
     jsPath: path.join(ROOT, 'client/src/data/blogs-data.js'),
-    readFromJs: (content) => ({ blogs: JSON.parse(content.match(/export const blogs\s*=\s*(\[[\s\S]*?\]);/)[1]) }),
+    readFromJs: (content) => ({ blogs: JSON.parse(requireMatch(content, /export const blogs\s*=\s*(\[[\s\S]*?\]);/, 'blogs')[1]) }),
   },
   gallery: {
     jsonPath: path.join(DATA_DIR, 'gallery.json'),
     jsPath: path.join(ROOT, 'client/src/data/gallery-data.js'),
-    readFromJs: (content) => ({ gallery: JSON.parse(content.match(/export const gallery\s*=\s*(\[[\s\S]*?\]);/)[1]) }),
+    readFromJs: (content) => ({ gallery: JSON.parse(requireMatch(content, /export const gallery\s*=\s*(\[[\s\S]*?\]);/, 'gallery')[1]) }),
   },
   slideshow: {
     jsonPath: path.join(DATA_DIR, 'slideshow.json'),
     jsPath: path.join(ROOT, 'client/src/data/slideshow-data.js'),
-    readFromJs: (content) => ({ slides: JSON.parse(content.match(/export const slides\s*=\s*(\[[\s\S]*?\]);/)[1]) }),
+    readFromJs: (content) => ({ slides: JSON.parse(requireMatch(content, /export const slides\s*=\s*(\[[\s\S]*?\]);/, 'slideshow')[1]) }),
   },
   settings: {
     jsonPath: path.join(DATA_DIR, 'settings.json'),
     jsPath: path.join(ROOT, 'client/src/data/site-settings.js'),
-    readFromJs: (content) => JSON.parse(content.match(/export const siteSettings\s*=\s*({[\s\S]*?});/)[1]),
+    readFromJs: (content) => JSON.parse(requireMatch(content, /export const siteSettings\s*=\s*({[\s\S]*?});/, 'site settings')[1]),
   },
   promotions: {
     jsonPath: path.join(DATA_DIR, 'promotions.json'),
     jsPath: path.join(ROOT, 'client/src/data/promotions-data.js'),
-    readFromJs: (content) => ({ promotions: JSON.parse(content.match(/export const promotions\s*=\s*(\[[\s\S]*?\]);/)[1]) }),
+    readFromJs: (content) => ({ promotions: JSON.parse(requireMatch(content, /export const promotions\s*=\s*(\[[\s\S]*?\]);/, 'promotions')[1]) }),
   },
   destinations: {
     jsonPath: path.join(DATA_DIR, 'destinations.json'),
     jsPath: path.join(ROOT, 'client/src/data/destinations-data.js'),
-    readFromJs: (content) => ({ destinations: JSON.parse(content.match(/export const destinations\s*=\s*(\[[\s\S]*?\]);/)[1]) }),
+    readFromJs: (content) => ({ destinations: JSON.parse(requireMatch(content, /export const destinations\s*=\s*(\[[\s\S]*?\]);/, 'destinations')[1]) }),
   },
 };
 
