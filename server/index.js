@@ -145,22 +145,43 @@ const ADMIN_COOKIE_NAME = 'adminToken';
 const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
-function issueAdminSessionAndCsrfCookies(res, token) {
+function getAdminCookieOptions() {
     const secure = process.env.NODE_ENV === 'production';
-    const csrfToken = crypto.randomBytes(32).toString('hex');
-
-    res.cookie(ADMIN_COOKIE_NAME, token, {
+    return {
+        path: '/',
         httpOnly: true,
         sameSite: 'strict',
         secure,
         maxAge: 24 * 60 * 60 * 1000,
-    });
-    res.cookie(CSRF_COOKIE_NAME, csrfToken, {
+    };
+}
+
+function getCsrfCookieOptions() {
+    const secure = process.env.NODE_ENV === 'production';
+    return {
+        path: '/',
         httpOnly: false,
         sameSite: 'strict',
         secure,
         maxAge: 24 * 60 * 60 * 1000,
-    });
+    };
+}
+
+function getPreviewCookieOptions() {
+    return {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 1000,
+    };
+}
+
+function issueAdminSessionAndCsrfCookies(res, token) {
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+
+    res.cookie(ADMIN_COOKIE_NAME, token, getAdminCookieOptions());
+    res.cookie(CSRF_COOKIE_NAME, csrfToken, getCsrfCookieOptions());
 }
 
 // Strict rate-limiter for the login endpoint to slow brute-force attempts.
@@ -630,25 +651,21 @@ app.get('/api/admin/preview/:secret', (req, res) => {
     const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
     const providedSecret = req.params.secret;
 
+    if (process.env.NODE_ENV === 'production' && !configuredSecret) {
+        return res.status(404).send('Not found');
+    }
+
     if (configuredSecret && providedSecret !== configuredSecret) {
         return res.status(401).send('Invalid Storyblok preview secret.');
     }
 
-    res.cookie('storyblokPreview', 'draft', {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 1000,
-    });
+    res.cookie('storyblokPreview', 'draft', getPreviewCookieOptions());
     return res.redirect(302, '/');
 });
 
 app.post('/api/admin/preview/exit', (req, res) => {
-    res.clearCookie('storyblokPreview', {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-    });
+    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
+    res.clearCookie('storyblokPreview', previewCookieOptions);
     return res.json({ success: true, message: 'Storyblok preview disabled.' });
 });
 
@@ -708,8 +725,10 @@ app.get('/api/admin/verify', loginLimiter, (req, res) => {
 
 // POST /api/admin/logout — clears the session cookie.
 app.post('/api/admin/logout', (req, res) => {
-    res.clearCookie(ADMIN_COOKIE_NAME, { httpOnly: true, sameSite: 'strict' });
-    res.clearCookie(CSRF_COOKIE_NAME, { httpOnly: false, sameSite: 'strict' });
+    const { maxAge: _adminMaxAge, ...adminCookieOptions } = getAdminCookieOptions();
+    const { maxAge: _csrfMaxAge, ...csrfCookieOptions } = getCsrfCookieOptions();
+    res.clearCookie(ADMIN_COOKIE_NAME, adminCookieOptions);
+    res.clearCookie(CSRF_COOKIE_NAME, csrfCookieOptions);
     res.json({ success: true, message: 'Logged out.' });
 });
 

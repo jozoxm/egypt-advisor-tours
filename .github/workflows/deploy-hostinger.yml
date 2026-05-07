@@ -78,6 +78,19 @@ jobs:
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             exit 1
           fi
+          case "$_HOSTINGER_DATA_PATH" in
+            /*) ;;
+            *)
+              echo "::error::HOSTINGER_DATA_PATH must be an absolute path starting with /"
+              exit 1
+              ;;
+          esac
+          case "$_HOSTINGER_DATA_PATH" in
+            *$'\n'*|*$'\r'*|*[[:space:]]*)
+              echo "::error::HOSTINGER_DATA_PATH must not contain whitespace or newlines"
+              exit 1
+              ;;
+          esac
 
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -2,6 +2,7 @@ const {
   extractStoryblokPayload,
   getStoryblokVersion,
   normalizeStoryblokPayload,
+  updateStoryblokResource,
 } = require('../storyblok');
 
 describe('Storyblok helpers', () => {
@@ -28,6 +29,18 @@ describe('Storyblok helpers', () => {
     expect(payload).toEqual({ hero: { title: 'Explore Egypt' } });
   });
 
+  it('throws when a Storyblok JSON field is invalid', () => {
+    expect(() =>
+      extractStoryblokPayload({
+        slug: 'cms-blogs',
+        content: {
+          component: 'json_document',
+          json: '{"blogs": }',
+        },
+      })
+    ).toThrow(/Invalid Storyblok JSON/);
+  });
+
   it('detects draft mode from preview cookies and query params', () => {
     expect(getStoryblokVersion({ query: { _storyblok: '1' } })).toBe('draft');
     expect(getStoryblokVersion({ cookies: { storyblokPreview: 'draft' } })).toBe('draft');
@@ -42,5 +55,60 @@ describe('Storyblok helpers', () => {
       tours: [],
       testimonials: [],
     });
+  });
+
+  it('returns null for empty Storyblok content so callers can fall back', () => {
+    expect(
+      extractStoryblokPayload({
+        slug: 'cms-settings',
+        content: {
+          component: 'json_document',
+          json: '',
+        },
+      })
+    ).toBeNull();
+  });
+
+  it('updates stories through the management API without requiring a delivery token', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stories: [
+            {
+              id: 42,
+              name: 'blogs',
+              slug: 'cms-blogs',
+              is_startpage: false,
+              content: { component: 'json_document' },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+
+    try {
+      await expect(
+        updateStoryblokResource(
+          'blogs',
+          { blogs: [{ title: 'Updated' }] },
+          {
+            STORYBLOK_MANAGEMENT_TOKEN: 'management-token',
+            STORYBLOK_SPACE_ID: 'space-id',
+          }
+        )
+      ).resolves.toEqual({ persisted: true });
+
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(global.fetch.mock.calls[0][0]).toContain('/stories?by_slugs=cms-blogs');
+      expect(global.fetch.mock.calls[1][0]).toContain('/stories/42');
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

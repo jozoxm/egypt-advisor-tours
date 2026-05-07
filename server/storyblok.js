@@ -27,6 +27,7 @@ const RESOURCE_CONFIG = {
 };
 
 const STORYBLOK_META_FIELDS = new Set(['_uid', '_editable', 'component']);
+const STORYBLOK_MANAGEMENT_API_URL = 'https://mapi.storyblok.com/v1';
 
 let cachedClient = null;
 let cachedClientKey = '';
@@ -108,15 +109,15 @@ function getStoryblokClient(env = process.env) {
   return cachedClient;
 }
 
-function parseJsonString(value) {
+function parseJsonString(value, context) {
   if (typeof value !== 'string' || !value.trim()) {
     return null;
   }
 
   try {
     return JSON.parse(value);
-  } catch (_error) {
-    return null;
+  } catch (error) {
+    throw new Error(`Invalid Storyblok JSON in ${context}: ${error.message}`);
   }
 }
 
@@ -128,25 +129,53 @@ function stripStoryblokMetaFields(content = {}) {
 
 function extractStoryblokPayload(story) {
   const content = story?.content || {};
+  const storyIdentifier = story?.full_slug || story?.slug || 'unknown-story';
 
   if (content.data && typeof content.data === 'object' && !Array.isArray(content.data)) {
-    return content.data;
+    return Object.keys(content.data).length > 0 ? content.data : null;
   }
 
   if (typeof content.json === 'string') {
-    return parseJsonString(content.json);
+    return parseJsonString(content.json, `${storyIdentifier}.content.json`);
   }
 
   if (typeof content.payload === 'string') {
-    return parseJsonString(content.payload);
+    return parseJsonString(content.payload, `${storyIdentifier}.content.payload`);
   }
 
-  return stripStoryblokMetaFields(content);
+  const strippedContent = stripStoryblokMetaFields(content);
+  return Object.keys(strippedContent).length > 0 ? strippedContent : null;
 }
 
 function normalizeStoryblokPayload(resourceKey, payload) {
   const config = RESOURCE_CONFIG[resourceKey];
   return config ? config.wrap(payload) : payload;
+}
+
+function isValidStoryblokPayload(resourceKey, payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return false;
+  }
+
+  switch (resourceKey) {
+    case 'tours':
+      return Array.isArray(payload.tours) && Array.isArray(payload.testimonials);
+    case 'blogs':
+      return Array.isArray(payload.blogs);
+    case 'gallery':
+      return Array.isArray(payload.gallery);
+    case 'slideshow':
+      return Array.isArray(payload.slides);
+    case 'promotions':
+      return Array.isArray(payload.promotions);
+    case 'destinations':
+      return Array.isArray(payload.destinations);
+    case 'contact':
+    case 'settings':
+      return Object.keys(payload).length > 0;
+    default:
+      return true;
+  }
 }
 
 async function fetchStoryblokStory(resourceKey, options = {}) {
@@ -173,6 +202,7 @@ async function fetchStoryblokStory(resourceKey, options = {}) {
 
 async function fetchStoryblokResource(resourceKey, options = {}) {
   const source = options.source || {};
+  const slug = getStoryblokSlug(resourceKey, options.env || process.env);
   const story = await fetchStoryblokStory(resourceKey, {
     env: options.env,
     version: options.version || getStoryblokVersion(source),
@@ -184,7 +214,44 @@ async function fetchStoryblokResource(resourceKey, options = {}) {
   }
 
   const payload = extractStoryblokPayload(story);
-  return normalizeStoryblokPayload(resourceKey, payload);
+  if (payload === null) {
+    throw new Error(`Storyblok story "${slug}" does not contain usable content.`);
+  }
+
+  const normalizedPayload = normalizeStoryblokPayload(resourceKey, payload);
+  if (!isValidStoryblokPayload(resourceKey, normalizedPayload)) {
+    throw new Error(`Storyblok story "${slug}" has an invalid content shape.`);
+  }
+
+  return normalizedPayload;
+}
+
+async function managementRequest(pathname, { env = process.env, method = 'GET', body } = {}) {
+  const response = await fetch(`${STORYBLOK_MANAGEMENT_API_URL}${pathname}`, {
+    method,
+    headers: {
+      Authorization: env.STORYBLOK_MANAGEMENT_TOKEN,
+      'Content-Type': 'application/json',
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Storyblok Management API request failed (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
+async function fetchManagementStory(resourceKey, env = process.env) {
+  const slug = getStoryblokSlug(resourceKey, env);
+  const data = await managementRequest(
+    `/spaces/${env.STORYBLOK_SPACE_ID}/stories?by_slugs=${encodeURIComponent(slug)}`,
+    { env }
+  );
+
+  return data?.stories?.[0] || null;
 }
 
 async function updateStoryblokResource(resourceKey, payload, env = process.env) {
@@ -199,10 +266,7 @@ async function updateStoryblokResource(resourceKey, payload, env = process.env) 
     return { persisted: false, reason: 'STORYBLOK_SPACE_ID is required' };
   }
 
-  const story = await fetchStoryblokStory(resourceKey, {
-    env,
-    version: 'draft',
-  });
+  const story = await fetchManagementStory(resourceKey, env);
 
   if (!story?.id) {
     throw new Error(
@@ -210,34 +274,21 @@ async function updateStoryblokResource(resourceKey, payload, env = process.env) 
     );
   }
 
-  const response = await fetch(
-    `https://mapi.storyblok.com/v1/spaces/${spaceId}/stories/${story.id}`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: managementToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        story: {
-          name: story.name,
-          slug: story.slug,
-          content: {
-            component: story.content?.component || getStoryblokComponent(env),
-            json: JSON.stringify(payload, null, 2),
-          },
-          is_startpage: Boolean(story.is_startpage),
+  await managementRequest(`/spaces/${spaceId}/stories/${story.id}`, {
+    env,
+    method: 'PUT',
+    body: JSON.stringify({
+      story: {
+        name: story.name,
+        slug: story.slug,
+        content: {
+          component: story.content?.component || getStoryblokComponent(env),
+          json: JSON.stringify(payload, null, 2),
         },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Storyblok update failed for "${resourceKey}" (${response.status}): ${errorText}`
-    );
-  }
+        is_startpage: Boolean(story.is_startpage),
+      },
+    }),
+  });
 
   return { persisted: true };
 }

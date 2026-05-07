@@ -89,6 +89,21 @@ describe('Storyblok preview routes', () => {
         expect(res.status).toBe(401);
     });
 
+    it('requires a configured preview secret in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalPreviewSecret = process.env.STORYBLOK_PREVIEW_SECRET;
+        process.env.NODE_ENV = 'production';
+        delete process.env.STORYBLOK_PREVIEW_SECRET;
+
+        try {
+            const res = await request(app).get('/api/admin/preview/any-secret');
+            expect(res.status).toBe(404);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+            process.env.STORYBLOK_PREVIEW_SECRET = originalPreviewSecret;
+        }
+    });
+
     it('clears the preview cookie', async () => {
         const res = await request(app).post('/api/admin/preview/exit');
         expect(res.status).toBe(200);
@@ -174,6 +189,27 @@ describe('POST /api/admin/logout', () => {
         // The Set-Cookie header should clear the adminToken cookie
         const setCookie = (res.headers['set-cookie'] || []).join(';');
         expect(setCookie).toMatch(/adminToken=/);
+    });
+
+    it('clears cookies with the same secure attributes in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        try {
+            const session = await adminSession();
+            const res = await request(app)
+                .post('/api/admin/logout')
+                .set('Cookie', session.cookies)
+                .set('x-csrf-token', session.csrfToken);
+
+            const setCookie = (res.headers['set-cookie'] || []).join(';');
+            expect(setCookie).toMatch(/adminToken=/);
+            expect(setCookie).toMatch(/adminCsrfToken=/);
+            expect(setCookie).toMatch(/Secure/i);
+            expect(setCookie).toMatch(/SameSite=Strict/i);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+        }
     });
 });
 
