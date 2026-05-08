@@ -64,5 +64,6 @@ describe('CMS provider dispatcher', () => {
     expect(result.provider).toBe('file');
     expect(result.failover).toBe(true);
     expect(result.data).toEqual({ blogs: [{ title: 'offline' }] });
+    expect(localRead).toHaveBeenCalled();
   });
 });
