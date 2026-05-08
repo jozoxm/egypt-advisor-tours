@@ -15,6 +15,7 @@ Content editing now happens in **Storyblok**.
 4. Set env values in `.env`:
    - `STORYBLOK_PREVIEW_TOKEN`, `STORYBLOK_SPACE_ID`, `STORYBLOK_REGION`, `STORYBLOK_PREVIEW_SECRET`, `ADMIN_SECRET`, `ADMIN_PASSWORD`
    - Add `STORYBLOK_MANAGEMENT_TOKEN` if using `npm run sync:storyblok`
+   - Optional: set `CMS_PROVIDER=filesystem` to force local JSON mode
 5. Set Storyblok preview URL:
    - `https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
    - Local: `http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
@@ -32,8 +33,10 @@ Visit:
 
 - `https://egyptadvisortours.com/admin`
 
-`/admin` now serves a protected in-app admin shell and embeds Storyblok in an iframe.
+`/admin` serves a protected in-app admin shell and embeds Storyblok in an iframe when Storyblok mode is active.
 If `ADMIN_PASSWORD` (or legacy `ADMIN_SECRET`) is configured, unauthenticated users are redirected to `/admin/login`.
+
+If Storyblok is not configured, or `CMS_PROVIDER=filesystem` is set, `/admin` shows a first-party setup/help page and links to local content endpoints.
 
 Storyblok editor URL resolution:
 
@@ -76,3 +79,11 @@ Admin shell preview controls:
 ## Server-managed data
 
 Bookings are still stored on the server because they contain customer submission data and are not editor-authored CMS content.
+
+## CMS health diagnostics
+
+`GET /api/admin/health` response behavior:
+
+- `200` with `provider: filesystem` and mode `storyblok_not_configured` or `forced_filesystem` when local fallback mode is active
+- `200` with `provider: storyblok` when Storyblok is reachable
+- `503` with `cms: storyblok_unreachable` when Storyblok is configured but temporarily unavailable

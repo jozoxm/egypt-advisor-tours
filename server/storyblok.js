@@ -36,8 +36,23 @@ function getStoryblokToken(env = process.env) {
   return env.STORYBLOK_PREVIEW_TOKEN || env.STORYBLOK_ACCESS_TOKEN || '';
 }
 
+function getCmsProvider(env = process.env) {
+  const configuredProvider = String(env.CMS_PROVIDER || '').trim().toLowerCase();
+  if (configuredProvider === 'filesystem') {
+    return 'filesystem';
+  }
+  if (configuredProvider === 'storyblok') {
+    return 'storyblok';
+  }
+  return getStoryblokToken(env) ? 'storyblok' : 'filesystem';
+}
+
 function isStoryblokConfigured(env = process.env) {
   return Boolean(getStoryblokToken(env));
+}
+
+function shouldUseStoryblok(env = process.env) {
+  return getCmsProvider(env) === 'storyblok' && isStoryblokConfigured(env);
 }
 
 function getStoryblokRegion(env = process.env) {
@@ -298,11 +313,13 @@ module.exports = {
   extractStoryblokPayload,
   fetchStoryblokResource,
   getStoryblokAdminUrl,
+  getCmsProvider,
   getStoryblokComponent,
   getStoryblokSlug,
   getStoryblokToken,
   getStoryblokVersion,
   isStoryblokConfigured,
   normalizeStoryblokPayload,
+  shouldUseStoryblok,
   updateStoryblokResource,
 };
