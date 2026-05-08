@@ -97,10 +97,17 @@ function stripHtml(html) {
         .trim();
 }
 
+// Default icons used when no ACF icon/emoji is configured for each content type.
+const DEFAULT_TOUR_ICON = '🏛️';
+const DEFAULT_BLOG_ICON = '🗺️';
+const DEFAULT_PROMOTION_ICON = '🎫';
+const DEFAULT_DESTINATION_ICON = '🗺️';
+
 // Returns `value` only if it does not look like a URL (i.e. safe to use as
 // an icon/emoji in the UI).  If `value` appears to be a URL it is silently
 // dropped so that photo URLs never leak into the text-rendered `image` field.
-function safeIcon(value, fallback) {
+// `fallback` defaults to an empty string so the return type is always a string.
+function safeIcon(value, fallback = '') {
     if (!value) return fallback;
     return String(value).includes('://') ? fallback : String(value);
 }
@@ -121,7 +128,7 @@ function transformTour(post) {
         duration: acf.duration || '',
         // image: icon/emoji displayed in card UI — must not be a URL.
         // Use photoUrl for the actual media URL.
-        image: safeIcon(acf.image, '🏛️'),
+        image: safeIcon(acf.image, DEFAULT_TOUR_ICON),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         prices: acf.prices || {},
         rating: acf.rating || 0,
@@ -155,7 +162,7 @@ function transformBlog(post) {
         excerpt: acf.excerpt || stripHtml(post.excerpt && post.excerpt.rendered) || '',
         content: acf.content || stripHtml(post.content && post.content.rendered) || '',
         // image: icon/emoji displayed in blog card — must not be a URL.
-        image: safeIcon(acf.image, '🗺️'),
+        image: safeIcon(acf.image, DEFAULT_BLOG_ICON),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         category: acf.category || categories[0] || '',
         featured: Boolean(acf.featured),
@@ -191,7 +198,7 @@ function transformPromotion(post) {
         discount: acf.discount || '',
         validUntil: acf.valid_until || acf.validUntil || '',
         // image: icon/emoji displayed in promotion card — must not be a URL.
-        image: safeIcon(acf.image, '🎫'),
+        image: safeIcon(acf.image, DEFAULT_PROMOTION_ICON),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         active: acf.active !== false,
         slug: post.slug || '',
@@ -210,7 +217,7 @@ function transformDestination(post) {
         name: acf.name || stripHtml(post.title && post.title.rendered) || '',
         description: acf.description || stripHtml(post.excerpt && post.excerpt.rendered) || '',
         // image: icon/emoji displayed in destination card — must not be a URL.
-        image: safeIcon(acf.image, '🗺️'),
+        image: safeIcon(acf.image, DEFAULT_DESTINATION_ICON),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         featured: Boolean(acf.featured),
         slug: post.slug || '',
