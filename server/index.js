@@ -435,6 +435,13 @@ function writeData(key, data) {
     }
 }
 
+function getProviderError(result) {
+    if (!result) {
+        return null;
+    }
+    return result.error || result.reason || null;
+}
+
 async function readCmsContent(key, req, jsRegex) {
     try {
         const providerResult = await cmsProvider.read(key, {
@@ -461,7 +468,7 @@ async function readCmsContent(key, req, jsRegex) {
 
 async function persistCmsContent(key, data) {
     const result = await cmsProvider.write(key, data, {
-        localWrite: (_ignoredKey, payload) => writeData(key, payload),
+        localWrite: (resourceKey, payload) => writeData(resourceKey, payload),
     });
 
     if (result && result.persisted) {
@@ -471,7 +478,7 @@ async function persistCmsContent(key, data) {
     return {
         persisted: false,
         provider: (result && result.provider) || 'unknown',
-        error: result && (result.error || result.reason),
+        error: getProviderError(result),
     };
 }
 
