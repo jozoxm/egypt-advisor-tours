@@ -29,7 +29,7 @@ describe('CMS provider dispatcher', () => {
 
   it('falls back to file provider for writes when Storyblok write fails', async () => {
     mockIsStoryblokConfigured.mockReturnValue(true);
-    mockUpdateStoryblokResource.mockRejectedValue(new Error('upstream unavailable'));
+    mockUpdateStoryblokResource.mockRejectedValue(new Error('Upstream unavailable'));
 
     const cmsProvider = createCmsProviderContext({
       CMS_PROVIDER: 'storyblok',
@@ -49,7 +49,7 @@ describe('CMS provider dispatcher', () => {
 
   it('falls back to file provider for reads when Storyblok read fails', async () => {
     mockIsStoryblokConfigured.mockReturnValue(true);
-    mockFetchStoryblokResource.mockRejectedValue(new Error('delivery api unavailable'));
+    mockFetchStoryblokResource.mockRejectedValue(new Error('Delivery API unavailable'));
 
     const cmsProvider = createCmsProviderContext({
       CMS_PROVIDER: 'storyblok',

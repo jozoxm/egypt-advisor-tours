@@ -145,6 +145,7 @@ const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 const ADMIN_LOGIN_PATH = '/admin/login';
 const PREVIEW_MODE_DRAFT = 'draft';
+const APP_NAME = process.env.APP_NAME || 'Egypt Advisor Tours';
 
 function getAdminCookieOptions() {
     const secure = process.env.NODE_ENV === 'production';
@@ -435,7 +436,7 @@ function writeData(key, data) {
     }
 }
 
-function getProviderError(result) {
+function extractProviderError(result) {
     if (!result) {
         return null;
     }
@@ -478,7 +479,7 @@ async function persistCmsContent(key, data) {
     return {
         persisted: false,
         provider: (result && result.provider) || 'unknown',
-        error: getProviderError(result),
+        error: extractProviderError(result),
     };
 }
 
@@ -732,7 +733,7 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
 <body>
   <div class="layout">
     <aside>
-      <h1>Egypt Advisor Admin</h1>
+      <h1>${escapeHtml(APP_NAME)} Admin</h1>
       <p class="hint">Embedded Storyblok visual editor</p>
       <div id="preview-status" class="status" data-active="false">Preview: checking…</div>
       <div class="actions">
