@@ -49,17 +49,18 @@ describe('GET /health', () => {
 });
 
 describe('GET /api/admin/health', () => {
-    it('returns 503 with degraded status when Storyblok is not configured', async () => {
+    it('returns 200 with filesystem mode when Storyblok is not configured', async () => {
         const res = await request(app).get('/api/admin/health');
-        expect(res.status).toBe(503);
-        expect(res.body.status).toBe('degraded');
-        expect(res.body.cms).toBe('down');
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('ok');
+        expect(res.body.cms).toBe('filesystem');
+        expect(res.body.mode).toBe('storyblok_not_configured');
     });
 
     it('includes diagnostic details in non-production mode', async () => {
         const res = await request(app).get('/api/admin/health');
         // NODE_ENV is 'test' so diagnostics should be included
-        expect(res.body).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
+        expect(res.body).toHaveProperty('provider', 'filesystem');
         expect(res.body).toHaveProperty('hint');
     });
 });
@@ -71,36 +72,16 @@ describe('GET /admin', () => {
         expect(res.headers.location).toBe('/admin/login');
     });
 
-    it('serves an embedded admin shell for authenticated users', async () => {
+    it('serves the first-party admin setup page when Storyblok is not configured', async () => {
         const session = await adminSession();
         const res = await request(app)
             .get('/admin')
             .set('Cookie', session.cookies);
 
         expect(res.status).toBe(200);
-        expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
-        expect(res.text).toContain('<iframe');
-        expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
-        expect(res.text).toContain('id="switch-account"');
-        expect(res.text).toContain('/api/admin/logout');
-        expect(res.text).toContain('/admin/login?force=1');
-    });
-
-    it('includes the configured editor origin in admin CSP frame-src', async () => {
-        const originalEditorUrl = process.env.STORYBLOK_EDITOR_URL;
-        process.env.STORYBLOK_EDITOR_URL = 'https://custom-editor.example.com/editor';
-        const session = await adminSession();
-
-        try {
-            const res = await request(app)
-                .get('/admin')
-                .set('Cookie', session.cookies);
-
-            expect(res.status).toBe(200);
-            expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
-        } finally {
-            process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
-        }
+        expect(res.text).toContain('Admin is running in filesystem mode');
+        expect(res.text).toContain('/api/admin/health');
+        expect(res.text).toContain('STORYBLOK_PREVIEW_TOKEN');
     });
 });
 
