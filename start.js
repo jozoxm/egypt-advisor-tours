@@ -1,7 +1,14 @@
 'use strict';
 
 const path = require('path');
-const dotenv = require('dotenv');
+
+let dotenv;
+try {
+  dotenv = require('dotenv');
+} catch (_) {
+  // dotenv is optional at runtime; will be missing in some test environments
+  dotenv = { config: () => {} };
+}
 
 const ROOT_DIR = __dirname;
 
@@ -10,31 +17,30 @@ function loadEnvironment() {
 }
 
 function buildRuntimeEnv(sourceEnv = process.env) {
-  return {
+  const provider = sourceEnv.CMS_PROVIDER || '';
+  const env = {
     ...sourceEnv,
     PORT: sourceEnv.PORT || '5000',
-    STORYBLOK_REGION: sourceEnv.STORYBLOK_REGION || 'eu',
-    STORYBLOK_EDITOR_URL:
-      sourceEnv.STORYBLOK_EDITOR_URL ||
-      (sourceEnv.STORYBLOK_SPACE_ID
-        ? `https://app.storyblok.com/#/me/spaces/${sourceEnv.STORYBLOK_SPACE_ID}/content/`
-        : 'https://app.storyblok.com/'),
   };
+  // Only inject a default WORDPRESS_BASE_URL when the operator has not
+  // explicitly chosen a non-WordPress provider.  Setting CMS_PROVIDER to
+  // "filesystem" or "storyblok" should disable WordPress auto-configuration.
+  if (provider !== 'filesystem' && provider !== 'storyblok') {
+    env.WORDPRESS_BASE_URL =
+      sourceEnv.WORDPRESS_BASE_URL || 'https://cms.egyptadvisortours.com';
+  }
+  return env;
 }
 
 function validateRuntimeEnv(env = process.env) {
-  if (env.NODE_ENV === 'production' && !env.STORYBLOK_PREVIEW_TOKEN) {
-    throw new Error('STORYBLOK_PREVIEW_TOKEN is required in production');
-  }
-
-  if (env.STORYBLOK_EDITOR_URL) {
+  if (env.WORDPRESS_BASE_URL) {
     try {
-      const parsed = new URL(env.STORYBLOK_EDITOR_URL);
+      const parsed = new URL(env.WORDPRESS_BASE_URL);
       if (!parsed.protocol || !parsed.hostname) {
-        throw new Error('STORYBLOK_EDITOR_URL must include protocol and hostname');
+        throw new Error('WORDPRESS_BASE_URL must include protocol and hostname');
       }
     } catch (error) {
-      throw new Error(`STORYBLOK_EDITOR_URL is invalid: ${error.message}`);
+      throw new Error(`WORDPRESS_BASE_URL is invalid: ${error.message}`);
     }
   }
 }

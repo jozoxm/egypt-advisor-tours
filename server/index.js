@@ -14,6 +14,18 @@ const {
     isStoryblokConfigured,
     updateStoryblokResource,
 } = require('./storyblok');
+const {
+    fetchTours: fetchWordPressTours,
+    fetchBlogs: fetchWordPressBlogs,
+    fetchSettings: fetchWordPressSettings,
+    fetchContact: fetchWordPressContact,
+    fetchSlideshow: fetchWordPressSlideshow,
+    fetchGallery: fetchWordPressGallery,
+    fetchPromotions: fetchWordPressPromotions,
+    fetchDestinations: fetchWordPressDestinations,
+    isWordPressConfigured,
+} = require('./wordpress');
+const { getCmsProvider } = require('./cms/provider');
 require('dotenv').config();
 
 const app = express();
@@ -27,8 +39,9 @@ app.set('trust proxy', 1);
 // ============================================
 // SECURITY HEADERS (helmet)
 // ============================================
-// Storyblok's visual editor embeds the site in an iframe, so frame ancestors
-// must explicitly allow Storyblok while still blocking arbitrary framing.
+// frame-ancestors is restricted to 'self' only — the WordPress visual editor
+// runs on a separate subdomain (cms.egyptadvisortours.com) and does not embed
+// this site in an iframe, so no third-party origins need to be allowed here.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -39,7 +52,7 @@ app.use(helmet({
             imgSrc: ["'self'", "data:", "https:", "blob:"],
             connectSrc: ["'self'", "https://api.emailjs.com"],
             frameSrc: ["'none'"],
-            frameAncestors: ["'self'", "https://app.storyblok.com", "https://*.storyblok.com"],
+            frameAncestors: ["'self'"],
             objectSrc: ["'none'"],
         },
     },
@@ -77,11 +90,6 @@ const allowedOrigins = new Set(
 );
 
 app.use((req, res, next) => {
-    const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
-    if (getStoryblokVersion(req) === 'draft' || isAdminPath) {
-        res.removeHeader('X-Frame-Options');
-    }
-
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
         return next();
     }
@@ -468,9 +476,40 @@ function parsePositiveInt(value, fallback) {
 
 const STORYBLOK_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_TIMEOUT_MS, 5000);
 const STORYBLOK_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 3000);
+const WORDPRESS_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_TIMEOUT_MS, 8000);
+const WORDPRESS_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_HEALTH_TIMEOUT_MS, WORDPRESS_TIMEOUT_MS);
+
+const WP_FETCH_MAP = {
+    tours:        () => fetchWordPressTours(),
+    blogs:        () => fetchWordPressBlogs(),
+    settings:     () => fetchWordPressSettings(),
+    contact:      () => fetchWordPressContact(),
+    slideshow:    () => fetchWordPressSlideshow(),
+    gallery:      () => fetchWordPressGallery(),
+    promotions:   () => fetchWordPressPromotions(),
+    destinations: () => fetchWordPressDestinations(),
+};
 
 async function readCmsContent(key, req, jsRegex) {
-    if (isStoryblokConfigured()) {
+    const provider = getCmsProvider();
+
+    if (provider === 'wordpress' && isWordPressConfigured() && WP_FETCH_MAP[key]) {
+        try {
+            const wpData = await withTimeout(
+                WP_FETCH_MAP[key](),
+                WORDPRESS_TIMEOUT_MS,
+                `WordPress fetch "${key}"`
+            );
+            if (wpData) {
+                store[key] = wpData;
+                return wpData;
+            }
+        } catch (error) {
+            console.warn(`[WordPress] Failed to load "${key}":`, error.message);
+        }
+    }
+
+    if (provider === 'storyblok' && isStoryblokConfigured()) {
         try {
             const storyblokData = await withTimeout(
                 fetchStoryblokResource(key, { source: req }),
@@ -511,11 +550,12 @@ async function persistCmsContent(key, data) {
     return { persisted: writeData(key, data), provider: 'filesystem' };
 }
 
-// Only reuse the in-memory store when Storyblok is not configured and the
-// request is for published content. Draft/preview requests must always bypass
-// the cache so editors see the latest Storyblok state immediately.
+// Only reuse the in-memory store when the effective provider is "filesystem"
+// (no live CMS is configured or CMS_PROVIDER=filesystem is explicitly set)
+// and the request is for published content. Live CMS requests must always
+// bypass the cache so editors see the latest state immediately.
 function shouldUseMemoryStore(req) {
-    return !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
+    return getCmsProvider() === 'filesystem' && getStoryblokVersion(req) === 'published';
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -685,7 +725,7 @@ function renderAdminLoginPage() {
 <body>
   <main class="card">
     <h1>Admin login</h1>
-    <p>Sign in to access the embedded Storyblok editor.</p>
+    <p>Sign in to manage site content and bookings.</p>
     <form id="login-form">
       <label for="username">Username</label>
       <input id="username" name="username" autocomplete="username" />
@@ -835,24 +875,21 @@ app.get('/admin/login', readLimiter, (req, res) => {
     return res.status(200).type('html').send(renderAdminLoginPage());
 });
 
-app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
-    if (!isAdminAuthenticated(req)) {
-        return res.redirect(302, ADMIN_LOGIN_PATH);
-    }
+function getWordPressAdminUrl() {
+    const base = process.env.WORDPRESS_BASE_URL || 'https://cms.egyptadvisortours.com';
+    return `${base}/wp-admin`;
+}
 
-    const adminUrl = getStoryblokAdminUrl();
-    const nonce = crypto.randomBytes(16).toString('base64');
-    res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminUrl));
-    res.removeHeader('X-Frame-Options');
-    return res.status(200).type('html').send(renderAdminShellPage(adminUrl, nonce));
+app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
+    return res.redirect(302, getWordPressAdminUrl());
 });
 
 // ============================================
 // CMS HEALTH ENDPOINT
 // ============================================
 // GET /api/admin/health
-// Checks Storyblok delivery access so operators can quickly verify that the
-// content source is reachable from the server.
+// Checks CMS reachability so operators can quickly verify that the
+// content source is accessible from the server.
 //
 // In production the response body is intentionally minimal — no internal
 // URLs, error codes, or hints — to avoid leaking infrastructure details.
@@ -863,76 +900,85 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 //   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
+    const provider = getCmsProvider();
 
-    if (!isStoryblokConfigured()) {
-        const body = { status: 'degraded', cms: 'down' };
-        if (!isProduction) {
-            body.errorCode = 'STORYBLOK_NOT_CONFIGURED';
-            body.hint = 'Set STORYBLOK_PREVIEW_TOKEN (and optionally STORYBLOK_SPACE_ID / STORYBLOK_MANAGEMENT_TOKEN).';
+    if (provider === 'wordpress' && isWordPressConfigured()) {
+        try {
+            await withTimeout(
+                fetchWordPressSettings(),
+                WORDPRESS_HEALTH_TIMEOUT_MS,
+                'WordPress health probe'
+            );
+            const body = { status: 'ok', cms: 'up' };
+            if (!isProduction) {
+                body.provider = 'wordpress';
+            }
+            return res.status(200).json(body);
+        } catch (error) {
+            const body = { status: 'degraded', cms: 'down' };
+            if (!isProduction) {
+                body.errorCode = error.code || error.message;
+                body.hint = error.code === 'ETIMEDOUT'
+                    ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check WORDPRESS_BASE_URL or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
+                    : 'Verify WORDPRESS_BASE_URL and WordPress REST API availability.';
+            }
+            return res.status(503).json(body);
         }
-        return res.status(503).json(body);
     }
 
-    try {
-        await withTimeout(
-            fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) }),
-            STORYBLOK_HEALTH_TIMEOUT_MS,
-            'Storyblok health probe'
-        );
-        const body = { status: 'ok', cms: 'up' };
-        if (!isProduction) {
-            body.provider = 'storyblok';
-            body.version = getStoryblokVersion(req);
+    if (provider === 'storyblok' && isStoryblokConfigured()) {
+        try {
+            await withTimeout(
+                fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) }),
+                STORYBLOK_HEALTH_TIMEOUT_MS,
+                'Storyblok health probe'
+            );
+            const body = { status: 'ok', cms: 'up' };
+            if (!isProduction) {
+                body.provider = 'storyblok';
+                body.version = getStoryblokVersion(req);
+            }
+            return res.status(200).json(body);
+        } catch (error) {
+            const body = { status: 'degraded', cms: 'down' };
+            if (!isProduction) {
+                body.errorCode = error.code || error.message;
+                body.hint = error.code === 'ETIMEDOUT'
+                    ? `Storyblok did not respond within ${STORYBLOK_HEALTH_TIMEOUT_MS}ms. Check network reachability or increase STORYBLOK_HEALTH_TIMEOUT_MS.`
+                    : 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
+            }
+            return res.status(503).json(body);
         }
-        return res.status(200).json(body);
-    } catch (error) {
-        const body = { status: 'degraded', cms: 'down' };
-        if (!isProduction) {
-            body.errorCode = error.code || error.message;
-            body.hint = error.code === 'ETIMEDOUT'
-                ? `Storyblok did not respond within ${STORYBLOK_HEALTH_TIMEOUT_MS}ms. Check network reachability or increase STORYBLOK_HEALTH_TIMEOUT_MS.`
-                : 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
-        }
-        return res.status(503).json(body);
     }
+
+    const body = { status: 'degraded', cms: 'down' };
+    if (!isProduction) {
+        body.errorCode = 'CMS_NOT_CONFIGURED';
+        body.hint = 'Set WORDPRESS_BASE_URL for WordPress CMS or STORYBLOK_PREVIEW_TOKEN for Storyblok.';
+    }
+    return res.status(503).json(body);
 });
 
-app.get('/api/admin/preview/status', readLimiter, requireAdminAuth, (req, res) => {
-    const active = req.cookies && req.cookies.storyblokPreview === PREVIEW_MODE_DRAFT;
-    return res.json({ active, mode: active ? PREVIEW_MODE_DRAFT : 'published' });
+const DEPRECATED_PREVIEW_MSG = 'Storyblok preview endpoints have been deprecated. Use WordPress admin at https://cms.egyptadvisortours.com/wp-admin.';
+
+app.get('/api/admin/preview/status', (req, res) => {
+    return res.status(410).json({ error: DEPRECATED_PREVIEW_MSG });
 });
 
-app.post('/api/admin/preview/enable', writeLimiter, requireAdminAuth, (req, res) => {
-    res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());
-    return res.json({ success: true, mode: PREVIEW_MODE_DRAFT });
+app.post('/api/admin/preview/enable', (req, res) => {
+    return res.status(410).json({ error: DEPRECATED_PREVIEW_MSG });
 });
 
 app.post('/api/admin/preview/exit', (req, res) => {
-    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
-    res.clearCookie('storyblokPreview', previewCookieOptions);
-    return res.json({ success: true, message: 'Storyblok preview disabled.' });
+    return res.status(410).json({ error: DEPRECATED_PREVIEW_MSG });
 });
 
 app.get('/api/admin/preview/exit', (req, res) => {
-    const { maxAge: _maxAge, ...previewCookieOptions } = getPreviewCookieOptions();
-    res.clearCookie('storyblokPreview', previewCookieOptions);
-    return res.redirect(302, '/admin');
+    return res.status(410).json({ error: DEPRECATED_PREVIEW_MSG });
 });
 
 app.get('/api/admin/preview/:secret', (req, res) => {
-    const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
-    const providedSecret = req.params.secret;
-
-    if (process.env.NODE_ENV === 'production' && !configuredSecret) {
-        return res.status(404).send('Not found');
-    }
-
-    if (configuredSecret && providedSecret !== configuredSecret) {
-        return res.status(401).send('Invalid Storyblok preview secret.');
-    }
-
-    res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());
-    return res.redirect(302, '/');
+    return res.status(410).json({ error: DEPRECATED_PREVIEW_MSG });
 });
 
 // ============================================
