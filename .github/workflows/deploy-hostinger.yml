@@ -124,6 +124,8 @@ jobs:
           _STORYBLOK_MANAGEMENT_TOKEN: ${{ secrets.STORYBLOK_MANAGEMENT_TOKEN }}
           _STORYBLOK_PREVIEW_SECRET: ${{ secrets.STORYBLOK_PREVIEW_SECRET }}
           _STORYBLOK_REGION: ${{ secrets.STORYBLOK_REGION }}
+          _CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+          _CMS_FAILOVER_PROVIDER: ${{ secrets.CMS_FAILOVER_PROVIDER }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
@@ -164,6 +166,8 @@ jobs:
           [ -n "${_STORYBLOK_MANAGEMENT_TOKEN}" ] && printf 'STORYBLOK_MANAGEMENT_TOKEN=%s\n' "${_STORYBLOK_MANAGEMENT_TOKEN}" >> "$server_env_file"
           [ -n "${_STORYBLOK_PREVIEW_SECRET}" ] && printf 'STORYBLOK_PREVIEW_SECRET=%s\n' "${_STORYBLOK_PREVIEW_SECRET}" >> "$server_env_file"
           [ -n "${_STORYBLOK_REGION}" ] && printf 'STORYBLOK_REGION=%s\n' "${_STORYBLOK_REGION}" >> "$server_env_file"
+          [ -n "${_CMS_PROVIDER}" ] && printf 'CMS_PROVIDER=%s\n' "${_CMS_PROVIDER}" >> "$server_env_file"
+          [ -n "${_CMS_FAILOVER_PROVIDER}" ] && printf 'CMS_FAILOVER_PROVIDER=%s\n' "${_CMS_FAILOVER_PROVIDER}" >> "$server_env_file"
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
             "umask 077; cat > '${DEPLOY_DIR}/.env'" < "$server_env_file"
           rm -f "$server_env_file"

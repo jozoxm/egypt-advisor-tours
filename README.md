@@ -20,6 +20,11 @@ Fill in at least:
 - `ADMIN_SECRET`
 - `ADMIN_PASSWORD`
 
+For offline/local CMS operator mode instead of Storyblok:
+
+- `CMS_PROVIDER=file`
+- `CMS_FAILOVER_PROVIDER=file`
+
 Run the app:
 
 ```bash
@@ -102,6 +107,8 @@ npm start
 - `/api/admin/preview/<secret>` enables draft preview mode
 - `/api/admin/preview/exit` clears preview mode
 
+If `CMS_PROVIDER=file` or `CMS_PROVIDER=mock`, `/admin` serves an offline operator shell (no Storyblok iframe) and content endpoints continue using local providers.
+
 Each story stores the same JSON shape the existing API already returns. Examples:
 
 - `cms-tours`: `{ "tours": [...], "testimonials": [...] }`
@@ -146,6 +153,7 @@ If any Storyblok token was exposed in screenshots, chats, or public logs, rotate
 - Replaced CMS reads with Storyblok-backed server helpers
 - Added Storyblok preview support and editor redirect handling
 - Added a Storyblok sync script for bootstrapping stories from the existing local data
+- Added provider-based CMS runtime (`CMS_PROVIDER`, optional `CMS_FAILOVER_PROVIDER`) so operators can run in offline/local mode
 
 ## Validation
 

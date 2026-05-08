@@ -1,6 +1,7 @@
 # Admin Guide
 
 Content editing now happens in **Storyblok**.
+The admin operator can also run in offline mode via local providers.
 
 ## First-time Storyblok setup
 
@@ -13,8 +14,11 @@ Content editing now happens in **Storyblok**.
 3. Create required stories:
    - `cms-tours`, `cms-contact`, `cms-blogs`, `cms-gallery`, `cms-slideshow`, `cms-settings`, `cms-promotions`, `cms-destinations`
 4. Set env values in `.env`:
-   - `STORYBLOK_PREVIEW_TOKEN`, `STORYBLOK_SPACE_ID`, `STORYBLOK_REGION`, `STORYBLOK_PREVIEW_SECRET`, `ADMIN_SECRET`, `ADMIN_PASSWORD`
-   - Add `STORYBLOK_MANAGEMENT_TOKEN` if using `npm run sync:storyblok`
+    - `STORYBLOK_PREVIEW_TOKEN`, `STORYBLOK_SPACE_ID`, `STORYBLOK_REGION`, `STORYBLOK_PREVIEW_SECRET`, `ADMIN_SECRET`, `ADMIN_PASSWORD`
+    - Add `STORYBLOK_MANAGEMENT_TOKEN` if using `npm run sync:storyblok`
+   - Optional provider flags:
+     - `CMS_PROVIDER=auto|storyblok|file|mock`
+     - `CMS_FAILOVER_PROVIDER=file` (recommended when using Storyblok)
 5. Set Storyblok preview URL:
    - `https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
    - Local: `http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>`
@@ -34,6 +38,11 @@ Visit:
 
 `/admin` now serves a protected in-app admin shell and embeds Storyblok in an iframe.
 If `ADMIN_PASSWORD` (or legacy `ADMIN_SECRET`) is configured, unauthenticated users are redirected to `/admin/login`.
+
+Offline operator behavior:
+
+- If `CMS_PROVIDER=file` or `CMS_PROVIDER=mock`, `/admin` serves an offline operator shell (without Storyblok iframe).
+- `/api/admin/health` reports selected provider + failover state.
 
 Storyblok editor URL resolution:
 

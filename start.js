@@ -2,6 +2,7 @@
 
 const path = require('path');
 const dotenv = require('dotenv');
+const { resolveProviderName } = require('./server/cms/provider');
 
 const ROOT_DIR = __dirname;
 
@@ -10,9 +11,12 @@ function loadEnvironment() {
 }
 
 function buildRuntimeEnv(sourceEnv = process.env) {
+  const resolvedProvider = resolveProviderName(sourceEnv);
   return {
     ...sourceEnv,
     PORT: sourceEnv.PORT || '5000',
+    CMS_PROVIDER: sourceEnv.CMS_PROVIDER || resolvedProvider,
+    CMS_FAILOVER_PROVIDER: sourceEnv.CMS_FAILOVER_PROVIDER || (resolvedProvider === 'storyblok' ? 'file' : ''),
     STORYBLOK_REGION: sourceEnv.STORYBLOK_REGION || 'eu',
     STORYBLOK_EDITOR_URL:
       sourceEnv.STORYBLOK_EDITOR_URL ||
@@ -23,11 +27,13 @@ function buildRuntimeEnv(sourceEnv = process.env) {
 }
 
 function validateRuntimeEnv(env = process.env) {
-  if (env.NODE_ENV === 'production' && !env.STORYBLOK_PREVIEW_TOKEN) {
+  const provider = resolveProviderName(env);
+
+  if (env.NODE_ENV === 'production' && provider === 'storyblok' && !env.STORYBLOK_PREVIEW_TOKEN) {
     throw new Error('STORYBLOK_PREVIEW_TOKEN is required in production');
   }
 
-  if (env.STORYBLOK_EDITOR_URL) {
+  if (provider === 'storyblok' && env.STORYBLOK_EDITOR_URL) {
     try {
       const parsed = new URL(env.STORYBLOK_EDITOR_URL);
       if (!parsed.protocol || !parsed.hostname) {

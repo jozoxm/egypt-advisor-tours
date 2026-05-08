@@ -21,6 +21,8 @@ process.env.ADMIN_PASSWORD  = 'test-password';
 process.env.ADMIN_USERNAME  = 'testadmin';
 process.env.STORYBLOK_EDITOR_URL = 'https://app.storyblok.com/#/me/spaces/123/content/';
 process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
+process.env.CMS_PROVIDER = 'auto';
+process.env.CMS_FAILOVER_PROVIDER = 'file';
 
 // Load the app AFTER setting env vars.
 const app = require('../index.js');
@@ -49,18 +51,39 @@ describe('GET /health', () => {
 });
 
 describe('GET /api/admin/health', () => {
-    it('returns 503 with degraded status when Storyblok is not configured', async () => {
+    it('returns 200 with ok status in file provider mode when Storyblok is not configured', async () => {
         const res = await request(app).get('/api/admin/health');
-        expect(res.status).toBe(503);
-        expect(res.body.status).toBe('degraded');
-        expect(res.body.cms).toBe('down');
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('ok');
+        expect(res.body.cms).toBe('up');
     });
 
-    it('includes diagnostic details in non-production mode', async () => {
+    it('includes provider details in non-production mode', async () => {
         const res = await request(app).get('/api/admin/health');
         // NODE_ENV is 'test' so diagnostics should be included
-        expect(res.body).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
-        expect(res.body).toHaveProperty('hint');
+        expect(res.body).toHaveProperty('provider', 'file');
+        expect(res.body).toHaveProperty('primary');
+    });
+
+    it('returns 503 in forced Storyblok mode when Storyblok is not configured', async () => {
+        const originalCmsProvider = process.env.CMS_PROVIDER;
+        const originalStoryblokToken = process.env.STORYBLOK_PREVIEW_TOKEN;
+        process.env.CMS_PROVIDER = 'storyblok';
+        delete process.env.STORYBLOK_PREVIEW_TOKEN;
+
+        try {
+            jest.resetModules();
+            const isolatedApp = require('../index.js');
+            const res = await request(isolatedApp).get('/api/admin/health');
+            expect(res.status).toBe(503);
+            expect(res.body.status).toBe('degraded');
+            expect(res.body.cms).toBe('down');
+            expect(res.body.primary).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
+        } finally {
+            process.env.CMS_PROVIDER = originalCmsProvider;
+            process.env.STORYBLOK_PREVIEW_TOKEN = originalStoryblokToken;
+            jest.resetModules();
+        }
     });
 });
 
@@ -71,36 +94,29 @@ describe('GET /admin', () => {
         expect(res.headers.location).toBe('/admin/login');
     });
 
-    it('serves an embedded admin shell for authenticated users', async () => {
+    it('serves an offline admin shell for authenticated users in file provider mode', async () => {
         const session = await adminSession();
         const res = await request(app)
             .get('/admin')
             .set('Cookie', session.cookies);
 
         expect(res.status).toBe(200);
-        expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
-        expect(res.text).toContain('<iframe');
-        expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.headers['content-security-policy']).toMatch(/frame-src 'none'/);
+        expect(res.text).toContain('Offline CMS operator mode is active');
+        expect(res.text).not.toContain('<iframe');
         expect(res.text).toContain('id="switch-account"');
         expect(res.text).toContain('/api/admin/logout');
         expect(res.text).toContain('/admin/login?force=1');
     });
 
-    it('includes the configured editor origin in admin CSP frame-src', async () => {
-        const originalEditorUrl = process.env.STORYBLOK_EDITOR_URL;
-        process.env.STORYBLOK_EDITOR_URL = 'https://custom-editor.example.com/editor';
+    it('keeps the offline CSP frame-src set to none', async () => {
         const session = await adminSession();
+        const res = await request(app)
+            .get('/admin')
+            .set('Cookie', session.cookies);
 
-        try {
-            const res = await request(app)
-                .get('/admin')
-                .set('Cookie', session.cookies);
-
-            expect(res.status).toBe(200);
-            expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
-        } finally {
-            process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
-        }
+        expect(res.status).toBe(200);
+        expect(res.headers['content-security-policy']).toMatch(/frame-src 'none'/);
     });
 });
 

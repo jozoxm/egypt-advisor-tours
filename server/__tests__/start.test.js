@@ -39,9 +39,19 @@ describe('validateRuntimeEnv', () => {
     expect(() =>
       validateRuntimeEnv({
         NODE_ENV: 'production',
+        CMS_PROVIDER: 'storyblok',
         STORYBLOK_EDITOR_URL: 'https://app.storyblok.com/',
       })
     ).toThrow(/STORYBLOK_PREVIEW_TOKEN is required in production/);
+  });
+
+  it('does not require STORYBLOK_PREVIEW_TOKEN in production when file provider is selected', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        NODE_ENV: 'production',
+        CMS_PROVIDER: 'file',
+      })
+    ).not.toThrow();
   });
 
   it('throws a clear error when STORYBLOK_EDITOR_URL is invalid', () => {

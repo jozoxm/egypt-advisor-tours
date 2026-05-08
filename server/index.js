@@ -8,16 +8,14 @@ const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const {
-    fetchStoryblokResource,
-    getStoryblokAdminUrl,
     getStoryblokVersion,
-    isStoryblokConfigured,
-    updateStoryblokResource,
 } = require('./storyblok');
+const { createCmsProviderContext } = require('./cms/provider');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const cmsProvider = createCmsProviderContext(process.env);
 
 // Trust Vercel's (and other reverse-proxy's) X-Forwarded-For header so that
 // req.ip reflects the real client IP.  This is required for the rate-limiter
@@ -438,16 +436,18 @@ function writeData(key, data) {
 }
 
 async function readCmsContent(key, req, jsRegex) {
-    if (isStoryblokConfigured()) {
-        try {
-            const storyblokData = await fetchStoryblokResource(key, { source: req });
-            if (storyblokData) {
-                store[key] = storyblokData;
-                return storyblokData;
-            }
-        } catch (error) {
-            console.warn(`[Storyblok] Failed to load "${key}" from Storyblok:`, error.message);
+    try {
+        const providerResult = await cmsProvider.read(key, {
+            source: req,
+            localRead: () => readData(key, jsRegex),
+        });
+
+        if (providerResult && providerResult.found) {
+            store[key] = providerResult.data;
+            return providerResult.data;
         }
+    } catch (error) {
+        console.warn(`[CMS] Failed to load "${key}" from configured provider:`, error.message);
     }
 
     const fallbackData = readData(key, jsRegex);
@@ -460,26 +460,26 @@ async function readCmsContent(key, req, jsRegex) {
 }
 
 async function persistCmsContent(key, data) {
-    if (isStoryblokConfigured()) {
-        try {
-            const result = await updateStoryblokResource(key, data);
-            if (result.persisted) {
-                return { persisted: true, provider: 'storyblok' };
-            }
-        } catch (error) {
-            console.warn(`[Storyblok] Failed to save "${key}" to Storyblok:`, error.message);
-            return { persisted: false, provider: 'storyblok', error };
-        }
+    const result = await cmsProvider.write(key, data, {
+        localWrite: (_key, payload) => writeData(key, payload),
+    });
+
+    if (result && result.persisted) {
+        return result;
     }
 
-    return { persisted: writeData(key, data), provider: 'filesystem' };
+    return {
+        persisted: false,
+        provider: (result && result.provider) || 'unknown',
+        error: result && (result.error || result.reason),
+    };
 }
 
 // Only reuse the in-memory store when Storyblok is not configured and the
 // request is for published content. Draft/preview requests must always bypass
 // the cache so editors see the latest Storyblok state immediately.
 function shouldUseMemoryStore(req) {
-    return !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
+    return !cmsProvider.isStoryblokMode() && getStoryblokVersion(req) === 'published';
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -622,6 +622,20 @@ function getAdminPageCsp(nonce, storyblokAdminUrl) {
         "img-src 'self' data:",
         "connect-src 'self'",
         `frame-src ${getAdminFrameSources(storyblokAdminUrl)}`,
+        "frame-ancestors 'self'",
+        "base-uri 'none'",
+        "object-src 'none'",
+    ].join('; ');
+}
+
+function getOfflineAdminPageCsp(nonce) {
+    return [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}'`,
+        `style-src 'self' 'nonce-${nonce}'`,
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "frame-src 'none'",
         "frame-ancestors 'self'",
         "base-uri 'none'",
         "object-src 'none'",
@@ -771,6 +785,61 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
 </html>`;
 }
 
+function renderOfflineAdminShellPage(providerName, nonce) {
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin Operator</title>
+  <style nonce="${nonce}">
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #e5e7eb; background: #0b1220; }
+    .container { max-width: 920px; margin: 32px auto; padding: 24px; }
+    h1 { margin: 0 0 8px; }
+    .hint { color: #9ca3af; margin: 0 0 16px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    code { background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 2px 6px; }
+    ul { margin: 8px 0 0 16px; }
+    a { color: #93c5fd; text-decoration: none; }
+    button { appearance: none; border: 1px solid #374151; background: #1f2937; color: #f3f4f6; border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Egypt Advisor Admin</h1>
+    <p class="hint">Offline CMS operator mode is active. Provider: <code>${escapeHtml(providerName)}</code>.</p>
+
+    <section class="card">
+      <strong>What this means</strong>
+      <ul>
+        <li>The Storyblok iframe is disabled in offline mode.</li>
+        <li>Content APIs continue to read/write through the configured local provider.</li>
+        <li>Use your existing admin-protected API endpoints to manage content.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <strong>Quick links</strong>
+      <ul>
+        <li><a href="/api/admin/health" target="_blank" rel="noreferrer">/api/admin/health</a></li>
+        <li><a href="/api/tours" target="_blank" rel="noreferrer">/api/tours</a></li>
+        <li><a href="/api/settings" target="_blank" rel="noreferrer">/api/settings</a></li>
+        <li><a href="/api/blogs" target="_blank" rel="noreferrer">/api/blogs</a></li>
+      </ul>
+    </section>
+
+    <button id="switch-account" type="button">Switch account</button>
+  </main>
+  <script nonce="${nonce}">
+    document.getElementById('switch-account').addEventListener('click', async () => {
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'same-origin' });
+      window.location.href = '/admin/login?force=1';
+    });
+  </script>
+</body>
+</html>`;
+}
+
 app.get('/api', (req, res) => {
     res.json({
         message: 'Welcome to Egypt Advisor Tours API',
@@ -795,11 +864,16 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
         return res.redirect(302, ADMIN_LOGIN_PATH);
     }
 
-    const adminUrl = getStoryblokAdminUrl();
     const nonce = crypto.randomBytes(16).toString('base64');
-    res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminUrl));
     res.removeHeader('X-Frame-Options');
-    return res.status(200).type('html').send(renderAdminShellPage(adminUrl, nonce));
+    if (cmsProvider.isStoryblokMode()) {
+        const adminConfig = cmsProvider.getAdminConfig();
+        res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminConfig.url));
+        return res.status(200).type('html').send(renderAdminShellPage(adminConfig.url, nonce));
+    }
+
+    res.setHeader('Content-Security-Policy', getOfflineAdminPageCsp(nonce));
+    return res.status(200).type('html').send(renderOfflineAdminShellPage(cmsProvider.primaryName, nonce));
 });
 
 // ============================================
@@ -818,32 +892,28 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 //   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
+    const health = await cmsProvider.health({ source: req });
+    const primaryOk = Boolean(health.primary && health.primary.ok);
+    const failoverOk = Boolean(health.failover && health.failover.ok);
 
-    if (!isStoryblokConfigured()) {
-        const body = { status: 'degraded', cms: 'down' };
-        if (!isProduction) {
-            body.errorCode = 'STORYBLOK_NOT_CONFIGURED';
-            body.hint = 'Set STORYBLOK_PREVIEW_TOKEN (and optionally STORYBLOK_SPACE_ID / STORYBLOK_MANAGEMENT_TOKEN).';
-        }
+    const healthy = primaryOk || failoverOk;
+    const body = {
+        status: healthy ? 'ok' : 'degraded',
+        cms: healthy ? 'up' : 'down',
+    };
+
+    if (!isProduction) {
+        body.provider = health.primaryProvider;
+        body.failoverProvider = health.failoverProvider || null;
+        body.primary = health.primary || null;
+        body.failover = health.failover || null;
+    }
+
+    if (!healthy) {
         return res.status(503).json(body);
     }
 
-    try {
-        await fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) });
-        const body = { status: 'ok', cms: 'up' };
-        if (!isProduction) {
-            body.provider = 'storyblok';
-            body.version = getStoryblokVersion(req);
-        }
-        return res.status(200).json(body);
-    } catch (error) {
-        const body = { status: 'degraded', cms: 'down' };
-        if (!isProduction) {
-            body.errorCode = error.code || error.message;
-            body.hint = 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
-        }
-        return res.status(503).json(body);
-    }
+    return res.status(200).json(body);
 });
 
 app.get('/api/admin/preview/status', readLimiter, requireAdminAuth, (req, res) => {
