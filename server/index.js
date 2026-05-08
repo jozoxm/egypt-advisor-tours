@@ -461,7 +461,7 @@ async function readCmsContent(key, req, jsRegex) {
 
 async function persistCmsContent(key, data) {
     const result = await cmsProvider.write(key, data, {
-        localWrite: (_key, payload) => writeData(key, payload),
+        localWrite: (_ignoredKey, payload) => writeData(key, payload),
     });
 
     if (result && result.persisted) {

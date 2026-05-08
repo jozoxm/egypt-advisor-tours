@@ -32,11 +32,14 @@ const provider = {
       };
     }
 
-    return {
-      persisted: Boolean(options.localWrite(key, data)),
-      provider: 'file',
-      reason: 'Failed to write local content file',
-    };
+    const persisted = Boolean(options.localWrite(key, data));
+    return persisted
+      ? { persisted: true, provider: 'file' }
+      : {
+        persisted: false,
+        provider: 'file',
+        reason: 'Failed to write local content file',
+      };
   },
   async health() {
     return {
