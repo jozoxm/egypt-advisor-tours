@@ -474,7 +474,7 @@ function getCmsRuntimeState(env = process.env) {
         storyblokConfigured,
         storyblokActive,
         forcedFilesystem: forcedProvider === CMS_PROVIDER_FILESYSTEM,
-        forcedStoryblok: forcedProvider === CMS_PROVIDER_STORYBLOK && !storyblokConfigured,
+        requestedStoryblokUnconfigured: forcedProvider === CMS_PROVIDER_STORYBLOK && !storyblokConfigured,
     };
 }
 
@@ -842,10 +842,10 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
 </html>`;
 }
 
-function renderLocalAdminInfoPage(isForcedFilesystem, isForcedStoryblok) {
+function renderLocalAdminInfoPage(isForcedFilesystem, requestedStoryblokUnconfigured) {
     const setupReason = isForcedFilesystem
         ? 'Storyblok integration is currently disabled because CMS_PROVIDER=filesystem.'
-        : isForcedStoryblok
+        : requestedStoryblokUnconfigured
             ? 'CMS_PROVIDER=storyblok is set, but Storyblok is not configured (missing token).'
         : 'Storyblok integration is not configured for this environment.';
 
@@ -927,7 +927,7 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 
     const cmsState = getCmsRuntimeState();
     if (!cmsState.storyblokActive) {
-        return res.status(200).type('html').send(renderLocalAdminInfoPage(cmsState.forcedFilesystem, cmsState.forcedStoryblok));
+        return res.status(200).type('html').send(renderLocalAdminInfoPage(cmsState.forcedFilesystem, cmsState.requestedStoryblokUnconfigured));
     }
 
     const adminUrl = getStoryblokAdminUrl();
