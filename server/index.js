@@ -460,6 +460,9 @@ function withTimeout(promise, ms, label) {
 
 function parsePositiveInt(value, fallback) {
     const parsed = parseInt(value, 10);
+    if (value !== undefined && value !== null && !(Number.isFinite(parsed) && parsed > 0)) {
+        console.warn(`[config] Invalid timeout value "${value}" (expected a positive integer); using default ${fallback}ms.`);
+    }
     return (Number.isFinite(parsed) && parsed > 0) ? parsed : fallback;
 }
 
