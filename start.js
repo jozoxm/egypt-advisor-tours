@@ -17,12 +17,19 @@ function loadEnvironment() {
 }
 
 function buildRuntimeEnv(sourceEnv = process.env) {
-  return {
+  const provider = sourceEnv.CMS_PROVIDER || '';
+  const env = {
     ...sourceEnv,
     PORT: sourceEnv.PORT || '5000',
-    WORDPRESS_BASE_URL:
-      sourceEnv.WORDPRESS_BASE_URL || 'https://cms.egyptadvisortours.com',
   };
+  // Only inject a default WORDPRESS_BASE_URL when the operator has not
+  // explicitly chosen a non-WordPress provider.  Setting CMS_PROVIDER to
+  // "filesystem" or "storyblok" should disable WordPress auto-configuration.
+  if (provider !== 'filesystem' && provider !== 'storyblok') {
+    env.WORDPRESS_BASE_URL =
+      sourceEnv.WORDPRESS_BASE_URL || 'https://cms.egyptadvisortours.com';
+  }
+  return env;
 }
 
 function validateRuntimeEnv(env = process.env) {

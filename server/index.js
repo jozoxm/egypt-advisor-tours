@@ -19,8 +19,13 @@ const {
     fetchBlogs: fetchWordPressBlogs,
     fetchSettings: fetchWordPressSettings,
     fetchContact: fetchWordPressContact,
+    fetchSlideshow: fetchWordPressSlideshow,
+    fetchGallery: fetchWordPressGallery,
+    fetchPromotions: fetchWordPressPromotions,
+    fetchDestinations: fetchWordPressDestinations,
     isWordPressConfigured,
 } = require('./wordpress');
+const { getCmsProvider } = require('./cms/provider');
 require('dotenv').config();
 
 const app = express();
@@ -34,8 +39,9 @@ app.set('trust proxy', 1);
 // ============================================
 // SECURITY HEADERS (helmet)
 // ============================================
-// Storyblok's visual editor embeds the site in an iframe, so frame ancestors
-// must explicitly allow Storyblok while still blocking arbitrary framing.
+// frame-ancestors is restricted to 'self' only — the WordPress visual editor
+// runs on a separate subdomain (cms.egyptadvisortours.com) and does not embed
+// this site in an iframe, so no third-party origins need to be allowed here.
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -83,7 +89,8 @@ const allowedOrigins = new Set(
     ].filter(Boolean)
 );
 
-app.use((req, res, next) => {    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+app.use((req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
         return next();
     }
 
@@ -470,16 +477,23 @@ function parsePositiveInt(value, fallback) {
 const STORYBLOK_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_TIMEOUT_MS, 5000);
 const STORYBLOK_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 3000);
 const WORDPRESS_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_TIMEOUT_MS, 8000);
+const WORDPRESS_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_HEALTH_TIMEOUT_MS, WORDPRESS_TIMEOUT_MS);
 
 const WP_FETCH_MAP = {
-    tours:    () => fetchWordPressTours(),
-    blogs:    () => fetchWordPressBlogs(),
-    settings: () => fetchWordPressSettings(),
-    contact:  () => fetchWordPressContact(),
+    tours:        () => fetchWordPressTours(),
+    blogs:        () => fetchWordPressBlogs(),
+    settings:     () => fetchWordPressSettings(),
+    contact:      () => fetchWordPressContact(),
+    slideshow:    () => fetchWordPressSlideshow(),
+    gallery:      () => fetchWordPressGallery(),
+    promotions:   () => fetchWordPressPromotions(),
+    destinations: () => fetchWordPressDestinations(),
 };
 
 async function readCmsContent(key, req, jsRegex) {
-    if (isWordPressConfigured() && WP_FETCH_MAP[key]) {
+    const provider = getCmsProvider();
+
+    if (provider === 'wordpress' && isWordPressConfigured() && WP_FETCH_MAP[key]) {
         try {
             const wpData = await withTimeout(
                 WP_FETCH_MAP[key](),
@@ -495,7 +509,7 @@ async function readCmsContent(key, req, jsRegex) {
         }
     }
 
-    if (isStoryblokConfigured()) {
+    if (provider === 'storyblok' && isStoryblokConfigured()) {
         try {
             const storyblokData = await withTimeout(
                 fetchStoryblokResource(key, { source: req }),
@@ -536,11 +550,12 @@ async function persistCmsContent(key, data) {
     return { persisted: writeData(key, data), provider: 'filesystem' };
 }
 
-// Only reuse the in-memory store when no live CMS is configured and the
-// request is for published content. Live CMS requests must always bypass
-// the cache so editors see the latest state immediately.
+// Only reuse the in-memory store when the effective provider is "filesystem"
+// (no live CMS is configured or CMS_PROVIDER=filesystem is explicitly set)
+// and the request is for published content. Live CMS requests must always
+// bypass the cache so editors see the latest state immediately.
 function shouldUseMemoryStore(req) {
-    return !isWordPressConfigured() && !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
+    return getCmsProvider() === 'filesystem' && getStoryblokVersion(req) === 'published';
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -873,8 +888,8 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 // CMS HEALTH ENDPOINT
 // ============================================
 // GET /api/admin/health
-// Checks Storyblok delivery access so operators can quickly verify that the
-// content source is reachable from the server.
+// Checks CMS reachability so operators can quickly verify that the
+// content source is accessible from the server.
 //
 // In production the response body is intentionally minimal — no internal
 // URLs, error codes, or hints — to avoid leaking infrastructure details.
@@ -885,12 +900,13 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 //   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
+    const provider = getCmsProvider();
 
-    if (isWordPressConfigured()) {
+    if (provider === 'wordpress' && isWordPressConfigured()) {
         try {
             await withTimeout(
                 fetchWordPressSettings(),
-                STORYBLOK_HEALTH_TIMEOUT_MS,
+                WORDPRESS_HEALTH_TIMEOUT_MS,
                 'WordPress health probe'
             );
             const body = { status: 'ok', cms: 'up' };
@@ -903,14 +919,14 @@ app.get('/api/admin/health', async (req, res) => {
             if (!isProduction) {
                 body.errorCode = error.code || error.message;
                 body.hint = error.code === 'ETIMEDOUT'
-                    ? `WordPress did not respond within ${WORDPRESS_TIMEOUT_MS}ms. Check WORDPRESS_BASE_URL or increase WORDPRESS_TIMEOUT_MS.`
+                    ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check WORDPRESS_BASE_URL or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
                     : 'Verify WORDPRESS_BASE_URL and WordPress REST API availability.';
             }
             return res.status(503).json(body);
         }
     }
 
-    if (isStoryblokConfigured()) {
+    if (provider === 'storyblok' && isStoryblokConfigured()) {
         try {
             await withTimeout(
                 fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) }),

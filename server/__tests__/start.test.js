@@ -25,6 +25,24 @@ describe('production startup environment', () => {
     expect(env.PORT).toBe('8080');
     expect(env.WORDPRESS_BASE_URL).toBe('https://cms.mysite.com');
   });
+
+  it('does NOT inject a default WORDPRESS_BASE_URL when CMS_PROVIDER=filesystem', () => {
+    const env = buildRuntimeEnv({ CMS_PROVIDER: 'filesystem' });
+    expect(env.WORDPRESS_BASE_URL).toBeUndefined();
+  });
+
+  it('does NOT inject a default WORDPRESS_BASE_URL when CMS_PROVIDER=storyblok', () => {
+    const env = buildRuntimeEnv({ CMS_PROVIDER: 'storyblok' });
+    expect(env.WORDPRESS_BASE_URL).toBeUndefined();
+  });
+
+  it('still preserves an explicit WORDPRESS_BASE_URL even when CMS_PROVIDER=filesystem', () => {
+    const env = buildRuntimeEnv({
+      CMS_PROVIDER: 'filesystem',
+      WORDPRESS_BASE_URL: 'https://cms.mysite.com',
+    });
+    expect(env.WORDPRESS_BASE_URL).toBe('https://cms.mysite.com');
+  });
 });
 
 describe('validateRuntimeEnv', () => {

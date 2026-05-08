@@ -4,10 +4,19 @@ const {
     fetchPage,
     fetchSettings,
     fetchContact,
+    fetchSlideshow,
+    fetchGallery,
+    fetchPromotions,
+    fetchDestinations,
+    fetchHomepage,
     isWordPressConfigured,
     clearCache,
+    stripHtml,
     transformTour,
     transformBlog,
+    transformSlide,
+    transformPromotion,
+    transformDestination,
 } = require('../wordpress');
 
 const originalFetch = global.fetch;
@@ -15,6 +24,36 @@ const originalFetch = global.fetch;
 afterEach(() => {
     global.fetch = originalFetch;
     clearCache();
+});
+
+// ─────────────────────────────────────────────────
+// stripHtml
+// ─────────────────────────────────────────────────
+describe('stripHtml', () => {
+    it('removes HTML tags', () => {
+        expect(stripHtml('<p>Hello</p>')).toBe('Hello');
+    });
+
+    it('decodes common HTML entities', () => {
+        expect(stripHtml('Tom &amp; Jerry')).toBe('Tom & Jerry');
+        expect(stripHtml('&lt;b&gt;bold&lt;/b&gt;')).toBe('<b>bold</b>');
+        expect(stripHtml('&quot;quoted&quot;')).toBe('"quoted"');
+        expect(stripHtml('it&#39;s fine')).toBe("it's fine");
+    });
+
+    it('handles nested HTML', () => {
+        expect(stripHtml('<p>Visit <strong>the pyramids</strong></p>')).toBe('Visit the pyramids');
+    });
+
+    it('returns empty string for falsy input', () => {
+        expect(stripHtml('')).toBe('');
+        expect(stripHtml(null)).toBe('');
+        expect(stripHtml(undefined)).toBe('');
+    });
+
+    it('trims whitespace', () => {
+        expect(stripHtml('  <p> text </p>  ')).toBe('text');
+    });
 });
 
 // ─────────────────────────────────────────────────
@@ -67,6 +106,9 @@ describe('transformTour', () => {
         expect(result.reviews).toBe(324);
         expect(result.groupSize).toBe('2-10 people');
         expect(result.category).toBe('Historical');
+        // image should be emoji (ACF icon), not a URL
+        expect(result.image).toBe('🏛️');
+        // actual media URL should be in photoUrl
         expect(result.photoUrl).toBe('https://example.com/img.jpg');
         expect(result.slug).toBe('pyramids-tour');
     });
@@ -133,7 +175,10 @@ describe('transformBlog', () => {
         expect(result.author).toBe('Egypt Advisor Team');
         expect(result.category).toBe('Travel Tips');
         expect(result.featured).toBe(true);
-        expect(result.image).toBe('https://example.com/blog.jpg');
+        // image should be default emoji (no ACF image set), not a URL string
+        expect(result.image).toBe('🗺️');
+        // actual media URL goes in photoUrl
+        expect(result.photoUrl).toBe('https://example.com/blog.jpg');
         expect(result.slug).toBe('top-10-gems');
     });
 
@@ -396,5 +441,273 @@ describe('clearCache', () => {
         await fetchBlogs({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
 
         expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+});
+
+// ─────────────────────────────────────────────────
+// transformSlide
+// ─────────────────────────────────────────────────
+describe('transformSlide', () => {
+    it('maps ACF fields to slide shape', () => {
+        const post = {
+            id: 100,
+            slug: 'pyramids-slide',
+            title: { rendered: 'Pyramids of Giza' },
+            acf: {
+                name: 'Pyramids of Giza',
+                image: 'https://example.com/pyramids.jpg',
+                gradient: 'linear-gradient(135deg, #8B6914, #D4AF37)',
+            },
+            _embedded: {},
+        };
+        const result = transformSlide(post);
+        expect(result.id).toBe(100);
+        expect(result.name).toBe('Pyramids of Giza');
+        expect(result.image).toBe('https://example.com/pyramids.jpg');
+        expect(result.gradient).toBe('linear-gradient(135deg, #8B6914, #D4AF37)');
+        expect(result.slug).toBe('pyramids-slide');
+    });
+
+    it('falls back to WP title when ACF name is absent', () => {
+        const post = {
+            id: 101,
+            slug: 'slide-no-acf',
+            title: { rendered: 'WP Title' },
+            acf: {},
+            _embedded: {},
+        };
+        expect(transformSlide(post).name).toBe('WP Title');
+    });
+});
+
+// ─────────────────────────────────────────────────
+// transformPromotion
+// ─────────────────────────────────────────────────
+describe('transformPromotion', () => {
+    it('maps ACF fields to promotion shape', () => {
+        const post = {
+            id: 200,
+            slug: 'summer-deal',
+            title: { rendered: 'Summer Deal' },
+            excerpt: { rendered: '<p>Big savings</p>' },
+            date: '2026-06-01T00:00:00',
+            acf: {
+                title: 'Summer Deal',
+                description: 'Get 20% off all tours',
+                discount: '20%',
+                valid_until: '2026-08-31',
+                active: true,
+            },
+            _embedded: {
+                'wp:featuredmedia': [{ source_url: 'https://example.com/promo.jpg' }],
+            },
+        };
+        const result = transformPromotion(post);
+        expect(result.id).toBe(200);
+        expect(result.title).toBe('Summer Deal');
+        expect(result.description).toBe('Get 20% off all tours');
+        expect(result.discount).toBe('20%');
+        expect(result.validUntil).toBe('2026-08-31');
+        expect(result.active).toBe(true);
+        // image stays as emoji, photoUrl gets the media URL
+        expect(result.image).toBe('🎫');
+        expect(result.photoUrl).toBe('https://example.com/promo.jpg');
+    });
+
+    it('strips HTML from excerpt when no ACF description', () => {
+        const post = {
+            id: 201,
+            slug: 'promo-html',
+            title: { rendered: 'HTML Promo' },
+            excerpt: { rendered: '<p>Big savings</p>' },
+            date: '',
+            acf: {},
+            _embedded: {},
+        };
+        expect(transformPromotion(post).description).toBe('Big savings');
+    });
+});
+
+// ─────────────────────────────────────────────────
+// transformDestination
+// ─────────────────────────────────────────────────
+describe('transformDestination', () => {
+    it('maps ACF fields to destination shape', () => {
+        const post = {
+            id: 300,
+            slug: 'cairo',
+            title: { rendered: 'Cairo' },
+            excerpt: { rendered: '<p>Capital city</p>' },
+            date: '2026-01-01T00:00:00',
+            acf: {
+                name: 'Cairo',
+                description: 'The vibrant capital',
+                photo_url: 'https://example.com/cairo.jpg',
+                featured: true,
+            },
+            _embedded: {},
+        };
+        const result = transformDestination(post);
+        expect(result.id).toBe(300);
+        expect(result.name).toBe('Cairo');
+        expect(result.description).toBe('The vibrant capital');
+        expect(result.photoUrl).toBe('https://example.com/cairo.jpg');
+        expect(result.featured).toBe(true);
+        // image defaults to emoji
+        expect(result.image).toBe('🗺️');
+    });
+});
+
+// ─────────────────────────────────────────────────
+// fetchSlideshow
+// ─────────────────────────────────────────────────
+describe('fetchSlideshow', () => {
+    it('returns slides array from ACF repeater on slideshow page', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [
+                {
+                    id: 50,
+                    slug: 'slideshow',
+                    acf: {
+                        slides: [
+                            { name: 'Pyramids', image: 'https://example.com/img.jpg', gradient: '' },
+                        ],
+                    },
+                },
+            ],
+        });
+
+        const result = await fetchSlideshow({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result).toHaveProperty('slides');
+        expect(Array.isArray(result.slides)).toBe(true);
+        expect(result.slides[0].name).toBe('Pyramids');
+    });
+
+    it('returns empty slides array when page has no ACF slides', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [{ id: 51, slug: 'slideshow', acf: {} }],
+        });
+
+        const result = await fetchSlideshow({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result.slides).toEqual([]);
+    });
+});
+
+// ─────────────────────────────────────────────────
+// fetchGallery
+// ─────────────────────────────────────────────────
+describe('fetchGallery', () => {
+    it('returns gallery array from ACF repeater on gallery page', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [
+                {
+                    id: 60,
+                    slug: 'gallery',
+                    acf: {
+                        gallery: [{ image: 'https://example.com/g1.jpg', caption: 'Photo 1' }],
+                    },
+                },
+            ],
+        });
+
+        const result = await fetchGallery({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result).toHaveProperty('gallery');
+        expect(result.gallery[0].caption).toBe('Photo 1');
+    });
+});
+
+// ─────────────────────────────────────────────────
+// fetchPromotions
+// ─────────────────────────────────────────────────
+describe('fetchPromotions', () => {
+    it('fetches and transforms WP promotion posts', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [
+                {
+                    id: 70,
+                    slug: 'summer-deal',
+                    title: { rendered: 'Summer Deal' },
+                    excerpt: { rendered: '<p>20% off</p>' },
+                    date: '2026-06-01T00:00:00',
+                    acf: { discount: '20%', active: true },
+                    _embedded: {},
+                },
+            ],
+        });
+
+        const result = await fetchPromotions({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result).toHaveProperty('promotions');
+        expect(Array.isArray(result.promotions)).toBe(true);
+        expect(result.promotions[0].discount).toBe('20%');
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining('/wp-json/wp/v2/promotion?per_page=100&_embed'),
+            expect.any(Object)
+        );
+    });
+});
+
+// ─────────────────────────────────────────────────
+// fetchDestinations
+// ─────────────────────────────────────────────────
+describe('fetchDestinations', () => {
+    it('fetches and transforms WP destination posts', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [
+                {
+                    id: 80,
+                    slug: 'cairo',
+                    title: { rendered: 'Cairo' },
+                    excerpt: { rendered: '' },
+                    date: '2026-01-01T00:00:00',
+                    acf: { name: 'Cairo', featured: true },
+                    _embedded: {},
+                },
+            ],
+        });
+
+        const result = await fetchDestinations({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result).toHaveProperty('destinations');
+        expect(result.destinations[0].name).toBe('Cairo');
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining('/wp-json/wp/v2/destination?per_page=100&_embed'),
+            expect.any(Object)
+        );
+    });
+});
+
+// ─────────────────────────────────────────────────
+// fetchHomepage
+// ─────────────────────────────────────────────────
+describe('fetchHomepage', () => {
+    it('returns ACF fields from the home page', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [
+                {
+                    id: 90,
+                    slug: 'home',
+                    acf: { hero: { title: 'Welcome to Egypt' } },
+                },
+            ],
+        });
+
+        const result = await fetchHomepage({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result).toHaveProperty('hero');
+        expect(result.hero.title).toBe('Welcome to Egypt');
+    });
+
+    it('returns null when the home page has no ACF fields', async () => {
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => [{ id: 91, slug: 'home', acf: {} }],
+        });
+
+        const result = await fetchHomepage({ WORDPRESS_BASE_URL: 'https://cms.example.com' });
+        expect(result).toBeNull();
     });
 });
