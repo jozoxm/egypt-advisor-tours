@@ -83,13 +83,7 @@ const allowedOrigins = new Set(
     ].filter(Boolean)
 );
 
-app.use((req, res, next) => {
-    const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
-    if (isAdminPath) {
-        res.removeHeader('X-Frame-Options');
-    }
-
-    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+app.use((req, res, next) => {    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
         return next();
     }
 
@@ -909,7 +903,7 @@ app.get('/api/admin/health', async (req, res) => {
             if (!isProduction) {
                 body.errorCode = error.code || error.message;
                 body.hint = error.code === 'ETIMEDOUT'
-                    ? `WordPress did not respond within ${STORYBLOK_HEALTH_TIMEOUT_MS}ms. Check WORDPRESS_BASE_URL or increase WORDPRESS_TIMEOUT_MS.`
+                    ? `WordPress did not respond within ${WORDPRESS_TIMEOUT_MS}ms. Check WORDPRESS_BASE_URL or increase WORDPRESS_TIMEOUT_MS.`
                     : 'Verify WORDPRESS_BASE_URL and WordPress REST API availability.';
             }
             return res.status(503).json(body);
