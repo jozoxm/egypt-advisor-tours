@@ -5,10 +5,11 @@ function parsePositiveInt(value, fallback) {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-// TTL is a process-wide config; always reads from process.env so that
-// getCached() and setCached() use the same TTL without needing an env argument.
-function getCacheTtl() {
-    return parsePositiveInt(process.env.WORDPRESS_CACHE_TTL_MS, 5 * 60 * 1000);
+// TTL is a process-wide config. An optional env argument (defaulting to
+// process.env) is accepted to allow overriding in tests without mutating
+// the global environment.
+function getCacheTtl(env = process.env) {
+    return parsePositiveInt(env.WORDPRESS_CACHE_TTL_MS, 5 * 60 * 1000);
 }
 
 function getCached(key) {
@@ -66,16 +67,28 @@ async function wpFetch(url, env) {
 
 // Strip HTML tags and decode common entities so .rendered fields from WordPress
 // are returned as plain text, not raw HTML strings.
+//
+// Processing order is important for security:
+// 1. Decode all non-ampersand entities first so that entity-encoded tags
+//    (e.g. &lt;script&gt;) are converted to real tags and then stripped.
+// 2. Strip all HTML tags (including any that were entity-encoded).
+// 3. Decode &amp; last so it cannot create new entity sequences.
 function stripHtml(html) {
     if (!html) return '';
     return String(html)
-        .replace(/<[^>]+>/g, '')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
+        // Decode lt/gt/quot/apos/nbsp first so entity-encoded tags get stripped
+        .replace(/&lt;/g, '\x00LT\x00')
+        .replace(/&gt;/g, '\x00GT\x00')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&nbsp;/g, ' ')
+        // Strip all HTML tags (including those reconstructed above)
+        .replace(/<[^>]*>/g, '')
+        // Restore lt/gt as plain-text angle brackets (safe in text context)
+        .replace(/\x00LT\x00/g, '<')
+        .replace(/\x00GT\x00/g, '>')
+        // Decode &amp; last to avoid creating new entity sequences
+        .replace(/&amp;/g, '&')
         .trim();
 }
 
