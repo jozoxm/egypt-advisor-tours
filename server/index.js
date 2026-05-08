@@ -437,10 +437,32 @@ function writeData(key, data) {
     }
 }
 
+// Resolves with the result of `promise` if it settles within `ms` milliseconds;
+// rejects with a timeout error otherwise.  The timeout is configurable via
+// environment variables so operators can tune it without code changes.
+function withTimeout(promise, ms, label) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(Object.assign(new Error(`${label || 'operation'} timed out after ${ms}ms`), { code: 'ETIMEDOUT' }));
+        }, ms);
+        promise.then(
+            (value) => { clearTimeout(timer); resolve(value); },
+            (err)   => { clearTimeout(timer); reject(err); }
+        );
+    });
+}
+
+const STORYBLOK_TIMEOUT_MS = parseInt(process.env.STORYBLOK_TIMEOUT_MS, 10) || 5000;
+const STORYBLOK_HEALTH_TIMEOUT_MS = parseInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 10) || 3000;
+
 async function readCmsContent(key, req, jsRegex) {
     if (isStoryblokConfigured()) {
         try {
-            const storyblokData = await fetchStoryblokResource(key, { source: req });
+            const storyblokData = await withTimeout(
+                fetchStoryblokResource(key, { source: req }),
+                STORYBLOK_TIMEOUT_MS,
+                `Storyblok fetch "${key}"`
+            );
             if (storyblokData) {
                 store[key] = storyblokData;
                 return storyblokData;
@@ -829,7 +851,11 @@ app.get('/api/admin/health', async (req, res) => {
     }
 
     try {
-        await fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) });
+        await withTimeout(
+            fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) }),
+            STORYBLOK_HEALTH_TIMEOUT_MS,
+            'Storyblok health probe'
+        );
         const body = { status: 'ok', cms: 'up' };
         if (!isProduction) {
             body.provider = 'storyblok';
@@ -840,7 +866,9 @@ app.get('/api/admin/health', async (req, res) => {
         const body = { status: 'degraded', cms: 'down' };
         if (!isProduction) {
             body.errorCode = error.code || error.message;
-            body.hint = 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
+            body.hint = error.code === 'ETIMEDOUT'
+                ? `Storyblok did not respond within ${STORYBLOK_HEALTH_TIMEOUT_MS}ms. Check network reachability or increase STORYBLOK_HEALTH_TIMEOUT_MS.`
+                : 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
         }
         return res.status(503).json(body);
     }
