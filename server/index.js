@@ -440,20 +440,31 @@ function writeData(key, data) {
 // Resolves with the result of `promise` if it settles within `ms` milliseconds;
 // rejects with a timeout error otherwise.  The timeout is configurable via
 // environment variables so operators can tune it without code changes.
+// A `settled` flag ensures the outer Promise is resolved/rejected exactly once
+// even when the original promise settles concurrently with the timer.
 function withTimeout(promise, ms, label) {
     return new Promise((resolve, reject) => {
+        let settled = false;
         const timer = setTimeout(() => {
-            reject(Object.assign(new Error(`${label || 'operation'} timed out after ${ms}ms`), { code: 'ETIMEDOUT' }));
+            if (!settled) {
+                settled = true;
+                reject(Object.assign(new Error(`${label || 'operation'} timed out after ${ms}ms`), { code: 'ETIMEDOUT' }));
+            }
         }, ms);
         promise.then(
-            (value) => { clearTimeout(timer); resolve(value); },
-            (err)   => { clearTimeout(timer); reject(err); }
+            (value) => { clearTimeout(timer); if (!settled) { settled = true; resolve(value); } },
+            (err)   => { clearTimeout(timer); if (!settled) { settled = true; reject(err); } }
         );
     });
 }
 
-const STORYBLOK_TIMEOUT_MS = parseInt(process.env.STORYBLOK_TIMEOUT_MS, 10) || 5000;
-const STORYBLOK_HEALTH_TIMEOUT_MS = parseInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 10) || 3000;
+function parsePositiveInt(value, fallback) {
+    const parsed = parseInt(value, 10);
+    return (Number.isFinite(parsed) && parsed > 0) ? parsed : fallback;
+}
+
+const STORYBLOK_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_TIMEOUT_MS, 5000);
+const STORYBLOK_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 3000);
 
 async function readCmsContent(key, req, jsRegex) {
     if (isStoryblokConfigured()) {
