@@ -62,6 +62,7 @@ describe('Storyblok fallback behavior', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('<iframe');
     expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+    expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
   });
 
   it('returns degraded health when Storyblok is configured but unreachable', async () => {
@@ -72,5 +73,30 @@ describe('Storyblok fallback behavior', () => {
     expect(res.body.status).toBe('degraded');
     expect(res.body.cms).toBe('storyblok_unreachable');
     expect(res.body.fallback).toBe('filesystem');
+  });
+
+  it('uses forced filesystem mode even when Storyblok token exists', async () => {
+    process.env.CMS_PROVIDER = 'filesystem';
+    jest.resetModules();
+    const app = require('../index.js');
+
+    const loginRes = await request(app)
+      .post('/api/admin/login')
+      .send({ username: 'testadmin', password: 'test-password' });
+    const cookies = loginRes.headers['set-cookie'] || [];
+
+    const [healthRes, adminRes] = await Promise.all([
+      request(app).get('/api/admin/health'),
+      request(app).get('/admin').set('Cookie', cookies),
+    ]);
+
+    expect(healthRes.status).toBe(200);
+    expect(healthRes.body.mode).toBe('forced_filesystem');
+    expect(healthRes.body.provider).toBe('filesystem');
+
+    expect(adminRes.status).toBe(200);
+    expect(adminRes.text).toContain('Admin is running in filesystem mode');
+    expect(adminRes.text).toContain('CMS_PROVIDER=filesystem');
+    expect(adminRes.text).not.toContain('<iframe');
   });
 });

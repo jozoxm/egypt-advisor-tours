@@ -474,7 +474,7 @@ function getCmsRuntimeState(env = process.env) {
         storyblokConfigured,
         storyblokActive,
         forcedFilesystem: forcedProvider === CMS_PROVIDER_FILESYSTEM,
-        forcedStoryblok: forcedProvider === CMS_PROVIDER_STORYBLOK,
+        forcedStoryblok: forcedProvider === CMS_PROVIDER_STORYBLOK && !storyblokConfigured,
     };
 }
 
@@ -842,10 +842,16 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
 </html>`;
 }
 
-function renderLocalAdminInfoPage(isForcedFilesystem) {
+function renderLocalAdminInfoPage(isForcedFilesystem, isForcedStoryblok) {
     const setupReason = isForcedFilesystem
         ? 'Storyblok integration is currently disabled because CMS_PROVIDER=filesystem.'
+        : isForcedStoryblok
+            ? 'CMS_PROVIDER=storyblok is set, but Storyblok is not configured (missing token).'
         : 'Storyblok integration is not configured for this environment.';
+
+    const modeMessage = isForcedFilesystem
+        ? 'Public content APIs are pinned to local JSON fallback content until CMS_PROVIDER is changed.'
+        : 'Public content APIs will keep serving local JSON fallback content until Storyblok is available.';
 
     return `<!doctype html>
 <html lang="en">
@@ -869,7 +875,7 @@ function renderLocalAdminInfoPage(isForcedFilesystem) {
     <section class="card">
       <h1>Admin is running in filesystem mode</h1>
       <p>${escapeHtml(setupReason)}</p>
-      <p>Public content APIs will keep serving local JSON fallback content until Storyblok is available.</p>
+      <p>${escapeHtml(modeMessage)}</p>
       <ul>
         <li>Set <code>STORYBLOK_PREVIEW_TOKEN</code> to enable Storyblok reads.</li>
         <li>Set <code>STORYBLOK_SPACE_ID</code> to deep-link the Storyblok editor.</li>
@@ -921,7 +927,7 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 
     const cmsState = getCmsRuntimeState();
     if (!cmsState.storyblokActive) {
-        return res.status(200).type('html').send(renderLocalAdminInfoPage(cmsState.forcedFilesystem));
+        return res.status(200).type('html').send(renderLocalAdminInfoPage(cmsState.forcedFilesystem, cmsState.forcedStoryblok));
     }
 
     const adminUrl = getStoryblokAdminUrl();
@@ -943,8 +949,8 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 // In non-production (development / test) the full diagnostics are included.
 //
 // Response shape:
-//   200  { status: 'ok',       cms: 'up',   ...diagnostics? }
-//   503  { status: 'degraded', cms: 'down', ...diagnostics? }
+//   200  { status: 'ok',       cms: 'filesystem' | 'up', mode?, provider, ...diagnostics? }
+//   503  { status: 'degraded', cms: 'storyblok_unreachable', fallback: 'filesystem', provider, ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
     const cmsState = getCmsRuntimeState();
 
