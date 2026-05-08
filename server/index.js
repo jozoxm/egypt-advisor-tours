@@ -814,7 +814,7 @@ function renderOfflineAdminShellPage(providerName, nonce) {
 </head>
 <body>
   <main class="container">
-    <h1>Egypt Advisor Admin</h1>
+      <h1>${escapeHtml(APP_NAME)} Admin</h1>
     <p class="hint">Offline CMS operator mode is active. Provider: <code>${escapeHtml(providerName)}</code>.</p>
 
     <section class="card">
