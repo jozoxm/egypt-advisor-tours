@@ -85,7 +85,6 @@ describe('GET /admin', () => {
         expect(res.text).toContain('id="switch-account"');
         expect(res.text).toContain('/api/admin/logout');
         expect(res.text).toContain('/admin/login?force=1');
-        expect(res.text).toContain("window.open(editorUrl, '_blank', 'noopener,noreferrer');");
     });
 
     it('includes the configured editor origin in admin CSP frame-src', async () => {

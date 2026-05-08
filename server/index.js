@@ -772,7 +772,6 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
   </div>
   <script nonce="${nonce}">
     const statusEl = document.getElementById('preview-status');
-    const editorUrl = ${JSON.stringify(storyblokAdminUrl)};
     const getCookie = (name) => {
       const value = document.cookie.split(';').map((entry) => entry.trim()).find((entry) => entry.startsWith(name + '='));
       return value ? decodeURIComponent(value.split('=').slice(1).join('=')) : '';
@@ -811,7 +810,6 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
       await postAction('/api/admin/logout');
       window.location.href = '/admin/login?force=1';
     });
-    window.open(editorUrl, '_blank', 'noopener,noreferrer');
     updateStatus();
   </script>
 </body>
