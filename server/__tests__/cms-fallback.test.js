@@ -33,7 +33,9 @@ describe('Storyblok fallback behavior', () => {
   afterEach(() => {
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch (_error) {}
+    } catch (_error) {
+      // Best-effort temp cleanup for isolated test dirs.
+    }
     delete process.env.CMS_PROVIDER;
     delete process.env.STORYBLOK_PREVIEW_TOKEN;
     jest.dontMock('../storyblok');

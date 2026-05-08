@@ -151,7 +151,11 @@ const ADMIN_LOGIN_PATH = '/admin/login';
 const PREVIEW_MODE_DRAFT = 'draft';
 const CMS_PROVIDER_FILESYSTEM = 'filesystem';
 const CMS_PROVIDER_STORYBLOK = 'storyblok';
-const CMS_FETCH_TIMEOUT_MS = Number.parseInt(process.env.STORYBLOK_FETCH_TIMEOUT_MS || '4000', 10) || 4000;
+function getStoryblokFetchTimeoutMs() {
+    const parsed = Number.parseInt(process.env.STORYBLOK_FETCH_TIMEOUT_MS || '4000', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 4000;
+}
+const CMS_FETCH_TIMEOUT_MS = getStoryblokFetchTimeoutMs();
 
 const DEFAULT_CONTENT = {
     tours: { tours: [], testimonials: [] },
@@ -457,7 +461,7 @@ function cloneDefaultContent(key) {
     if (!Object.prototype.hasOwnProperty.call(DEFAULT_CONTENT, key)) {
         return null;
     }
-    return JSON.parse(JSON.stringify(DEFAULT_CONTENT[key]));
+    return structuredClone(DEFAULT_CONTENT[key]);
 }
 
 function getCmsRuntimeState(env = process.env) {
@@ -475,15 +479,28 @@ function getCmsRuntimeState(env = process.env) {
 }
 
 function withTimeout(promise, timeoutMs, timeoutMessage) {
-    let timeoutId;
-    const timeoutPromise = new Promise((_, reject) => {
-        timeoutId = setTimeout(() => {
+    return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
             const timeoutError = new Error(timeoutMessage);
             timeoutError.code = 'STORYBLOK_TIMEOUT';
             reject(timeoutError);
         }, timeoutMs);
+
+        Promise.resolve(promise).then(
+            (value) => {
+                clearTimeout(timeoutId);
+                resolve(value);
+            },
+            (error) => {
+                clearTimeout(timeoutId);
+                reject(error);
+            }
+        );
     });
-    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+}
+
+function getStoryblokTimeoutMessage(scope) {
+    return `[Storyblok] Request for "${scope}" timed out after ${CMS_FETCH_TIMEOUT_MS}ms.`;
 }
 
 async function readCmsContent(key, req, jsRegex) {
@@ -492,7 +509,7 @@ async function readCmsContent(key, req, jsRegex) {
             const storyblokData = await withTimeout(
                 fetchStoryblokResource(key, { source: req }),
                 CMS_FETCH_TIMEOUT_MS,
-                `[Storyblok] Request for "${key}" timed out after ${CMS_FETCH_TIMEOUT_MS}ms.`
+                getStoryblokTimeoutMessage(key)
             );
             if (storyblokData) {
                 store[key] = storyblokData;
@@ -947,10 +964,12 @@ app.get('/api/admin/health', async (req, res) => {
     }
 
     try {
+        // Probe settings because every deployment is expected to have this
+        // core story and it is lightweight to fetch.
         await withTimeout(
             fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) }),
             CMS_FETCH_TIMEOUT_MS,
-            `[Storyblok] Health check timed out after ${CMS_FETCH_TIMEOUT_MS}ms.`
+            getStoryblokTimeoutMessage('health-check')
         );
         const body = { status: 'ok', cms: 'up', provider: CMS_PROVIDER_STORYBLOK };
         if (process.env.NODE_ENV !== 'production') {
