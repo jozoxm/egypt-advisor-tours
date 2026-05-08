@@ -71,7 +71,7 @@ describe('GET /admin', () => {
         expect(res.headers.location).toBe('/admin/login');
     });
 
-    it('serves an embedded admin shell for authenticated users', async () => {
+    it('serves the Storyblok launcher admin shell for authenticated users', async () => {
         const session = await adminSession();
         const res = await request(app)
             .get('/admin')
@@ -79,11 +79,13 @@ describe('GET /admin', () => {
 
         expect(res.status).toBe(200);
         expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
-        expect(res.text).toContain('<iframe');
+        expect(res.text).not.toContain('<iframe');
         expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.text).toContain('Open Storyblok editor');
         expect(res.text).toContain('id="switch-account"');
         expect(res.text).toContain('/api/admin/logout');
         expect(res.text).toContain('/admin/login?force=1');
+        expect(res.text).toContain("window.open(editorUrl, '_blank', 'noopener,noreferrer');");
     });
 
     it('includes the configured editor origin in admin CSP frame-src', async () => {

@@ -97,7 +97,7 @@ http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
 npm start
 ```
 
-- `/admin` serves an authenticated embedded admin shell with Storyblok in an iframe
+- `/admin` serves an authenticated admin shell that launches Storyblok in a new tab (with preview controls kept in-app)
 - `/api/tours` and other APIs serve Storyblok-backed content
 - `/api/admin/preview/<secret>` enables draft preview mode
 - `/api/admin/preview/exit` clears preview mode

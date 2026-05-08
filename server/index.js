@@ -740,15 +740,19 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
     .actions { display: grid; gap: 8px; }
     button, a { appearance: none; border: 1px solid #374151; background: #1f2937; color: #f3f4f6; border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; text-decoration: none; text-align: center; cursor: pointer; }
     button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
-    main { background: #000; }
-    iframe { width: 100%; height: 100vh; border: 0; display: block; }
+    main { background: #030712; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+    .panel { width: min(720px, 100%); background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 18px; box-sizing: border-box; color: #d1d5db; }
+    .panel h2 { margin: 0 0 10px; font-size: 1.05rem; color: #f9fafb; }
+    .panel p { margin: 0 0 10px; line-height: 1.5; }
+    .panel code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 2px 6px; }
+    .panel a.launch { display: inline-block; margin-top: 6px; border-color: #2563eb; background: #2563eb; color: #fff; }
   </style>
 </head>
 <body>
   <div class="layout">
     <aside>
       <h1>Egypt Advisor Admin</h1>
-      <p class="hint">Embedded Storyblok visual editor</p>
+      <p class="hint">Storyblok editor launcher + preview controls</p>
       <div id="preview-status" class="status" data-active="false">Preview: checking…</div>
       <div class="actions">
         <button id="enable-preview" class="primary" type="button">Enable preview mode</button>
@@ -758,11 +762,17 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
       </div>
     </aside>
     <main>
-      <iframe src="${escapeHtml(storyblokAdminUrl)}" title="Storyblok Visual Editor" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <section class="panel">
+        <h2>Open Storyblok Visual Editor</h2>
+        <p>Storyblok blocks embedding <code>app.storyblok.com</code> in third-party iframes.</p>
+        <p>Use the button below to open the editor directly in a new tab, then keep this admin panel open to manage preview mode.</p>
+        <a class="launch" href="${escapeHtml(storyblokAdminUrl)}" target="_blank" rel="noreferrer">Open Storyblok editor</a>
+      </section>
     </main>
   </div>
   <script nonce="${nonce}">
     const statusEl = document.getElementById('preview-status');
+    const editorUrl = ${JSON.stringify(storyblokAdminUrl)};
     const getCookie = (name) => {
       const value = document.cookie.split(';').map((entry) => entry.trim()).find((entry) => entry.startsWith(name + '='));
       return value ? decodeURIComponent(value.split('=').slice(1).join('=')) : '';
@@ -801,6 +811,7 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
       await postAction('/api/admin/logout');
       window.location.href = '/admin/login?force=1';
     });
+    window.open(editorUrl, '_blank', 'noopener,noreferrer');
     updateStatus();
   </script>
 </body>

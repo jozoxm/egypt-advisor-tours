@@ -32,7 +32,7 @@ Visit:
 
 - `https://egyptadvisortours.com/admin`
 
-`/admin` now serves a protected in-app admin shell and embeds Storyblok in an iframe.
+`/admin` now serves a protected in-app admin shell and launches Storyblok in a new tab.
 If `ADMIN_PASSWORD` (or legacy `ADMIN_SECRET`) is configured, unauthenticated users are redirected to `/admin/login`.
 
 Storyblok editor URL resolution:
