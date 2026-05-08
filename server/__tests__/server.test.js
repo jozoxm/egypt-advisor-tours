@@ -65,7 +65,7 @@ describe('GET /api/admin/health', () => {
         expect(res.body).toHaveProperty('primary');
     });
 
-    it('returns 503 in forced Storyblok mode when Storyblok is not configured', async () => {
+    it('returns 200 with failover details in forced Storyblok mode when Storyblok is not configured', async () => {
         const originalCmsProvider = process.env.CMS_PROVIDER;
         const originalStoryblokToken = process.env.STORYBLOK_PREVIEW_TOKEN;
         process.env.CMS_PROVIDER = 'storyblok';
@@ -75,10 +75,11 @@ describe('GET /api/admin/health', () => {
             jest.resetModules();
             const isolatedApp = require('../index.js');
             const res = await request(isolatedApp).get('/api/admin/health');
-            expect(res.status).toBe(503);
-            expect(res.body.status).toBe('degraded');
-            expect(res.body.cms).toBe('down');
+            expect(res.status).toBe(200);
+            expect(res.body.status).toBe('ok');
+            expect(res.body.cms).toBe('up');
             expect(res.body.primary).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
+            expect(res.body.failover).toHaveProperty('provider', 'file');
         } finally {
             process.env.CMS_PROVIDER = originalCmsProvider;
             process.env.STORYBLOK_PREVIEW_TOKEN = originalStoryblokToken;
