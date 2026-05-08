@@ -69,27 +69,40 @@ async function wpFetch(url, env) {
 // are returned as plain text, not raw HTML strings.
 //
 // Processing order is important for security:
-// 1. Decode all non-ampersand entities first so that entity-encoded tags
-//    (e.g. &lt;script&gt;) are converted to real tags and then stripped.
-// 2. Strip all HTML tags (including any that were entity-encoded).
-// 3. Decode &amp; last so it cannot create new entity sequences.
+// 1. Decode lt/gt via sentinel substitution first so that entity-encoded tags
+//    (e.g. &lt;script&gt;) are converted and then stripped in step 2.
+// 2. Strip HTML tags iteratively until stable to handle nested/malformed
+//    markup (e.g. <scr<ipt> bypass is fully removed).
+// 3. Restore angle brackets and decode &amp; last so it cannot produce new
+//    entity sequences.
 function stripHtml(html) {
     if (!html) return '';
-    return String(html)
-        // Decode lt/gt/quot/apos/nbsp first so entity-encoded tags get stripped
+    let text = String(html)
+        // Decode lt/gt via sentinels so entity-encoded tags get stripped below
         .replace(/&lt;/g, '\x00LT\x00')
         .replace(/&gt;/g, '\x00GT\x00')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, ' ')
-        // Strip all HTML tags (including those reconstructed above)
-        .replace(/<[^>]*>/g, '')
-        // Restore lt/gt as plain-text angle brackets (safe in text context)
+        .replace(/&nbsp;/g, ' ');
+    // Strip HTML tags; iterate until stable to handle malformed/nested markup
+    let prev;
+    do {
+        prev = text;
+        text = text.replace(/<[^>]*>/g, '');
+    } while (text !== prev);
+    return text
         .replace(/\x00LT\x00/g, '<')
         .replace(/\x00GT\x00/g, '>')
-        // Decode &amp; last to avoid creating new entity sequences
         .replace(/&amp;/g, '&')
         .trim();
+}
+
+// Returns `value` only if it does not look like a URL (i.e. safe to use as
+// an icon/emoji in the UI).  If `value` appears to be a URL it is silently
+// dropped so that photo URLs never leak into the text-rendered `image` field.
+function safeIcon(value, fallback) {
+    if (!value) return fallback;
+    return String(value).includes('://') ? fallback : String(value);
 }
 
 function transformTour(post) {
@@ -106,9 +119,9 @@ function transformTour(post) {
         description: acf.description || stripHtml(post.content && post.content.rendered) || '',
         excerpt: acf.excerpt || stripHtml(post.excerpt && post.excerpt.rendered) || '',
         duration: acf.duration || '',
-        // image: prefer ACF icon/emoji; never put a URL here so the frontend
-        // renders it as text. Store the actual URL in photoUrl instead.
-        image: acf.image || '🏛️',
+        // image: icon/emoji displayed in card UI — must not be a URL.
+        // Use photoUrl for the actual media URL.
+        image: safeIcon(acf.image, '🏛️'),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         prices: acf.prices || {},
         rating: acf.rating || 0,
@@ -141,9 +154,8 @@ function transformBlog(post) {
         date: acf.date || post.date || '',
         excerpt: acf.excerpt || stripHtml(post.excerpt && post.excerpt.rendered) || '',
         content: acf.content || stripHtml(post.content && post.content.rendered) || '',
-        // image: prefer ACF icon/emoji; URL goes in photoUrl so blog cards
-        // show an icon rather than a raw URL string.
-        image: acf.image || '🗺️',
+        // image: icon/emoji displayed in blog card — must not be a URL.
+        image: safeIcon(acf.image, '🗺️'),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         category: acf.category || categories[0] || '',
         featured: Boolean(acf.featured),
@@ -178,8 +190,8 @@ function transformPromotion(post) {
         description: acf.description || stripHtml(post.excerpt && post.excerpt.rendered) || '',
         discount: acf.discount || '',
         validUntil: acf.valid_until || acf.validUntil || '',
-        // image: prefer ACF icon/emoji so it renders correctly in existing card components
-        image: acf.image || '🎫',
+        // image: icon/emoji displayed in promotion card — must not be a URL.
+        image: safeIcon(acf.image, '🎫'),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         active: acf.active !== false,
         slug: post.slug || '',
@@ -197,8 +209,8 @@ function transformDestination(post) {
         id: post.id,
         name: acf.name || stripHtml(post.title && post.title.rendered) || '',
         description: acf.description || stripHtml(post.excerpt && post.excerpt.rendered) || '',
-        // image: prefer ACF icon/emoji; put URL in photoUrl
-        image: acf.image || '🗺️',
+        // image: icon/emoji displayed in destination card — must not be a URL.
+        image: safeIcon(acf.image, '🗺️'),
         photoUrl: acf.photoUrl || acf.photo_url || mediaUrl || '',
         featured: Boolean(acf.featured),
         slug: post.slug || '',

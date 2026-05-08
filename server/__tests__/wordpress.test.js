@@ -427,6 +427,24 @@ describe('fetchContact', () => {
 });
 
 // ─────────────────────────────────────────────────
+// transformTour — safeIcon guard
+// ─────────────────────────────────────────────────
+describe('transformTour — image field URL guard', () => {
+    it('uses fallback emoji when acf.image is a URL', () => {
+        const post = {
+            id: 1, slug: 'test', date: '',
+            title: { rendered: 'Test' },
+            content: { rendered: '' },
+            excerpt: { rendered: '' },
+            acf: { image: 'https://example.com/photo.jpg' },
+            _embedded: {},
+        };
+        expect(transformTour(post).image).toBe('🏛️');
+        expect(transformTour(post).photoUrl).toBe('');
+    });
+});
+
+// ─────────────────────────────────────────────────
 // clearCache
 // ─────────────────────────────────────────────────
 describe('clearCache', () => {
