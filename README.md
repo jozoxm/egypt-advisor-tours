@@ -1,6 +1,6 @@
 # Egypt Advisor Tours
 
-Full-stack tour website built with React and Express, using **WordPress (headless)** as the primary CMS hosted at `https://cms.egyptadvisortours.com`.
+Full-stack tour website built with React and Express, now using **Storyblok** for editor-managed content.
 
 ## Local development
 
@@ -15,9 +15,10 @@ npm run setup
 
 Fill in at least:
 
+- `STORYBLOK_PREVIEW_TOKEN`
+- `STORYBLOK_SPACE_ID`
 - `ADMIN_SECRET`
 - `ADMIN_PASSWORD`
-- `WORDPRESS_BASE_URL` (optional in dev; defaults to `https://cms.egyptadvisortours.com`)
 
 Run the app:
 
@@ -28,152 +29,123 @@ npm start
 - Site/API: `http://localhost:5000`
 - React dev server: `npm run dev:client`
 - Express dev server: `npm run dev:server`
-- WordPress admin: `https://cms.egyptadvisortours.com/wp-admin` (or `http://localhost:5000/admin` to be redirected)
+- Embedded Storyblok admin shell: `http://localhost:5000/admin`
 
-## WordPress setup (headless CMS)
+## Storyblok setup (exact UI + env steps)
 
-The site reads editor-managed content via the WordPress REST API. WordPress runs on a subdomain (`https://cms.egyptadvisortours.com`) on Hostinger shared hosting.
+The site keeps its existing API shapes (`/api/tours`, `/api/blogs`, `/api/settings`, etc.) and maps them to Storyblok stories.
 
-### Required WordPress plugins
+1. Create or open your Storyblok space.
+2. Go to **Settings → Access Tokens** and copy:
+   - **Preview token** → `STORYBLOK_PREVIEW_TOKEN`
+   - (Optional) **Management token** → `STORYBLOK_MANAGEMENT_TOKEN` (required for `npm run sync:storyblok`)
+3. Copy your **Space ID** from Storyblok space settings → `STORYBLOK_SPACE_ID`.
+4. In Storyblok, go to **Components** and create:
+   - Component name: `json_document`
+   - Field name: `json`
+   - Field type: **Long text**
+5. In Storyblok, create these stories (or override with env vars):
 
-Install these plugins through the WordPress admin (`wp-admin → Plugins → Add New`):
-
-| Plugin | Purpose |
+| API resource | Default Storyblok slug |
 |---|---|
-| **Advanced Custom Fields (ACF)** | Adds structured field groups to posts, pages, and CPTs |
-| **Custom Post Type UI (CPT UI)** | Registers the `tour` custom post type |
-| **ACF to REST API** | Exposes ACF field values in the WP REST API response under the `acf` key |
+| Tours + testimonials | `cms-tours` |
+| Contact info | `cms-contact` |
+| Blogs | `cms-blogs` |
+| Gallery | `cms-gallery` |
+| Slideshow | `cms-slideshow` |
+| Site settings | `cms-settings` |
+| Promotions | `cms-promotions` |
+| Destinations | `cms-destinations` |
 
-### Content modeling
-
-| API resource | WordPress source | REST endpoint |
-|---|---|---|
-| Tours + testimonials | CPT `tour` | `/wp-json/wp/v2/tour?per_page=100&_embed` |
-| Blogs | WP Posts | `/wp-json/wp/v2/posts?per_page=100&_embed` |
-| Site settings | Page slug `site-settings` | `/wp-json/wp/v2/pages?slug=site-settings&_embed` |
-| Contact info | Page slug `contact` | `/wp-json/wp/v2/pages?slug=contact&_embed` |
-
-Content for `settings` and `contact` is read from **ACF field groups** attached to those pages. All other resources (`gallery`, `slideshow`, `promotions`, `destinations`) fall back to the filesystem JSON files.
-
-#### ACF field groups (recommended)
-
-**Tour CPT** — attach to post type `tour`:
-
-| Field name | Type | Notes |
-|---|---|---|
-| `name` | Text | Tour title (overrides WP title) |
-| `description` | Textarea | Full description |
-| `duration` | Text | e.g. `4 hours` |
-| `prices` | Group | sub-fields: `individual`, `group`, `sharing` (Text) |
-| `rating` | Number | e.g. `4.9` |
-| `reviews` | Number | review count |
-| `group_size` | Text | e.g. `2-10 people` |
-| `category` | Text | e.g. `Historical` |
-| `itinerary` | Repeater | sub-fields: `day`, `time`, `title`, `description` |
-| `featured` | True/False | |
-
-**Contact page** — attach to page `contact`:
-
-| Field name | Type |
-|---|---|
-| `companyName` | Text |
-| `emailPrimary` | Email |
-| `emailSupport` | Email |
-| `phone` | Text |
-| `address` | Group |
-| `socialMedia` | Group |
-
-**Site settings page** — attach to page `site-settings`:
-
-| Field name | Type |
-|---|---|
-| `hero` | Group (badge, title, subtitle, primaryButtonText, secondaryButtonText) |
-| `stats` | Repeater (value, label) |
-
-**Slideshow page** — attach to page `slideshow`:
-
-| Field name | Type | Notes |
-|---|---|---|
-| `slides` | Repeater | sub-fields: `name` (Text), `image` (URL), `gradient` (Text) |
-
-**Home page** — attach to page `home` (optional, for extra homepage overrides):
-
-| Field name | Type | Notes |
-|---|---|---|
-| Any | — | ACF fields are returned as-is to the frontend |
-
-**Promotions CPT** — custom post type `promotion`:
-
-| Field name | Type | Notes |
-|---|---|---|
-| `title` | Text | Promotion title (overrides WP title) |
-| `description` | Textarea | |
-| `discount` | Text | e.g. `20% off` |
-| `valid_until` | Date | |
-| `image` | Text | Emoji/icon shown in UI, e.g. `🎫` |
-| `active` | True/False | |
-
-**Destinations CPT** — custom post type `destination`:
-
-| Field name | Type | Notes |
-|---|---|---|
-| `name` | Text | Destination name (overrides WP title) |
-| `description` | Textarea | |
-| `image` | Text | Emoji/icon shown in UI |
-| `photo_url` | URL | Actual photo URL used in cards |
-| `featured` | True/False | |
-
-**Gallery page** — attach to page `gallery`:
-
-| Field name | Type | Notes |
-|---|---|---|
-| `gallery` | Repeater | sub-fields: `image` (URL), `caption` (Text), `alt` (Text) |
-
-> **Note:** Bookings are submitted by customers via the public `/api/bookings/customer` endpoint and stored server-side. Admin can view and export them via `/api/bookings` (requires login). A WordPress `booking` CPT is not required but can optionally be used to mirror bookings for management in WP (requires app-password configuration).
-
-### Required WordPress plugins
-
-Install these in your WordPress admin — not via this repository:
-
-| Plugin | Purpose |
-|---|---|
-| Advanced Custom Fields (ACF) | Custom fields on all content types |
-| Custom Post Type UI | Register `tour`, `promotion`, `destination` CPTs |
-| ACF to REST API | Expose ACF fields via WordPress REST API |
-| Classic Editor (optional) | Simpler editing experience |
-
-### Environment variables
+6. Configure local env values in `.env`:
 
 ```env
-WORDPRESS_BASE_URL=https://cms.egyptadvisortours.com
-WORDPRESS_TIMEOUT_MS=8000
-WORDPRESS_HEALTH_TIMEOUT_MS=8000
-WORDPRESS_CACHE_TTL_MS=300000
+STORYBLOK_PREVIEW_TOKEN=<preview_token>
+STORYBLOK_SPACE_ID=<space_id>
+STORYBLOK_MANAGEMENT_TOKEN=<management_token>
+STORYBLOK_REGION=eu
+STORYBLOK_PREVIEW_SECRET=<long-random-secret>
 ADMIN_SECRET=<long-random-secret>
 ADMIN_PASSWORD=<secure-password>
 ```
 
-### CMS provider selection
+- Set `STORYBLOK_REGION=us` only if your Storyblok space is in the US region.
 
-The `CMS_PROVIDER` env var explicitly controls which CMS is used. Setting it takes precedence over auto-detection:
+7. Install dependencies and bootstrap Storyblok content:
 
-| Value | Behaviour |
-|---|---|
-| `wordpress` | Use WordPress REST API (requires `WORDPRESS_BASE_URL`) |
-| `storyblok` | Use Storyblok delivery API (legacy, requires `STORYBLOK_PREVIEW_TOKEN`) |
-| `filesystem` | Read from local JSON / JS source files only — no live CMS |
+```bash
+npm install
+npm install --prefix server
+npm run sync:storyblok
+```
 
-If `CMS_PROVIDER` is not set, the provider is **auto-detected**: WordPress if `WORDPRESS_BASE_URL` is present, Storyblok if `STORYBLOK_PREVIEW_TOKEN` is present, otherwise filesystem.
+8. In Storyblok, set preview URL to:
 
-Setting `CMS_PROVIDER=filesystem` also prevents the startup script from injecting a default `WORDPRESS_BASE_URL`, so the server truly runs in offline/filesystem mode.
+```text
+https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
+```
 
-### Admin redirect
+Local alternative:
 
-`GET /admin` and `GET /admin/*` redirect (302) to the WordPress admin at `WORDPRESS_BASE_URL/wp-admin`. The `/admin/login` page still provides local session authentication for protecting the bookings API.
+```text
+http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
+```
 
-## Storyblok (legacy)
+9. Start and verify:
 
-Storyblok is still supported as a fallback CMS provider. Set `CMS_PROVIDER=storyblok` (or leave `WORDPRESS_BASE_URL` unset and set `STORYBLOK_PREVIEW_TOKEN`) to enable it. The Storyblok preview endpoints (`/api/admin/preview/*`) have been deprecated and return **410 Gone**.
+```bash
+npm start
+```
+
+- `/admin` serves an authenticated admin shell that launches Storyblok in a new tab (with preview controls kept in-app)
+- `/api/tours` and other APIs serve Storyblok-backed content
+- `/api/admin/preview/<secret>` enables draft preview mode
+- `/api/admin/preview/exit` clears preview mode
+
+Each story stores the same JSON shape the existing API already returns. Examples:
+
+- `cms-tours`: `{ "tours": [...], "testimonials": [...] }`
+- `cms-blogs`: `{ "blogs": [...] }`
+- `cms-settings`: `{ "hero": { ... }, ... }`
+
+### Bootstrap Storyblok from the current repository data
+
+If you have a management token, the repository can seed/update those stories for you:
+
+```bash
+npm run sync:storyblok
+```
+
+Required env vars for the sync script:
+
+- `STORYBLOK_SPACE_ID`
+- `STORYBLOK_MANAGEMENT_TOKEN`
+
+## Preview / draft mode
+
+Set Storyblok's preview URL to:
+
+```text
+https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
+```
+
+- `STORYBLOK_PREVIEW_SECRET` is optional but recommended
+- The route sets a short-lived preview cookie so the API reads Storyblok draft content
+- `/api/admin/preview/exit` clears the preview cookie
+- `/admin` now embeds the Storyblok editor inside a protected first-party admin shell
+- `/api/admin/preview/status` reports preview state for authenticated admins
+- `/api/admin/preview/enable` lets the admin shell enable preview mode without exposing `STORYBLOK_PREVIEW_SECRET` in browser links
+
+## Security note
+
+If any Storyblok token was exposed in screenshots, chats, or public logs, rotate/regenerate it immediately in Storyblok and update your `.env`.
+
+## What changed in this migration
+
+- Removed the local Payload CMS app and its build/start scripts
+- Replaced CMS reads with Storyblok-backed server helpers
+- Added Storyblok preview support and editor redirect handling
+- Added a Storyblok sync script for bootstrapping stories from the existing local data
 
 ## Validation
 
