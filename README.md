@@ -97,12 +97,10 @@ http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
 npm start
 ```
 
-- `/admin` serves an authenticated embedded admin shell with Storyblok in an iframe
+- `/admin` serves an authenticated admin shell that launches Storyblok in a new tab (with preview controls kept in-app)
 - `/api/tours` and other APIs serve Storyblok-backed content
 - `/api/admin/preview/<secret>` enables draft preview mode
 - `/api/admin/preview/exit` clears preview mode
-
-If Storyblok is not configured (or `CMS_PROVIDER=filesystem`), content APIs automatically fall back to local JSON/JS data and `/admin` shows a first-party setup/help page instead of a broken iframe.
 
 Each story stores the same JSON shape the existing API already returns. Examples:
 
@@ -137,17 +135,6 @@ https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
 - `/admin` now embeds the Storyblok editor inside a protected first-party admin shell
 - `/api/admin/preview/status` reports preview state for authenticated admins
 - `/api/admin/preview/enable` lets the admin shell enable preview mode without exposing `STORYBLOK_PREVIEW_SECRET` in browser links
-
-## CMS provider selection and health
-
-- `CMS_PROVIDER=filesystem` forces local JSON mode (Storyblok disabled)
-- `CMS_PROVIDER=storyblok` enables Storyblok-first mode when token is configured
-- Unset `CMS_PROVIDER` keeps auto mode: Storyblok when configured, filesystem otherwise
-
-`GET /api/admin/health` now distinguishes:
-
-- `200` + `mode: storyblok_not_configured` or `mode: forced_filesystem` when running local fallback mode
-- `503` + `cms: storyblok_unreachable` when Storyblok is configured but temporarily unavailable
 
 ## Security note
 

@@ -9,11 +9,9 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const {
     fetchStoryblokResource,
-    getCmsProvider,
     getStoryblokAdminUrl,
     getStoryblokVersion,
     isStoryblokConfigured,
-    shouldUseStoryblok,
     updateStoryblokResource,
 } = require('./storyblok');
 require('dotenv').config();
@@ -149,24 +147,6 @@ const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 const ADMIN_LOGIN_PATH = '/admin/login';
 const PREVIEW_MODE_DRAFT = 'draft';
-const CMS_PROVIDER_FILESYSTEM = 'filesystem';
-const CMS_PROVIDER_STORYBLOK = 'storyblok';
-function getStoryblokFetchTimeoutMs() {
-    const parsed = Number.parseInt(process.env.STORYBLOK_FETCH_TIMEOUT_MS || '4000', 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 4000;
-}
-const CMS_FETCH_TIMEOUT_MS = getStoryblokFetchTimeoutMs();
-
-const DEFAULT_CONTENT = {
-    tours: { tours: [], testimonials: [] },
-    contact: {},
-    blogs: { blogs: [] },
-    gallery: { gallery: [] },
-    slideshow: { slides: [] },
-    settings: {},
-    promotions: { promotions: [] },
-    destinations: { destinations: [] },
-};
 
 function getAdminCookieOptions() {
     const secure = process.env.NODE_ENV === 'production';
@@ -457,65 +437,50 @@ function writeData(key, data) {
     }
 }
 
-function cloneDefaultContent(key) {
-    if (!Object.prototype.hasOwnProperty.call(DEFAULT_CONTENT, key)) {
-        return null;
-    }
-    return structuredClone(DEFAULT_CONTENT[key]);
-}
-
-function getCmsRuntimeState(env = process.env) {
-    const forcedProvider = String(env.CMS_PROVIDER || '').trim().toLowerCase();
-    const provider = getCmsProvider(env);
-    const storyblokConfigured = isStoryblokConfigured(env);
-    const storyblokActive = shouldUseStoryblok(env);
-    return {
-        provider,
-        storyblokConfigured,
-        storyblokActive,
-        forcedFilesystem: forcedProvider === CMS_PROVIDER_FILESYSTEM,
-        requestedStoryblokUnconfigured: forcedProvider === CMS_PROVIDER_STORYBLOK && !storyblokConfigured,
-    };
-}
-
-function withTimeout(promise, timeoutMs, timeoutMessage) {
+// Resolves with the result of `promise` if it settles within `ms` milliseconds;
+// rejects with a timeout error otherwise.  The timeout is configurable via
+// environment variables so operators can tune it without code changes.
+// A `settled` flag ensures the outer Promise is resolved/rejected exactly once
+// even when the original promise settles concurrently with the timer.
+function withTimeout(promise, ms, label) {
     return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-            const timeoutError = new Error(timeoutMessage);
-            timeoutError.code = 'STORYBLOK_TIMEOUT';
-            reject(timeoutError);
-        }, timeoutMs);
-
-        Promise.resolve(promise).then(
-            (value) => {
-                clearTimeout(timeoutId);
-                resolve(value);
-            },
-            (error) => {
-                clearTimeout(timeoutId);
-                reject(error);
+        let settled = false;
+        const timer = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                reject(Object.assign(new Error(`${label || 'operation'} timed out after ${ms}ms`), { code: 'ETIMEDOUT' }));
             }
+        }, ms);
+        promise.then(
+            (value) => { clearTimeout(timer); if (!settled) { settled = true; resolve(value); } },
+            (err)   => { clearTimeout(timer); if (!settled) { settled = true; reject(err); } }
         );
     });
 }
 
-function getStoryblokTimeoutMessage(scope) {
-    return `[Storyblok] Request for "${scope}" timed out after ${CMS_FETCH_TIMEOUT_MS}ms.`;
+function parsePositiveInt(value, fallback) {
+    const parsed = parseInt(value, 10);
+    if (value !== undefined && value !== null && !(Number.isFinite(parsed) && parsed > 0)) {
+        console.warn(`[config] Invalid timeout value "${value}" (expected a positive integer); using default ${fallback}ms.`);
+    }
+    return (Number.isFinite(parsed) && parsed > 0) ? parsed : fallback;
 }
 
+const STORYBLOK_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_TIMEOUT_MS, 5000);
+const STORYBLOK_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 3000);
+
 async function readCmsContent(key, req, jsRegex) {
-    if (shouldUseStoryblok()) {
+    if (isStoryblokConfigured()) {
         try {
             const storyblokData = await withTimeout(
                 fetchStoryblokResource(key, { source: req }),
-                CMS_FETCH_TIMEOUT_MS,
-                getStoryblokTimeoutMessage(key)
+                STORYBLOK_TIMEOUT_MS,
+                `Storyblok fetch "${key}"`
             );
             if (storyblokData) {
                 store[key] = storyblokData;
                 return storyblokData;
             }
-            console.warn(`[Storyblok] Story for "${key}" was missing or empty. Falling back to filesystem data.`);
         } catch (error) {
             console.warn(`[Storyblok] Failed to load "${key}" from Storyblok:`, error.message);
         }
@@ -531,7 +496,7 @@ async function readCmsContent(key, req, jsRegex) {
 }
 
 async function persistCmsContent(key, data) {
-    if (shouldUseStoryblok()) {
+    if (isStoryblokConfigured()) {
         try {
             const result = await updateStoryblokResource(key, data);
             if (result.persisted) {
@@ -550,7 +515,7 @@ async function persistCmsContent(key, data) {
 // request is for published content. Draft/preview requests must always bypass
 // the cache so editors see the latest Storyblok state immediately.
 function shouldUseMemoryStore(req) {
-    return !shouldUseStoryblok() && getStoryblokVersion(req) === 'published';
+    return !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -775,15 +740,19 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
     .actions { display: grid; gap: 8px; }
     button, a { appearance: none; border: 1px solid #374151; background: #1f2937; color: #f3f4f6; border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; text-decoration: none; text-align: center; cursor: pointer; }
     button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
-    main { background: #000; }
-    iframe { width: 100%; height: 100vh; border: 0; display: block; }
+    main { background: #030712; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+    .panel { width: min(720px, 100%); background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 18px; box-sizing: border-box; color: #d1d5db; }
+    .panel h2 { margin: 0 0 10px; font-size: 1.05rem; color: #f9fafb; }
+    .panel p { margin: 0 0 10px; line-height: 1.5; }
+    .panel code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 2px 6px; }
+    .panel a.launch { display: inline-block; margin-top: 6px; border-color: #2563eb; background: #2563eb; color: #fff; }
   </style>
 </head>
 <body>
   <div class="layout">
     <aside>
       <h1>Egypt Advisor Admin</h1>
-      <p class="hint">Embedded Storyblok visual editor</p>
+      <p class="hint">Storyblok editor launcher + preview controls</p>
       <div id="preview-status" class="status" data-active="false">Preview: checking…</div>
       <div class="actions">
         <button id="enable-preview" class="primary" type="button">Enable preview mode</button>
@@ -793,7 +762,12 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
       </div>
     </aside>
     <main>
-      <iframe src="${escapeHtml(storyblokAdminUrl)}" title="Storyblok Visual Editor" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+      <section class="panel">
+        <h2>Open Storyblok Visual Editor</h2>
+        <p>Storyblok blocks embedding <code>app.storyblok.com</code> in third-party iframes.</p>
+        <p>Use the button below to open the editor directly in a new tab, then keep this admin panel open to manage preview mode.</p>
+        <a class="launch" href="${escapeHtml(storyblokAdminUrl)}" target="_blank" rel="noreferrer">Open Storyblok editor</a>
+      </section>
     </main>
   </div>
   <script nonce="${nonce}">
@@ -842,65 +816,6 @@ function renderAdminShellPage(storyblokAdminUrl, nonce) {
 </html>`;
 }
 
-function renderLocalAdminInfoPage(isForcedFilesystem, requestedStoryblokUnconfigured) {
-    const setupReason = isForcedFilesystem
-        ? 'Storyblok integration is currently disabled because CMS_PROVIDER=filesystem.'
-        : requestedStoryblokUnconfigured
-            ? 'CMS_PROVIDER=storyblok is set, but Storyblok is not configured (missing token).'
-        : 'Storyblok integration is not configured for this environment.';
-
-    const modeMessage = isForcedFilesystem
-        ? 'Public content APIs are pinned to local JSON fallback content until CMS_PROVIDER is changed.'
-        : 'Public content APIs will keep serving local JSON fallback content until Storyblok is available.';
-
-    return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin Setup</title>
-  <style>
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: #0b1220; color: #e5e7eb; }
-    main { max-width: 860px; margin: 0 auto; padding: 32px 20px; }
-    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-    h1 { margin-top: 0; font-size: 1.35rem; }
-    p { color: #cbd5e1; line-height: 1.5; }
-    code { background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 2px 6px; }
-    ul { margin: 0; padding-left: 1.2rem; }
-    a { color: #93c5fd; }
-  </style>
-</head>
-<body>
-  <main>
-    <section class="card">
-      <h1>Admin is running in filesystem mode</h1>
-      <p>${escapeHtml(setupReason)}</p>
-      <p>${escapeHtml(modeMessage)}</p>
-      <ul>
-        <li>Set <code>STORYBLOK_PREVIEW_TOKEN</code> to enable Storyblok reads.</li>
-        <li>Set <code>STORYBLOK_SPACE_ID</code> to deep-link the Storyblok editor.</li>
-        <li>Optional: set <code>CMS_PROVIDER=filesystem</code> to force local-only mode even when Storyblok tokens exist.</li>
-      </ul>
-    </section>
-    <section class="card">
-      <h1>Useful local endpoints</h1>
-      <ul>
-        <li><a href="/api/admin/health">/api/admin/health</a></li>
-        <li><a href="/api/tours">/api/tours</a></li>
-        <li><a href="/api/contact">/api/contact</a></li>
-        <li><a href="/api/blogs">/api/blogs</a></li>
-        <li><a href="/api/gallery">/api/gallery</a></li>
-        <li><a href="/api/slideshow">/api/slideshow</a></li>
-        <li><a href="/api/settings">/api/settings</a></li>
-        <li><a href="/api/promotions">/api/promotions</a></li>
-        <li><a href="/api/destinations">/api/destinations</a></li>
-      </ul>
-    </section>
-  </main>
-</body>
-</html>`;
-}
-
 app.get('/api', (req, res) => {
     res.json({
         message: 'Welcome to Egypt Advisor Tours API',
@@ -925,11 +840,6 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
         return res.redirect(302, ADMIN_LOGIN_PATH);
     }
 
-    const cmsState = getCmsRuntimeState();
-    if (!cmsState.storyblokActive) {
-        return res.status(200).type('html').send(renderLocalAdminInfoPage(cmsState.forcedFilesystem, cmsState.requestedStoryblokUnconfigured));
-    }
-
     const adminUrl = getStoryblokAdminUrl();
     const nonce = crypto.randomBytes(16).toString('base64');
     res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminUrl));
@@ -949,49 +859,39 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 // In non-production (development / test) the full diagnostics are included.
 //
 // Response shape:
-//   200  { status: 'ok',       cms: 'filesystem' | 'up', mode?, provider, ...diagnostics? }
-//   503  { status: 'degraded', cms: 'storyblok_unreachable', fallback: 'filesystem', provider, ...diagnostics? }
+//   200  { status: 'ok',       cms: 'up',   ...diagnostics? }
+//   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
-    const cmsState = getCmsRuntimeState();
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    if (!cmsState.storyblokActive) {
-        const body = {
-            status: 'ok',
-            cms: 'filesystem',
-            provider: CMS_PROVIDER_FILESYSTEM,
-            mode: cmsState.forcedFilesystem ? 'forced_filesystem' : 'storyblok_not_configured',
-        };
-        if (process.env.NODE_ENV !== 'production') {
-            body.hint = cmsState.forcedFilesystem
-                ? 'Unset CMS_PROVIDER or set CMS_PROVIDER=storyblok to re-enable Storyblok.'
-                : 'Set STORYBLOK_PREVIEW_TOKEN (and optionally STORYBLOK_SPACE_ID / STORYBLOK_MANAGEMENT_TOKEN) to enable Storyblok.';
+    if (!isStoryblokConfigured()) {
+        const body = { status: 'degraded', cms: 'down' };
+        if (!isProduction) {
+            body.errorCode = 'STORYBLOK_NOT_CONFIGURED';
+            body.hint = 'Set STORYBLOK_PREVIEW_TOKEN (and optionally STORYBLOK_SPACE_ID / STORYBLOK_MANAGEMENT_TOKEN).';
         }
-        return res.status(200).json(body);
+        return res.status(503).json(body);
     }
 
     try {
-        // Probe settings because every deployment is expected to have this
-        // core story and it is lightweight to fetch.
         await withTimeout(
             fetchStoryblokResource('settings', { source: req, version: getStoryblokVersion(req) }),
-            CMS_FETCH_TIMEOUT_MS,
-            getStoryblokTimeoutMessage('health-check')
+            STORYBLOK_HEALTH_TIMEOUT_MS,
+            'Storyblok health probe'
         );
-        const body = { status: 'ok', cms: 'up', provider: CMS_PROVIDER_STORYBLOK };
-        if (process.env.NODE_ENV !== 'production') {
+        const body = { status: 'ok', cms: 'up' };
+        if (!isProduction) {
+            body.provider = 'storyblok';
             body.version = getStoryblokVersion(req);
         }
         return res.status(200).json(body);
     } catch (error) {
-        const body = {
-            status: 'degraded',
-            cms: 'storyblok_unreachable',
-            provider: CMS_PROVIDER_STORYBLOK,
-            fallback: CMS_PROVIDER_FILESYSTEM,
-        };
-        if (process.env.NODE_ENV !== 'production') {
+        const body = { status: 'degraded', cms: 'down' };
+        if (!isProduction) {
             body.errorCode = error.code || error.message;
-            body.hint = 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
+            body.hint = error.code === 'ETIMEDOUT'
+                ? `Storyblok did not respond within ${STORYBLOK_HEALTH_TIMEOUT_MS}ms. Check network reachability or increase STORYBLOK_HEALTH_TIMEOUT_MS.`
+                : 'Verify STORYBLOK_PREVIEW_TOKEN, STORYBLOK_REGION, and the configured Storyblok story slugs.';
         }
         return res.status(503).json(body);
     }
@@ -1122,12 +1022,7 @@ app.get('/api/tours', readLimiter, async (req, res) => {
         }
         return res.json(fallback);
     }
-    console.warn('[CMS] Falling back to default tours payload.');
-    const fallback = cloneDefaultContent('tours');
-    if (shouldUseMemoryStore(req)) {
-        store.tours = fallback;
-    }
-    res.json(fallback);
+    res.status(500).json({ error: 'Failed to read tours data' });
 });
 
 app.post('/api/tours', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1160,12 +1055,7 @@ app.get('/api/contact', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data);
     }
-    console.warn('[CMS] Falling back to default contact payload.');
-    const fallback = cloneDefaultContent('contact');
-    if (shouldUseMemoryStore(req)) {
-        store.contact = fallback;
-    }
-    res.json(fallback);
+    res.status(500).json({ error: 'Failed to read contact info' });
 });
 
 app.post('/api/contact', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1196,12 +1086,7 @@ app.get('/api/blogs', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data.blogs ? data : { blogs: data });
     }
-    console.warn('[CMS] Falling back to default blogs payload.');
-    const fallback = cloneDefaultContent('blogs');
-    if (shouldUseMemoryStore(req)) {
-        store.blogs = fallback;
-    }
-    res.json(fallback);
+    res.status(500).json({ error: 'Failed to read blogs data' });
 });
 
 app.post('/api/blogs', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1235,12 +1120,7 @@ app.get('/api/gallery', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data.gallery ? data : { gallery: data });
     }
-    console.warn('[CMS] Falling back to default gallery payload.');
-    const fallback = cloneDefaultContent('gallery');
-    if (shouldUseMemoryStore(req)) {
-        store.gallery = fallback;
-    }
-    res.json(fallback);
+    res.status(500).json({ error: 'Failed to read gallery data' });
 });
 
 app.post('/api/gallery', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1369,12 +1249,7 @@ app.get('/api/slideshow', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data.slides ? data : { slides: data });
     }
-    console.warn('[CMS] Falling back to default slideshow payload.');
-    const fallback = cloneDefaultContent('slideshow');
-    if (shouldUseMemoryStore(req)) {
-        store.slideshow = fallback;
-    }
-    res.json(fallback);
+    res.status(500).json({ error: 'Failed to read slideshow data' });
 });
 
 app.post('/api/slideshow', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1406,12 +1281,7 @@ app.get('/api/settings', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data);
     }
-    console.warn('[CMS] Falling back to default site settings payload.');
-    const fallback = cloneDefaultContent('settings');
-    if (shouldUseMemoryStore(req)) {
-        store.settings = fallback;
-    }
-    res.json(fallback);
+    res.status(500).json({ error: 'Failed to read site settings' });
 });
 
 app.post('/api/settings', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1442,12 +1312,10 @@ app.get('/api/promotions', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data.promotions ? data : { promotions: data });
     }
-    console.warn('[CMS] Falling back to default promotions payload.');
-    const fallback = cloneDefaultContent('promotions');
-    if (shouldUseMemoryStore(req)) {
-        store.promotions = fallback;
-    }
-    res.json(fallback);
+    // No data file yet — return an empty list rather than a 500 so the
+    // front-end degrades gracefully on a fresh deployment.
+    store.promotions = { promotions: [] };
+    res.json(store.promotions);
 });
 
 app.post('/api/promotions', writeLimiter, requireAdminAuth, async (req, res) => {
@@ -1479,12 +1347,8 @@ app.get('/api/destinations', readLimiter, async (req, res) => {
     if (data) {
         return res.json(data.destinations ? data : { destinations: data });
     }
-    console.warn('[CMS] Falling back to default destinations payload.');
-    const fallback = cloneDefaultContent('destinations');
-    if (shouldUseMemoryStore(req)) {
-        store.destinations = fallback;
-    }
-    res.json(fallback);
+    store.destinations = { destinations: [] };
+    res.json(store.destinations);
 });
 
 app.post('/api/destinations', writeLimiter, requireAdminAuth, async (req, res) => {
