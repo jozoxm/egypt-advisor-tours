@@ -939,6 +939,15 @@ app.get('/api/admin/health', async (req, res) => {
         }
     }
 
+    if (provider === 'filesystem') {
+        const body = { status: 'ok', cms: 'up' };
+        if (!isProduction) {
+            body.provider = 'filesystem';
+            body.hint = 'Using local JSON/filesystem content store.';
+        }
+        return res.status(200).json(body);
+    }
+
     if (provider !== 'storyblok') {
         const body = { status: 'degraded', cms: 'down' };
         if (!isProduction) {

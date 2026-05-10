@@ -63,6 +63,20 @@ describe('GET /api/admin/health', () => {
         expect(res.body).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
         expect(res.body).toHaveProperty('hint');
     });
+
+    it('returns 200 when CMS_PROVIDER=filesystem', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        process.env.CMS_PROVIDER = 'filesystem';
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(200);
+            expect(res.body.status).toBe('ok');
+            expect(res.body.cms).toBe('up');
+            expect(res.body.provider).toBe('filesystem');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+        }
+    });
 });
 
 describe('GET /admin', () => {
