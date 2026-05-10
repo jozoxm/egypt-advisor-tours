@@ -171,7 +171,6 @@ async function pingWordpress() {
 }
 
 module.exports = {
-  DEFAULT_WORDPRESS_BASE_URL,
   fetchWordpressResource,
   getWordpressAdminUrl,
   getWordpressBaseUrl,
