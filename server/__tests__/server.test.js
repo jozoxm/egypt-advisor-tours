@@ -171,16 +171,13 @@ describe('Storyblok preview routes', () => {
         process.env.NODE_ENV = 'production';
 
         try {
-            jest.resetModules();
-            const productionApp = require('../index');
-            const res = await request(productionApp).get('/api/admin/preview/storyblok-secret');
+            const res = await request(app).get('/api/admin/preview/storyblok-secret');
             const setCookie = (res.headers['set-cookie'] || []).join(';');
             expect(setCookie).toMatch(/storyblokPreview=draft/);
             expect(setCookie).toMatch(/SameSite=None/i);
             expect(setCookie).toMatch(/Secure/i);
         } finally {
             process.env.NODE_ENV = originalNodeEnv;
-            jest.resetModules();
         }
     });
 
