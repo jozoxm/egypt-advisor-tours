@@ -5,6 +5,7 @@ describe('production startup environment', () => {
     const env = buildRuntimeEnv({});
 
     expect(env.PORT).toBe('5000');
+    expect(env.CMS_PROVIDER).toBe('auto');
     expect(env.STORYBLOK_REGION).toBe('eu');
     expect(env.STORYBLOK_EDITOR_URL).toBe('https://app.storyblok.com/');
   });
@@ -32,6 +33,15 @@ describe('production startup environment', () => {
       'https://app.storyblok.com/#/me/spaces/999/content/'
     );
   });
+
+  it('applies WordPress defaults when CMS provider is wordpress', () => {
+    const env = buildRuntimeEnv({
+      CMS_PROVIDER: 'wordpress',
+    });
+
+    expect(env.CMS_PROVIDER).toBe('wordpress');
+    expect(env.WORDPRESS_BASE_URL).toBe('https://cms.egyptadvisortours.com');
+  });
 });
 
 describe('validateRuntimeEnv', () => {
@@ -39,6 +49,7 @@ describe('validateRuntimeEnv', () => {
     expect(() =>
       validateRuntimeEnv({
         NODE_ENV: 'production',
+        CMS_PROVIDER: 'storyblok',
         STORYBLOK_EDITOR_URL: 'https://app.storyblok.com/',
       })
     ).toThrow(/STORYBLOK_PREVIEW_TOKEN is required in production/);
@@ -59,6 +70,16 @@ describe('validateRuntimeEnv', () => {
         NODE_ENV: 'production',
         STORYBLOK_PREVIEW_TOKEN: 'token',
         STORYBLOK_EDITOR_URL: 'https://app.storyblok.com/',
+      })
+    ).not.toThrow();
+  });
+
+  it('accepts wordpress provider in production without Storyblok token', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        NODE_ENV: 'production',
+        CMS_PROVIDER: 'wordpress',
+        WORDPRESS_BASE_URL: 'https://cms.egyptadvisortours.com',
       })
     ).not.toThrow();
   });

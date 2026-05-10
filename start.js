@@ -4,15 +4,21 @@ const path = require('path');
 const dotenv = require('dotenv');
 
 const ROOT_DIR = __dirname;
+const DEFAULT_WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
 
 function loadEnvironment() {
   dotenv.config({ path: path.join(ROOT_DIR, '.env') });
 }
 
 function buildRuntimeEnv(sourceEnv = process.env) {
+  const cmsProvider = (sourceEnv.CMS_PROVIDER || 'auto').toLowerCase();
   return {
     ...sourceEnv,
     PORT: sourceEnv.PORT || '5000',
+    CMS_PROVIDER: cmsProvider,
+    WORDPRESS_BASE_URL:
+      sourceEnv.WORDPRESS_BASE_URL ||
+      (cmsProvider === 'wordpress' ? DEFAULT_WORDPRESS_BASE_URL : ''),
     STORYBLOK_REGION: sourceEnv.STORYBLOK_REGION || 'eu',
     STORYBLOK_EDITOR_URL:
       sourceEnv.STORYBLOK_EDITOR_URL ||
@@ -23,8 +29,21 @@ function buildRuntimeEnv(sourceEnv = process.env) {
 }
 
 function validateRuntimeEnv(env = process.env) {
-  if (env.NODE_ENV === 'production' && !env.STORYBLOK_PREVIEW_TOKEN) {
+  const cmsProvider = String(env.CMS_PROVIDER || 'auto').toLowerCase();
+
+  if (env.NODE_ENV === 'production' && cmsProvider === 'storyblok' && !env.STORYBLOK_PREVIEW_TOKEN) {
     throw new Error('STORYBLOK_PREVIEW_TOKEN is required in production');
+  }
+
+  if (env.WORDPRESS_BASE_URL) {
+    try {
+      const parsed = new URL(env.WORDPRESS_BASE_URL);
+      if (!parsed.protocol || !parsed.hostname) {
+        throw new Error('WORDPRESS_BASE_URL must include protocol and hostname');
+      }
+    } catch (error) {
+      throw new Error(`WORDPRESS_BASE_URL is invalid: ${error.message}`);
+    }
   }
 
   if (env.STORYBLOK_EDITOR_URL) {

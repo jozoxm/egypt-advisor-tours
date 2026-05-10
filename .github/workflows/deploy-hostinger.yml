@@ -60,6 +60,8 @@ jobs:
           _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          _CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+          _WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
           _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
           _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
         run: |
@@ -72,8 +74,21 @@ jobs:
           [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS")
           [ -z "$_ADMIN_SECRET" ] && missing+=("ADMIN_SECRET")
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
-          [ -z "$_STORYBLOK_PREVIEW_TOKEN" ] && missing+=("STORYBLOK_PREVIEW_TOKEN")
           [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
+          CMS_PROVIDER="${_CMS_PROVIDER:-storyblok}"
+          case "$CMS_PROVIDER" in
+            storyblok|wordpress|filesystem|auto) ;;
+            *)
+              echo "::error::CMS_PROVIDER must be one of: storyblok, wordpress, filesystem, auto"
+              exit 1
+              ;;
+          esac
+          if [ "$CMS_PROVIDER" = "storyblok" ] && [ -z "$_STORYBLOK_PREVIEW_TOKEN" ]; then
+            missing+=("STORYBLOK_PREVIEW_TOKEN")
+          fi
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
+            missing+=("WORDPRESS_BASE_URL")
+          fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             exit 1
@@ -117,7 +132,12 @@ jobs:
           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           _ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          _CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
           _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
+          _WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
+          _WORDPRESS_API_NAMESPACE: ${{ secrets.WORDPRESS_API_NAMESPACE }}
+          _WORDPRESS_TIMEOUT_MS: ${{ secrets.WORDPRESS_TIMEOUT_MS }}
+          _WORDPRESS_HEALTH_TIMEOUT_MS: ${{ secrets.WORDPRESS_HEALTH_TIMEOUT_MS }}
           _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
           _STORYBLOK_SPACE_ID: ${{ secrets.STORYBLOK_SPACE_ID }}
           _STORYBLOK_EDITOR_URL: ${{ secrets.STORYBLOK_EDITOR_URL }}
@@ -156,8 +176,13 @@ jobs:
           rm -f "$client_env_file"
 
           server_env_file=$(mktemp)
-          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\nDATA_PATH=%s\nSTORYBLOK_PREVIEW_TOKEN=%s\n' \
-            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${_STORYBLOK_PREVIEW_TOKEN}" > "$server_env_file"
+          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\nDATA_PATH=%s\nCMS_PROVIDER=%s\n' \
+            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${_CMS_PROVIDER:-storyblok}" > "$server_env_file"
+          [ -n "${_STORYBLOK_PREVIEW_TOKEN}" ] && printf 'STORYBLOK_PREVIEW_TOKEN=%s\n' "${_STORYBLOK_PREVIEW_TOKEN}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_BASE_URL}" ] && printf 'WORDPRESS_BASE_URL=%s\n' "${_WORDPRESS_BASE_URL}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${_WORDPRESS_API_NAMESPACE}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_TIMEOUT_MS}" ] && printf 'WORDPRESS_TIMEOUT_MS=%s\n' "${_WORDPRESS_TIMEOUT_MS}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_HEALTH_TIMEOUT_MS}" ] && printf 'WORDPRESS_HEALTH_TIMEOUT_MS=%s\n' "${_WORDPRESS_HEALTH_TIMEOUT_MS}" >> "$server_env_file"
           [ -n "${_ADMIN_USERNAME}" ] && printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"
           [ -n "${_STORYBLOK_SPACE_ID}" ] && printf 'STORYBLOK_SPACE_ID=%s\n' "${_STORYBLOK_SPACE_ID}" >> "$server_env_file"
           [ -n "${_STORYBLOK_EDITOR_URL}" ] && printf 'STORYBLOK_EDITOR_URL=%s\n' "${_STORYBLOK_EDITOR_URL}" >> "$server_env_file"

@@ -14,6 +14,12 @@ const {
     isStoryblokConfigured,
     updateStoryblokResource,
 } = require('./storyblok');
+const {
+    fetchWordpressResource,
+    getWordpressAdminUrl,
+    isWordpressConfigured,
+    pingWordpress,
+} = require('./wordpress');
 require('dotenv').config();
 
 const app = express();
@@ -469,9 +475,42 @@ function parsePositiveInt(value, fallback) {
 
 const STORYBLOK_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_TIMEOUT_MS, 5000);
 const STORYBLOK_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.STORYBLOK_HEALTH_TIMEOUT_MS, 3000);
+const WORDPRESS_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_TIMEOUT_MS, 5000);
+const WORDPRESS_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_HEALTH_TIMEOUT_MS, 3000);
+
+function getCmsProvider() {
+    const configuredProvider = String(process.env.CMS_PROVIDER || 'auto').toLowerCase();
+    if (configuredProvider === 'storyblok' || configuredProvider === 'wordpress' || configuredProvider === 'filesystem') {
+        return configuredProvider;
+    }
+
+    if (isStoryblokConfigured()) {
+        return 'storyblok';
+    }
+    if (isWordpressConfigured()) {
+        return 'wordpress';
+    }
+    return 'filesystem';
+}
 
 async function readCmsContent(key, req, jsRegex) {
-    if (isStoryblokConfigured()) {
+    if (getCmsProvider() === 'wordpress') {
+        try {
+            const wordpressData = await withTimeout(
+                fetchWordpressResource(key),
+                WORDPRESS_TIMEOUT_MS,
+                `WordPress fetch "${key}"`
+            );
+            if (wordpressData) {
+                store[key] = wordpressData;
+                return wordpressData;
+            }
+        } catch (error) {
+            console.warn(`[WordPress] Failed to load "${key}" from WordPress:`, error.message);
+        }
+    }
+
+    if (getCmsProvider() === 'storyblok') {
         try {
             const storyblokData = await withTimeout(
                 fetchStoryblokResource(key, { source: req }),
@@ -497,7 +536,7 @@ async function readCmsContent(key, req, jsRegex) {
 }
 
 async function persistCmsContent(key, data) {
-    if (isStoryblokConfigured()) {
+    if (getCmsProvider() === 'storyblok') {
         try {
             const result = await updateStoryblokResource(key, data);
             if (result.persisted) {
@@ -516,7 +555,7 @@ async function persistCmsContent(key, data) {
 // request is for published content. Draft/preview requests must always bypass
 // the cache so editors see the latest Storyblok state immediately.
 function shouldUseMemoryStore(req) {
-    return !isStoryblokConfigured() && getStoryblokVersion(req) === 'published';
+    return getCmsProvider() !== 'storyblok' && getStoryblokVersion(req) === 'published';
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that
@@ -841,6 +880,10 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
         return res.redirect(302, ADMIN_LOGIN_PATH);
     }
 
+    if (getCmsProvider() === 'wordpress') {
+        return res.redirect(302, getWordpressAdminUrl());
+    }
+
     const adminUrl = getStoryblokAdminUrl();
     const nonce = crypto.randomBytes(16).toString('base64');
     res.setHeader('Content-Security-Policy', getAdminPageCsp(nonce, adminUrl));
@@ -864,6 +907,45 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 //   503  { status: 'degraded', cms: 'down', ...diagnostics? }
 app.get('/api/admin/health', async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
+    const provider = getCmsProvider();
+
+    if (provider === 'wordpress') {
+        if (!isWordpressConfigured()) {
+            const body = { status: 'degraded', cms: 'down' };
+            if (!isProduction) {
+                body.errorCode = 'WORDPRESS_NOT_CONFIGURED';
+                body.hint = 'Set WORDPRESS_BASE_URL and/or CMS_PROVIDER=wordpress.';
+            }
+            return res.status(503).json(body);
+        }
+
+        try {
+            await withTimeout(pingWordpress(), WORDPRESS_HEALTH_TIMEOUT_MS, 'WordPress health probe');
+            const body = { status: 'ok', cms: 'up' };
+            if (!isProduction) {
+                body.provider = 'wordpress';
+            }
+            return res.status(200).json(body);
+        } catch (error) {
+            const body = { status: 'degraded', cms: 'down' };
+            if (!isProduction) {
+                body.errorCode = error.code || error.message;
+                body.hint = error.code === 'ETIMEDOUT'
+                    ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check network reachability or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
+                    : 'Verify WORDPRESS_BASE_URL is reachable and exposes /wp-json/.';
+            }
+            return res.status(503).json(body);
+        }
+    }
+
+    if (provider !== 'storyblok') {
+        const body = { status: 'degraded', cms: 'down' };
+        if (!isProduction) {
+            body.errorCode = 'CMS_NOT_CONFIGURED';
+            body.hint = 'Set CMS_PROVIDER=wordpress with WORDPRESS_BASE_URL, or configure Storyblok with STORYBLOK_PREVIEW_TOKEN.';
+        }
+        return res.status(503).json(body);
+    }
 
     if (!isStoryblokConfigured()) {
         const body = { status: 'degraded', cms: 'down' };
@@ -896,6 +978,13 @@ app.get('/api/admin/health', async (req, res) => {
         }
         return res.status(503).json(body);
     }
+});
+
+app.use('/api/admin/preview', (req, res, next) => {
+    if (getCmsProvider() !== 'storyblok') {
+        return res.status(404).send('Not found');
+    }
+    return next();
 });
 
 app.get('/api/admin/preview/status', readLimiter, requireAdminAuth, (req, res) => {

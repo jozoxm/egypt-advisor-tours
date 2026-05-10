@@ -1,6 +1,6 @@
 # Egypt Advisor Tours
 
-Full-stack tour website built with React and Express, now using **Storyblok** for editor-managed content.
+Full-stack tour website built with React and Express, supporting **WordPress (headless)** or **Storyblok** for editor-managed content.
 
 ## Local development
 
@@ -15,8 +15,9 @@ npm run setup
 
 Fill in at least:
 
-- `STORYBLOK_PREVIEW_TOKEN`
+- `CMS_PROVIDER` (`wordpress` or `storyblok`)
 - `STORYBLOK_SPACE_ID`
+- `WORDPRESS_BASE_URL` (when `CMS_PROVIDER=wordpress`)
 - `ADMIN_SECRET`
 - `ADMIN_PASSWORD`
 
@@ -29,7 +30,26 @@ npm start
 - Site/API: `http://localhost:5000`
 - React dev server: `npm run dev:client`
 - Express dev server: `npm run dev:server`
-- Embedded Storyblok admin shell: `http://localhost:5000/admin`
+- CMS admin entry point: `http://localhost:5000/admin` (WordPress mode redirects to `/wp-admin`, Storyblok mode opens Storyblok launcher)
+
+## WordPress setup (headless mode)
+
+Set:
+
+```env
+CMS_PROVIDER=wordpress
+WORDPRESS_BASE_URL=https://cms.egyptadvisortours.com
+WORDPRESS_API_NAMESPACE=egypt-advisor/v1
+```
+
+Server read order in WordPress mode:
+
+1. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/<resource>`
+2. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/content/<resource>`
+3. `GET /wp-json/wp/v2/pages?slug=cms-<resource>`
+4. `GET /wp-json/wp/v2/posts?slug=cms-<resource>`
+
+Supported resources: `tours`, `contact`, `blogs`, `gallery`, `slideshow`, `settings`, `promotions`, `destinations`.
 
 ## Storyblok setup (exact UI + env steps)
 

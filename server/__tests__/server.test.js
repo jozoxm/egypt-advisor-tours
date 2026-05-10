@@ -19,6 +19,7 @@ process.env.NODE_ENV        = 'test';
 process.env.ADMIN_SECRET    = 'test-jwt-secret';
 process.env.ADMIN_PASSWORD  = 'test-password';
 process.env.ADMIN_USERNAME  = 'testadmin';
+process.env.CMS_PROVIDER = 'storyblok';
 process.env.STORYBLOK_EDITOR_URL = 'https://app.storyblok.com/#/me/spaces/123/content/';
 process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
 
@@ -101,6 +102,26 @@ describe('GET /admin', () => {
             expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
         } finally {
             process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
+        }
+    });
+
+    it('redirects to WordPress admin when CMS_PROVIDER=wordpress', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+
+        const session = await adminSession();
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('https://cms.example.com/wp-admin/');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
         }
     });
 });
