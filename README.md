@@ -132,7 +132,7 @@ https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
 - `STORYBLOK_PREVIEW_SECRET` is optional but recommended
 - The route sets a short-lived preview cookie so the API reads Storyblok draft content
 - `/api/admin/preview/exit` clears the preview cookie
-- `/admin` now embeds the Storyblok editor inside a protected first-party admin shell
+- `/admin` provides a protected admin shell that opens the Storyblok editor in a new tab
 - `/api/admin/preview/status` reports preview state for authenticated admins
 - `/api/admin/preview/enable` lets the admin shell enable preview mode without exposing `STORYBLOK_PREVIEW_SECRET` in browser links
 

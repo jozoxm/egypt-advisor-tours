@@ -171,11 +171,12 @@ function getCsrfCookieOptions() {
 }
 
 function getPreviewCookieOptions() {
+    const secure = process.env.NODE_ENV === 'production';
     return {
         path: '/',
         httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: secure ? 'none' : 'lax',
+        secure,
         maxAge: 60 * 60 * 1000,
     };
 }
@@ -685,7 +686,7 @@ function renderAdminLoginPage() {
 <body>
   <main class="card">
     <h1>Admin login</h1>
-    <p>Sign in to access the embedded Storyblok editor.</p>
+    <p>Sign in to open the Storyblok editor launcher and preview controls.</p>
     <form id="login-form">
       <label for="username">Username</label>
       <input id="username" name="username" autocomplete="username" />
@@ -919,7 +920,7 @@ app.get('/api/admin/preview/exit', (req, res) => {
     return res.redirect(302, '/admin');
 });
 
-app.get('/api/admin/preview/:secret', (req, res) => {
+app.get('/api/admin/preview/:secret', readLimiter, (req, res) => {
     const configuredSecret = process.env.STORYBLOK_PREVIEW_SECRET;
     const providedSecret = req.params.secret;
 
@@ -928,7 +929,7 @@ app.get('/api/admin/preview/:secret', (req, res) => {
     }
 
     if (configuredSecret && providedSecret !== configuredSecret) {
-        return res.status(401).send('Invalid Storyblok preview secret.');
+        return res.status(404).send('Not found');
     }
 
     res.cookie('storyblokPreview', PREVIEW_MODE_DRAFT, getPreviewCookieOptions());

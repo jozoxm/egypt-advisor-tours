@@ -144,11 +144,11 @@ describe('Storyblok preview routes', () => {
         expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
     });
 
-    it('rejects invalid preview secrets', async () => {
+    it('returns not found for invalid preview secrets', async () => {
         const res = await request(app)
             .get('/api/admin/preview/wrong-secret');
 
-        expect(res.status).toBe(401);
+        expect(res.status).toBe(404);
     });
 
     it('requires a configured preview secret in production', async () => {
@@ -163,6 +163,24 @@ describe('Storyblok preview routes', () => {
         } finally {
             process.env.NODE_ENV = originalNodeEnv;
             process.env.STORYBLOK_PREVIEW_SECRET = originalPreviewSecret;
+        }
+    });
+
+    it('uses SameSite=None for preview cookie in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        try {
+            jest.resetModules();
+            const productionApp = require('../index');
+            const res = await request(productionApp).get('/api/admin/preview/storyblok-secret');
+            const setCookie = (res.headers['set-cookie'] || []).join(';');
+            expect(setCookie).toMatch(/storyblokPreview=draft/);
+            expect(setCookie).toMatch(/SameSite=None/i);
+            expect(setCookie).toMatch(/Secure/i);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+            jest.resetModules();
         }
     });
 
