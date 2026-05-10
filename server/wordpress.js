@@ -1,4 +1,4 @@
-const DEFAULT_WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+const { DEFAULT_WORDPRESS_BASE_URL } = require('./cms-config');
 
 const WORDPRESS_SLUGS = {
   tours: process.env.WORDPRESS_TOURS_SLUG || 'cms-tours',
@@ -59,15 +59,20 @@ function normalizeResourceShape(key, data) {
         testimonials: Array.isArray(data.testimonials) ? data.testimonials : [],
       };
     case 'blogs':
-      return Array.isArray(data) ? { blogs: data } : (data.blogs ? data : { blogs: [] });
+      if (Array.isArray(data)) return { blogs: data };
+      return data.blogs ? data : { blogs: [] };
     case 'gallery':
-      return Array.isArray(data) ? { gallery: data } : (data.gallery ? data : { gallery: [] });
+      if (Array.isArray(data)) return { gallery: data };
+      return data.gallery ? data : { gallery: [] };
     case 'slideshow':
-      return Array.isArray(data) ? { slides: data } : (data.slides ? data : { slides: [] });
+      if (Array.isArray(data)) return { slides: data };
+      return data.slides ? data : { slides: [] };
     case 'promotions':
-      return Array.isArray(data) ? { promotions: data } : (data.promotions ? data : { promotions: [] });
+      if (Array.isArray(data)) return { promotions: data };
+      return data.promotions ? data : { promotions: [] };
     case 'destinations':
-      return Array.isArray(data) ? { destinations: data } : (data.destinations ? data : { destinations: [] });
+      if (Array.isArray(data)) return { destinations: data };
+      return data.destinations ? data : { destinations: [] };
     case 'contact':
     case 'settings':
       return (typeof data === 'object' && !Array.isArray(data)) ? data : null;

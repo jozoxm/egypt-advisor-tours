@@ -2,9 +2,9 @@
 
 const path = require('path');
 const dotenv = require('dotenv');
+const { DEFAULT_WORDPRESS_BASE_URL } = require('./server/cms-config');
 
 const ROOT_DIR = __dirname;
-const DEFAULT_WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
 
 function loadEnvironment() {
   dotenv.config({ path: path.join(ROOT_DIR, '.env') });

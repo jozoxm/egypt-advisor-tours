@@ -75,7 +75,7 @@ jobs:
           [ -z "$_ADMIN_SECRET" ] && missing+=("ADMIN_SECRET")
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
           [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
-          CMS_PROVIDER="${_CMS_PROVIDER:-storyblok}"
+          CMS_PROVIDER="${_CMS_PROVIDER:-auto}"
           case "$CMS_PROVIDER" in
             storyblok|wordpress|filesystem|auto) ;;
             *)
@@ -177,7 +177,7 @@ jobs:
 
           server_env_file=$(mktemp)
           printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\nDATA_PATH=%s\nCMS_PROVIDER=%s\n' \
-            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${_CMS_PROVIDER:-storyblok}" > "$server_env_file"
+            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${_CMS_PROVIDER:-auto}" > "$server_env_file"
           [ -n "${_STORYBLOK_PREVIEW_TOKEN}" ] && printf 'STORYBLOK_PREVIEW_TOKEN=%s\n' "${_STORYBLOK_PREVIEW_TOKEN}" >> "$server_env_file"
           [ -n "${_WORDPRESS_BASE_URL}" ] && printf 'WORDPRESS_BASE_URL=%s\n' "${_WORDPRESS_BASE_URL}" >> "$server_env_file"
           [ -n "${_WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${_WORDPRESS_API_NAMESPACE}" >> "$server_env_file"

@@ -20,6 +20,7 @@ const {
     isWordpressConfigured,
     pingWordpress,
 } = require('./wordpress');
+const { VALID_CMS_PROVIDERS } = require('./cms-config');
 require('dotenv').config();
 
 const app = express();
@@ -480,7 +481,7 @@ const WORDPRESS_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_HEALT
 
 function getCmsProvider() {
     const configuredProvider = String(process.env.CMS_PROVIDER || 'auto').toLowerCase();
-    if (configuredProvider === 'storyblok' || configuredProvider === 'wordpress' || configuredProvider === 'filesystem') {
+    if (VALID_CMS_PROVIDERS.includes(configuredProvider)) {
         return configuredProvider;
     }
 
@@ -931,7 +932,7 @@ app.get('/api/admin/health', async (req, res) => {
             if (!isProduction) {
                 body.errorCode = error.code || error.message;
                 body.hint = error.code === 'ETIMEDOUT'
-                    ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check network reachability or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
+                    ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check network connectivity or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
                     : 'Verify WORDPRESS_BASE_URL is reachable and exposes /wp-json/.';
             }
             return res.status(503).json(body);
