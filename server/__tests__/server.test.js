@@ -19,6 +19,9 @@ process.env.NODE_ENV        = 'test';
 process.env.ADMIN_SECRET    = 'test-jwt-secret';
 process.env.ADMIN_PASSWORD  = 'test-password';
 process.env.ADMIN_USERNAME  = 'testadmin';
+process.env.CMS_PROVIDER = 'storyblok';
+process.env.STORYBLOK_EDITOR_URL = 'https://app.storyblok.com/#/me/spaces/123/content/';
+process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
 
 // Load the app AFTER setting env vars.
 const app = require('../index.js');
@@ -47,7 +50,7 @@ describe('GET /health', () => {
 });
 
 describe('GET /api/admin/health', () => {
-    it('returns 503 with degraded status when no CMS is configured', async () => {
+    it('returns 503 with degraded status when Storyblok is not configured', async () => {
         const res = await request(app).get('/api/admin/health');
         expect(res.status).toBe(503);
         expect(res.body.status).toBe('degraded');
@@ -57,26 +60,83 @@ describe('GET /api/admin/health', () => {
     it('includes diagnostic details in non-production mode', async () => {
         const res = await request(app).get('/api/admin/health');
         // NODE_ENV is 'test' so diagnostics should be included
-        expect(res.body).toHaveProperty('errorCode', 'CMS_NOT_CONFIGURED');
+        expect(res.body).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
         expect(res.body).toHaveProperty('hint');
+    });
+
+    it('returns 200 when CMS_PROVIDER=filesystem', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        process.env.CMS_PROVIDER = 'filesystem';
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(200);
+            expect(res.body.status).toBe('ok');
+            expect(res.body.cms).toBe('up');
+            expect(res.body.provider).toBe('filesystem');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+        }
     });
 });
 
 describe('GET /admin', () => {
-    it('redirects to WordPress admin regardless of auth state', async () => {
+    it('redirects unauthenticated users to /admin/login', async () => {
         const res = await request(app).get('/admin');
         expect(res.status).toBe(302);
-        expect(res.headers.location).toBe('https://cms.egyptadvisortours.com/wp-admin');
+        expect(res.headers.location).toBe('/admin/login');
     });
 
-    it('redirects authenticated users to WordPress admin', async () => {
+    it('serves the Storyblok launcher admin shell for authenticated users', async () => {
         const session = await adminSession();
         const res = await request(app)
             .get('/admin')
             .set('Cookie', session.cookies);
 
-        expect(res.status).toBe(302);
-        expect(res.headers.location).toBe('https://cms.egyptadvisortours.com/wp-admin');
+        expect(res.status).toBe(200);
+        expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
+        expect(res.text).not.toContain('<iframe');
+        expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.text).toContain('Open Storyblok editor');
+        expect(res.text).toContain('id="switch-account"');
+        expect(res.text).toContain('/api/admin/logout');
+        expect(res.text).toContain('/admin/login?force=1');
+    });
+
+    it('includes the configured editor origin in admin CSP frame-src', async () => {
+        const originalEditorUrl = process.env.STORYBLOK_EDITOR_URL;
+        process.env.STORYBLOK_EDITOR_URL = 'https://custom-editor.example.com/editor';
+        const session = await adminSession();
+
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
+        } finally {
+            process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
+        }
+    });
+
+    it('redirects to WordPress admin when CMS_PROVIDER=wordpress', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+
+        const session = await adminSession();
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('https://cms.example.com/wp-admin/');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+        }
     });
 });
 
@@ -109,30 +169,91 @@ describe('GET /admin/login', () => {
     });
 });
 
-describe('Storyblok preview routes (deprecated)', () => {
-    it('returns 410 Gone for the preview secret endpoint', async () => {
-        const res = await request(app).get('/api/admin/preview/any-secret');
-        expect(res.status).toBe(410);
+describe('Storyblok preview routes', () => {
+    it('sets the preview cookie and redirects when the secret is valid', async () => {
+        const res = await request(app)
+            .get('/api/admin/preview/storyblok-secret');
+
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe('/');
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
     });
 
-    it('returns 410 Gone for preview exit POST', async () => {
+    it('returns not found for invalid preview secrets', async () => {
+        const res = await request(app)
+            .get('/api/admin/preview/wrong-secret');
+
+        expect(res.status).toBe(404);
+    });
+
+    it('requires a configured preview secret in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalPreviewSecret = process.env.STORYBLOK_PREVIEW_SECRET;
+        process.env.NODE_ENV = 'production';
+        delete process.env.STORYBLOK_PREVIEW_SECRET;
+
+        try {
+            const res = await request(app).get('/api/admin/preview/any-secret');
+            expect(res.status).toBe(404);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+            process.env.STORYBLOK_PREVIEW_SECRET = originalPreviewSecret;
+        }
+    });
+
+    it('uses SameSite=None for preview cookie in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        try {
+            const res = await request(app).get('/api/admin/preview/storyblok-secret');
+            const setCookie = (res.headers['set-cookie'] || []).join(';');
+            expect(setCookie).toMatch(/storyblokPreview=draft/);
+            expect(setCookie).toMatch(/SameSite=None/i);
+            expect(setCookie).toMatch(/Secure/i);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+        }
+    });
+
+    it('clears the preview cookie', async () => {
         const res = await request(app).post('/api/admin/preview/exit');
-        expect(res.status).toBe(410);
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=/);
     });
 
-    it('returns 410 Gone for preview exit GET', async () => {
-        const res = await request(app).get('/api/admin/preview/exit');
-        expect(res.status).toBe(410);
+    it('returns preview status for authenticated admin', async () => {
+        const session = await adminSession();
+        const enableRes = await request(app)
+            .post('/api/admin/preview/enable')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+
+        const statusCookies = [...session.cookies, ...(enableRes.headers['set-cookie'] || [])];
+        const res = await request(app)
+            .get('/api/admin/preview/status')
+            .set('Cookie', statusCookies);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ active: true, mode: 'draft' });
     });
 
-    it('returns 410 Gone for preview status', async () => {
-        const res = await request(app).get('/api/admin/preview/status');
-        expect(res.status).toBe(410);
+    it('enables preview mode for authenticated admin', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .post('/api/admin/preview/enable')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
     });
 
-    it('returns 410 Gone for preview enable', async () => {
+    it('rejects unauthenticated preview enable requests', async () => {
         const res = await request(app).post('/api/admin/preview/enable');
-        expect(res.status).toBe(410);
+        expect(res.status).toBe(401);
     });
 });
 
