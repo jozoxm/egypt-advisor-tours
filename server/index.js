@@ -25,6 +25,9 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || 'https://egyptadvisortours.com';
+const PRERENDER_TOKEN = process.env.PRERENDER_TOKEN || '';
+const PRERENDER_SERVICE_URL = process.env.PRERENDER_SERVICE_URL || 'https://service.prerender.io';
 
 // Trust Vercel's (and other reverse-proxy's) X-Forwarded-For header so that
 // req.ip reflects the real client IP.  This is required for the rate-limiter
@@ -83,6 +86,11 @@ const allowedOrigins = new Set(
     ].filter(Boolean)
 );
 
+const BOT_USER_AGENTS =
+    /bot|crawler|spider|crawling|google|bing|yandex|duckduck|slurp|baiduspider|facebookexternalhit|twitterbot|linkedinbot/i;
+const STATIC_FILE_EXTENSIONS =
+    /\.(?:js|mjs|css|png|jpg|jpeg|gif|svg|webp|avif|ico|map|txt|xml|pdf|woff2?|ttf|eot)$/i;
+
 app.use((req, res, next) => {
     const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
     if (getStoryblokVersion(req) === 'draft' || isAdminPath) {
@@ -129,6 +137,52 @@ app.use((req, res, next) => {
     }
 
     return next();
+});
+
+app.use(async (req, res, next) => {
+    if (!PRERENDER_TOKEN) {
+        return next();
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+        return next();
+    }
+    if (req.path.startsWith('/api') || req.path.startsWith('/admin') || req.path === '/health') {
+        return next();
+    }
+    if (STATIC_FILE_EXTENSIONS.test(req.path)) {
+        return next();
+    }
+
+    const userAgent = req.get('user-agent') || '';
+    const isCrawler = BOT_USER_AGENTS.test(userAgent) || Object.prototype.hasOwnProperty.call(req.query, '_escaped_fragment_');
+    if (!isCrawler) {
+        return next();
+    }
+
+    const baseUrl = getBaseSiteUrl(req);
+    const fullUrl = `${baseUrl}${req.originalUrl || req.url}`;
+    const prerenderTarget = `${PRERENDER_SERVICE_URL.replace(/\/+$/, '')}/${encodeURIComponent(fullUrl)}`;
+
+    try {
+        const prerenderResponse = await fetch(prerenderTarget, {
+            headers: {
+                'X-Prerender-Token': PRERENDER_TOKEN,
+                'User-Agent': userAgent,
+            },
+        });
+
+        if (!prerenderResponse.ok) {
+            return next();
+        }
+
+        const body = await prerenderResponse.text();
+        const contentType = prerenderResponse.headers.get('content-type') || 'text/html; charset=utf-8';
+        res.status(prerenderResponse.status);
+        res.set('Content-Type', contentType);
+        return res.send(body);
+    } catch (_error) {
+        return next();
+    }
 });
 
 // ============================================
@@ -671,6 +725,44 @@ function escapeHtml(value = '') {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function getBaseSiteUrl(req) {
+    const explicitUrl = String(PUBLIC_SITE_URL || '').trim();
+    if (explicitUrl) {
+        try {
+            return new URL(explicitUrl).origin;
+        } catch (_error) {
+            // Ignore invalid configured values and derive from request.
+        }
+    }
+
+    const forwardedProto = (req.get('x-forwarded-proto') || '').split(',')[0].trim();
+    const protocol = forwardedProto || req.protocol || (process.env.NODE_ENV === 'production' ? 'https' : 'http');
+    const host = req.get('host') || 'localhost';
+    return `${protocol}://${host}`;
+}
+
+function buildAbsoluteUrl(baseUrl, routePath = '/') {
+    const normalizedBase = String(baseUrl || '').replace(/\/+$/, '');
+    const normalizedPath = routePath.startsWith('/') ? routePath : `/${routePath}`;
+    return `${normalizedBase}${normalizedPath}`;
+}
+
+function readSeoCollections() {
+    const toursData =
+        store.tours ||
+        readData('tours', /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/) ||
+        { tours: [] };
+    const blogsData =
+        store.blogs ||
+        readData('blogs', /export const blogs = (\[[\s\S]*?\]);/) ||
+        { blogs: [] };
+
+    return {
+        tours: Array.isArray(toursData.tours) ? toursData.tours : [],
+        blogs: Array.isArray(blogsData.blogs) ? blogsData.blogs : [],
+    };
 }
 
 function getAdminFrameSources(storyblokAdminUrl) {
@@ -1470,6 +1562,66 @@ app.post('/api/destinations', writeLimiter, requireAdminAuth, async (req, res) =
     }
 });
 
+app.get('/robots.txt', readLimiter, (req, res) => {
+    const baseUrl = getBaseSiteUrl(req);
+    res.type('text/plain');
+    res.send(
+        [
+            'User-agent: *',
+            'Allow: /',
+            'Disallow: /admin',
+            'Disallow: /api/',
+            `Sitemap: ${buildAbsoluteUrl(baseUrl, '/sitemap.xml')}`,
+        ].join('\n')
+    );
+});
+
+app.get('/sitemap.xml', readLimiter, async (req, res) => {
+    const baseUrl = getBaseSiteUrl(req);
+    const staticRoutes = [
+        { path: '/', priority: '1.0', changefreq: 'weekly' },
+        { path: '/tours', priority: '0.9', changefreq: 'weekly' },
+        { path: '/blogs', priority: '0.8', changefreq: 'weekly' },
+        { path: '/destinations', priority: '0.8', changefreq: 'weekly' },
+        { path: '/special-offers', priority: '0.7', changefreq: 'weekly' },
+        { path: '/about', priority: '0.7', changefreq: 'monthly' },
+    ];
+
+    try {
+        const [cmsTours, cmsBlogs] = await Promise.all([
+            readCmsContent('tours', req, /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/),
+            readCmsContent('blogs', req, /export const blogs = (\[[\s\S]*?\]);/),
+        ]);
+        if (cmsTours?.tours) store.tours = cmsTours;
+        if (cmsBlogs?.blogs) store.blogs = cmsBlogs;
+    } catch (_error) {
+        // Fall back to local store/data if CMS read fails.
+    }
+
+    const { tours, blogs } = readSeoCollections();
+    const dynamicTourRoutes = tours
+        .map((tour) => ({ path: `/tours/${tour.id}`, priority: '0.8', changefreq: 'weekly' }))
+        .filter((route) => Number.isFinite(Number(route.path.split('/').pop())));
+    const dynamicBlogRoutes = blogs
+        .map((blog) => ({ path: `/blogs?post=${encodeURIComponent(blog.id)}`, priority: '0.6', changefreq: 'monthly' }))
+        .filter((route) => route.path.includes('post='));
+
+    const urls = [...staticRoutes, ...dynamicTourRoutes, ...dynamicBlogRoutes];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+        urls
+            .map((entry) => `  <url>\n` +
+                `    <loc>${escapeHtml(buildAbsoluteUrl(baseUrl, entry.path))}</loc>\n` +
+                `    <changefreq>${entry.changefreq}</changefreq>\n` +
+                `    <priority>${entry.priority}</priority>\n` +
+                `  </url>`)
+            .join('\n') +
+        `\n</urlset>`;
+
+    res.type('application/xml');
+    res.send(xml);
+});
+
 // Return a JSON 404 for any unmatched /api/* routes so they are never
 // swallowed by the SPA catch-all below.
 app.use('/api', (req, res) => {
@@ -1484,7 +1636,17 @@ app.use('/api', (req, res) => {
 // this block is intentionally skipped there.
 const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
-    app.use(express.static(buildPath));
+    app.use(express.static(buildPath, {
+        setHeaders: (res, filePath) => {
+            if (/\.(?:js|css|png|jpg|jpeg|gif|svg|webp|avif|ico|woff2?|ttf|eot)$/i.test(filePath)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                return;
+            }
+            if (/index\.html$/i.test(filePath)) {
+                res.setHeader('Cache-Control', 'no-cache');
+            }
+        },
+    }));
     app.get('*', readLimiter, (req, res) => {
         // Admin redirects are handled above; if a request somehow reaches the
         // SPA fallback, return 404 rather than letting React Router swallow it.

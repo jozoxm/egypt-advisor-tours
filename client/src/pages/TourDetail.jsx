@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import BookingModal from '../components/BookingModal';
 import { tours as defaultTours } from '../data/tours-data';
-import useTitle from '../hooks/useTitle';
+import useSeoMeta from '../hooks/useSeoMeta';
 import './TourDetail.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -14,7 +14,42 @@ const TourDetail = () => {
   const [bookingTour, setBookingTour] = useState(null);
 
   const tour = tours.find((t) => t.id === parseInt(id, 10));
-  useTitle(tour ? tour.name : 'Tour');
+  useSeoMeta({
+    title: tour ? tour.name : 'Tour',
+    description: tour?.description || 'Explore private Egypt experiences with Egypt Advisor Tours.',
+    path: `/tours/${id}`,
+    type: 'product',
+    image: tour?.photoUrl,
+    noindex: !tour,
+    structuredData: tour
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'TouristTrip',
+          name: tour.name,
+          description: tour.description,
+          image: tour.photoUrl || undefined,
+          provider: {
+            '@type': 'TravelAgency',
+            name: 'Egypt Advisor Tours',
+            url: 'https://egyptadvisortours.com',
+          },
+          offers: {
+            '@type': 'Offer',
+            priceCurrency: 'USD',
+            price: String(tour?.prices?.individual || tour.price || '').replace(/[^0-9.]/g, '') || undefined,
+            availability: 'https://schema.org/InStock',
+            url: `https://egyptadvisortours.com/tours/${id}`,
+          },
+          itinerary: Array.isArray(tour.itinerary)
+            ? tour.itinerary.map((step, index) => ({
+                '@type': 'ListItem',
+                position: index + 1,
+                name: step.title || `Stop ${index + 1}`,
+              }))
+            : undefined,
+        }
+      : null,
+  });
 
   useEffect(() => {
     let isMounted = true;
