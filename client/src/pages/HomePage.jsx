@@ -2,6 +2,7 @@ import React from 'react';
 import HeroSlideshow from '../components/HeroSlideshow';
 import ToursSection from './ToursSection';
 import useSeoMeta from '../hooks/useSeoMeta';
+import getSiteUrl from '../utils/siteUrl';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -25,6 +26,8 @@ const HomePage = ({
   goToSection,
   onTailorTrip,
 }) => {
+  const siteUrl = getSiteUrl();
+
   useSeoMeta({
     title: null,
     description:
@@ -34,7 +37,7 @@ const HomePage = ({
       '@context': 'https://schema.org',
       '@type': 'TravelAgency',
       name: 'Egypt Advisor Tours',
-      url: 'https://egyptadvisortours.com/',
+      url: `${siteUrl}/`,
       description:
         'Private Egypt tours, Nile cruises, destination guides, and custom itinerary planning.',
     },

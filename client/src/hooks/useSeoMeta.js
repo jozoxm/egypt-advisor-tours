@@ -1,27 +1,20 @@
 import { useEffect } from 'react';
+import getSiteUrl from '../utils/siteUrl';
 
 const BASE_TITLE = 'Egypt Advisor Tours';
+const TITLE_SEPARATOR = ' | ';
 const FALLBACK_DESCRIPTION =
   'Private Egypt tours, Nile cruises, destination guides, and expert travel planning with Egypt Advisor Tours.';
-const DEFAULT_SITE_URL = 'https://egyptadvisortours.com';
 const DEFAULT_OG_IMAGE = '/Gold Logo.png?v=5';
-
-function getSiteUrl() {
-  const envUrl = process.env.REACT_APP_SITE_URL;
-  if (envUrl) {
-    return envUrl.replace(/\/+$/, '');
-  }
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin.replace(/\/+$/, '');
-  }
-  return DEFAULT_SITE_URL;
-}
 
 function toAbsoluteUrl(value, siteUrl) {
   if (!value) return '';
   try {
     return new URL(value, `${siteUrl}/`).toString();
-  } catch (_error) {
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Invalid SEO URL value:', value, error);
+    }
     return '';
   }
 }
@@ -81,7 +74,7 @@ const useSeoMeta = ({
 }) => {
   useEffect(() => {
     const siteUrl = getSiteUrl();
-    const fullTitle = title ? `${title} | ${BASE_TITLE}` : BASE_TITLE;
+    const fullTitle = title ? `${title}${TITLE_SEPARATOR}${BASE_TITLE}` : BASE_TITLE;
     const finalDescription = description || FALLBACK_DESCRIPTION;
     const canonicalUrl = toAbsoluteUrl(path, siteUrl);
     const imageUrl = toAbsoluteUrl(image || DEFAULT_OG_IMAGE, siteUrl);

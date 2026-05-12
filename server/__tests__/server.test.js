@@ -50,19 +50,21 @@ describe('GET /health', () => {
 });
 
 describe('SEO discovery endpoints', () => {
+    const expectedBaseUrl = (process.env.PUBLIC_SITE_URL || 'https://egyptadvisortours.com').replace(/\/+$/, '');
+
     it('serves robots.txt with sitemap location', async () => {
         const res = await request(app).get('/robots.txt');
         expect(res.status).toBe(200);
         expect(res.text).toContain('User-agent: *');
-        expect(res.text).toContain('Sitemap: https://egyptadvisortours.com/sitemap.xml');
+        expect(res.text).toContain(`Sitemap: ${expectedBaseUrl}/sitemap.xml`);
     });
 
     it('serves sitemap.xml including static and tour-detail routes', async () => {
         const res = await request(app).get('/sitemap.xml');
         expect(res.status).toBe(200);
         expect(res.headers['content-type']).toMatch(/xml/);
-        expect(res.text).toContain('<loc>https://egyptadvisortours.com/tours</loc>');
-        expect(res.text).toContain('<loc>https://egyptadvisortours.com/tours/1</loc>');
+        expect(res.text).toContain(`<loc>${expectedBaseUrl}/tours</loc>`);
+        expect(res.text).toContain(`<loc>${expectedBaseUrl}/tours/1</loc>`);
     });
 });
 

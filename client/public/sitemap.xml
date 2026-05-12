@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Fallback static sitemap. Canonical dynamic sitemap is served by GET /sitemap.xml on the server. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://egyptadvisortours.com/</loc>

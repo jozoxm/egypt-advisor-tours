@@ -1,6 +1,7 @@
 import React from 'react';
 import { blogs as defaultBlogs } from '../data/blogs-data';
 import useSeoMeta from '../hooks/useSeoMeta';
+import getSiteUrl from '../utils/siteUrl';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -13,6 +14,8 @@ const formatBlogDate = (dateString) => {
 };
 
 const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => {
+  const siteUrl = getSiteUrl();
+
   useSeoMeta({
     title: 'Travel Blogs',
     description:
@@ -22,7 +25,7 @@ const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => {
       '@context': 'https://schema.org',
       '@type': 'Blog',
       name: 'Egypt Advisor Tours Blog',
-      url: 'https://egyptadvisortours.com/blogs',
+      url: `${siteUrl}/blogs`,
       blogPost: blogs.map((blog) => ({
         '@type': 'BlogPosting',
         headline: blog.title,
@@ -32,7 +35,7 @@ const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => {
           name: blog.author || 'Egypt Advisor Team',
         },
         description: blog.excerpt || '',
-        url: `https://egyptadvisortours.com/blogs#${blog.id}`,
+        url: `${siteUrl}/blogs#${blog.id}`,
       })),
     },
   });

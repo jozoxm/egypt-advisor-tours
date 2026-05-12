@@ -3,17 +3,26 @@ import { useParams, useNavigate } from 'react-router-dom';
 import BookingModal from '../components/BookingModal';
 import { tours as defaultTours } from '../data/tours-data';
 import useSeoMeta from '../hooks/useSeoMeta';
+import getSiteUrl from '../utils/siteUrl';
 import './TourDetail.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
+const extractPriceString = (tour) => {
+  const rawPrice = String(tour?.prices?.individual || tour?.price || '');
+  const normalizedPrice = rawPrice.replace(/[^0-9.]/g, '');
+  return normalizedPrice || undefined;
+};
+
 const TourDetail = () => {
+  const siteUrl = getSiteUrl();
   const { id } = useParams();
   const navigate = useNavigate();
   const [tours, setTours] = useState(defaultTours);
   const [bookingTour, setBookingTour] = useState(null);
 
   const tour = tours.find((t) => t.id === parseInt(id, 10));
+  const tourPrice = extractPriceString(tour);
   useSeoMeta({
     title: tour ? tour.name : 'Tour',
     description: tour?.description || 'Explore private Egypt experiences with Egypt Advisor Tours.',
@@ -31,15 +40,19 @@ const TourDetail = () => {
           provider: {
             '@type': 'TravelAgency',
             name: 'Egypt Advisor Tours',
-            url: 'https://egyptadvisortours.com',
+            url: siteUrl,
           },
-          offers: {
-            '@type': 'Offer',
-            priceCurrency: 'USD',
-            price: String(tour?.prices?.individual || tour.price || '').replace(/[^0-9.]/g, '') || undefined,
-            availability: 'https://schema.org/InStock',
-            url: `https://egyptadvisortours.com/tours/${id}`,
-          },
+          ...(tourPrice
+            ? {
+                offers: {
+                  '@type': 'Offer',
+                  priceCurrency: 'USD',
+                  price: tourPrice,
+                  availability: 'https://schema.org/InStock',
+                  url: `${siteUrl}/tours/${id}`,
+                },
+              }
+            : {}),
           itinerary: Array.isArray(tour.itinerary)
             ? tour.itinerary.map((step, index) => ({
                 '@type': 'ListItem',

@@ -154,7 +154,7 @@ app.use(async (req, res, next) => {
     }
 
     const userAgent = req.get('user-agent') || '';
-    const isCrawler = BOT_USER_AGENTS.test(userAgent) || Object.prototype.hasOwnProperty.call(req.query, '_escaped_fragment_');
+    const isCrawler = BOT_USER_AGENTS.test(userAgent) || Object.hasOwn(req.query, '_escaped_fragment_');
     if (!isCrawler) {
         return next();
     }
@@ -1598,15 +1598,12 @@ app.get('/sitemap.xml', readLimiter, async (req, res) => {
         // Fall back to local store/data if CMS read fails.
     }
 
-    const { tours, blogs } = readSeoCollections();
+    const { tours } = readSeoCollections();
     const dynamicTourRoutes = tours
-        .map((tour) => ({ path: `/tours/${tour.id}`, priority: '0.8', changefreq: 'weekly' }))
-        .filter((route) => Number.isFinite(Number(route.path.split('/').pop())));
-    const dynamicBlogRoutes = blogs
-        .map((blog) => ({ path: `/blogs?post=${encodeURIComponent(blog.id)}`, priority: '0.6', changefreq: 'monthly' }))
-        .filter((route) => route.path.includes('post='));
+        .filter((tour) => Number.isFinite(tour?.id))
+        .map((tour) => ({ path: `/tours/${tour.id}`, priority: '0.8', changefreq: 'weekly' }));
 
-    const urls = [...staticRoutes, ...dynamicTourRoutes, ...dynamicBlogRoutes];
+    const urls = [...staticRoutes, ...dynamicTourRoutes];
     const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
         `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
         urls
@@ -1638,7 +1635,7 @@ const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
     app.use(express.static(buildPath, {
         setHeaders: (res, filePath) => {
-            if (/\.(?:js|css|png|jpg|jpeg|gif|svg|webp|avif|ico|woff2?|ttf|eot)$/i.test(filePath)) {
+            if (STATIC_FILE_EXTENSIONS.test(filePath) && !/index\.html$/i.test(filePath)) {
                 res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
                 return;
             }
