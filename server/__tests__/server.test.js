@@ -50,7 +50,8 @@ describe('GET /health', () => {
 });
 
 describe('SEO discovery endpoints', () => {
-    const expectedBaseUrl = (process.env.PUBLIC_SITE_URL || 'https://egyptadvisortours.com').replace(/\/+$/, '');
+    const configuredBaseUrl = process.env.PUBLIC_SITE_URL || 'https://egyptadvisortours.com';
+    const expectedBaseUrl = new URL(configuredBaseUrl).origin;
 
     it('serves robots.txt with sitemap location', async () => {
         const res = await request(app).get('/robots.txt');

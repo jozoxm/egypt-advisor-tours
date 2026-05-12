@@ -25,9 +25,16 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || 'https://egyptadvisortours.com';
+const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
+const DEFAULT_PUBLIC_SITE_ORIGIN = new URL(DEFAULT_PUBLIC_SITE_URL).origin;
+const DEFAULT_PRERENDER_TIMEOUT_MS = 3000;
+const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || DEFAULT_PUBLIC_SITE_URL;
 const PRERENDER_TOKEN = process.env.PRERENDER_TOKEN || '';
 const PRERENDER_SERVICE_URL = process.env.PRERENDER_SERVICE_URL || 'https://service.prerender.io';
+const PRERENDER_TIMEOUT_MS = (() => {
+    const parsed = parseInt(process.env.PRERENDER_TIMEOUT_MS || String(DEFAULT_PRERENDER_TIMEOUT_MS), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PRERENDER_TIMEOUT_MS;
+})();
 
 // Trust Vercel's (and other reverse-proxy's) X-Forwarded-For header so that
 // req.ip reflects the real client IP.  This is required for the rate-limiter
@@ -90,6 +97,18 @@ const BOT_USER_AGENTS =
     /bot|crawler|spider|crawling|google|bing|yandex|duckduck|slurp|baiduspider|facebookexternalhit|twitterbot|linkedinbot/i;
 const STATIC_FILE_EXTENSIONS =
     /\.(?:js|mjs|css|png|jpg|jpeg|gif|svg|webp|avif|ico|map|txt|xml|pdf|woff2?|ttf|eot)$/i;
+
+function parseOrigin(value) {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        return new URL(String(value)).origin;
+    } catch (_error) {
+        return null;
+    }
+}
 
 app.use((req, res, next) => {
     const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
@@ -159,17 +178,22 @@ app.use(async (req, res, next) => {
         return next();
     }
 
-    const baseUrl = getBaseSiteUrl(req);
+    const baseUrl = getBaseSiteUrl();
     const fullUrl = `${baseUrl}${req.originalUrl || req.url}`;
     const prerenderTarget = `${PRERENDER_SERVICE_URL.replace(/\/+$/, '')}/${encodeURIComponent(fullUrl)}`;
+    let timeoutId;
 
     try {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), PRERENDER_TIMEOUT_MS);
         const prerenderResponse = await fetch(prerenderTarget, {
             headers: {
                 'X-Prerender-Token': PRERENDER_TOKEN,
                 'User-Agent': userAgent,
             },
+            signal: controller.signal,
         });
+        clearTimeout(timeoutId);
 
         if (!prerenderResponse.ok) {
             return next();
@@ -181,6 +205,7 @@ app.use(async (req, res, next) => {
         res.set('Content-Type', contentType);
         return res.send(body);
     } catch (_error) {
+        clearTimeout(timeoutId);
         return next();
     }
 });
@@ -727,26 +752,29 @@ function escapeHtml(value = '') {
         .replace(/'/g, '&#39;');
 }
 
-function getBaseSiteUrl(req) {
-    const explicitUrl = String(PUBLIC_SITE_URL || '').trim();
-    if (explicitUrl) {
-        try {
-            return new URL(explicitUrl).origin;
-        } catch (_error) {
-            // Ignore invalid configured values and derive from request.
-        }
+function getBaseSiteUrl() {
+    const explicitOrigin = parseOrigin(String(PUBLIC_SITE_URL || '').trim());
+    if (explicitOrigin) {
+        return explicitOrigin;
     }
 
-    const forwardedProto = (req.get('x-forwarded-proto') || '').split(',')[0].trim();
-    const protocol = forwardedProto || req.protocol || (process.env.NODE_ENV === 'production' ? 'https' : 'http');
-    const host = req.get('host') || 'localhost';
-    return `${protocol}://${host}`;
+    return DEFAULT_PUBLIC_SITE_ORIGIN;
 }
 
 function buildAbsoluteUrl(baseUrl, routePath = '/') {
     const normalizedBase = String(baseUrl || '').replace(/\/+$/, '');
     const normalizedPath = routePath.startsWith('/') ? routePath : `/${routePath}`;
     return `${normalizedBase}${normalizedPath}`;
+}
+
+function normalizeCollection(data, key) {
+    if (Array.isArray(data)) {
+        return data;
+    }
+    if (data && Array.isArray(data[key])) {
+        return data[key];
+    }
+    return [];
 }
 
 function readSeoCollections() {
@@ -760,8 +788,8 @@ function readSeoCollections() {
         { blogs: [] };
 
     return {
-        tours: Array.isArray(toursData.tours) ? toursData.tours : [],
-        blogs: Array.isArray(blogsData.blogs) ? blogsData.blogs : [],
+        tours: normalizeCollection(toursData, 'tours'),
+        blogs: normalizeCollection(blogsData, 'blogs'),
     };
 }
 
@@ -1563,7 +1591,7 @@ app.post('/api/destinations', writeLimiter, requireAdminAuth, async (req, res) =
 });
 
 app.get('/robots.txt', readLimiter, (req, res) => {
-    const baseUrl = getBaseSiteUrl(req);
+    const baseUrl = getBaseSiteUrl();
     res.type('text/plain');
     res.send(
         [
@@ -1577,7 +1605,7 @@ app.get('/robots.txt', readLimiter, (req, res) => {
 });
 
 app.get('/sitemap.xml', readLimiter, async (req, res) => {
-    const baseUrl = getBaseSiteUrl(req);
+    const baseUrl = getBaseSiteUrl();
     const staticRoutes = [
         { path: '/', priority: '1.0', changefreq: 'weekly' },
         { path: '/tours', priority: '0.9', changefreq: 'weekly' },
