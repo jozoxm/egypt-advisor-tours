@@ -39,7 +39,7 @@ Set:
 ```env
 CMS_PROVIDER=wordpress
 WORDPRESS_BASE_URL=https://cms.egyptadvisortours.com
-WORDPRESS_API_NAMESPACE=egypt-advisor/v1
+WORDPRESS_API_NAMESPACE=ramacf/v1
 ```
 
 Server read order in WordPress mode:
