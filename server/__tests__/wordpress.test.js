@@ -1,15 +1,17 @@
 describe('WordPress namespace and fallback behavior', () => {
   const ORIGINAL_ENV = process.env;
+  let originalFetch;
 
   beforeEach(() => {
     jest.resetModules();
     process.env = { ...ORIGINAL_ENV };
+    originalFetch = global.fetch;
     global.fetch = jest.fn();
   });
 
   afterEach(() => {
     process.env = ORIGINAL_ENV;
-    delete global.fetch;
+    global.fetch = originalFetch;
   });
 
   function ok(payload) {
@@ -44,12 +46,13 @@ describe('WordPress namespace and fallback behavior', () => {
     );
   });
 
-  it('keeps wp/v2 pages fallback in the same read order', async () => {
+  it('keeps wp/v2 pages then posts fallbacks in the same read order', async () => {
     process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
     delete process.env.WORDPRESS_API_NAMESPACE;
 
     const { fetchWordpressResource } = require('../wordpress');
     global.fetch
+      .mockResolvedValueOnce(notFound())
       .mockResolvedValueOnce(notFound())
       .mockResolvedValueOnce(notFound())
       .mockResolvedValueOnce(ok([{ acf: { tours: [{ id: 1 }] } }]));
@@ -61,6 +64,7 @@ describe('WordPress namespace and fallback behavior', () => {
       'https://cms.egyptadvisortours.com/wp-json/ramacf/v1/tours',
       'https://cms.egyptadvisortours.com/wp-json/ramacf/v1/content/tours',
       'https://cms.egyptadvisortours.com/wp-json/wp/v2/pages?slug=cms-tours&_fields=acf,content',
+      'https://cms.egyptadvisortours.com/wp-json/wp/v2/posts?slug=cms-tours&_fields=acf,content',
     ]);
   });
 });
