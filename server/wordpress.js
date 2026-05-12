@@ -44,7 +44,7 @@ function getWordpressAdminUrl() {
 }
 
 function getWordpressApiNamespace() {
-  const namespace = process.env.WORDPRESS_API_NAMESPACE || 'egypt-advisor/v1';
+  const namespace = process.env.WORDPRESS_API_NAMESPACE || 'ramacf/v1';
   return namespace.replace(/^\/+|\/+$/g, '');
 }
 
