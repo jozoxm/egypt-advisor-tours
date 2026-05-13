@@ -1,6 +1,8 @@
 import React from 'react';
 import HeroSlideshow from '../components/HeroSlideshow';
 import ToursSection from './ToursSection';
+import useSeoMeta from '../hooks/useSeoMeta';
+import getSiteUrl from '../utils/siteUrl';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -23,8 +25,26 @@ const HomePage = ({
   testimonials,
   goToSection,
   onTailorTrip,
-}) => (
-  <>
+}) => {
+  const siteUrl = getSiteUrl();
+
+  useSeoMeta({
+    title: null,
+    description:
+      'Discover Egypt with private guided tours, Nile experiences, and custom itineraries crafted by local experts.',
+    path: '/',
+    structuredData: {
+      '@context': 'https://schema.org',
+      '@type': 'TravelAgency',
+      name: 'Egypt Advisor Tours',
+      url: `${siteUrl}/`,
+      description:
+        'Private Egypt tours, Nile cruises, destination guides, and custom itinerary planning.',
+    },
+  });
+
+  return (
+    <>
     <section id="home" className="hero">
       <HeroSlideshow />
       <div className="hero-overlay"></div>
@@ -143,7 +163,8 @@ const HomePage = ({
         ))}
       </div>
     </section>
-  </>
-);
+    </>
+  );
+};
 
 export default HomePage;

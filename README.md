@@ -160,6 +160,21 @@ https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
 
 If any Storyblok token was exposed in screenshots, chats, or public logs, rotate/regenerate it immediately in Storyblok and update your `.env`.
 
+## SEO & discoverability
+
+- Route-level SEO metadata is now set dynamically in the React app for:
+  - `/`, `/tours`, `/tours/:id`, `/blogs`, `/destinations`, `/special-offers`, `/about`
+- Canonical, Open Graph, Twitter, and JSON-LD tags are injected per page.
+- The server now serves:
+  - `GET /robots.txt`
+  - `GET /sitemap.xml` (includes static routes and dynamic tour detail URLs)
+- Optional prerender support for crawlers:
+  - Set `PRERENDER_TOKEN` (and optionally `PRERENDER_SERVICE_URL`) to enable crawler snapshots via Prerender.io-compatible services.
+  - `PRERENDER_TIMEOUT_MS` controls the prerender fetch timeout before falling back to normal SPA handling.
+- Recommended URL config:
+  - `PUBLIC_SITE_URL` (server-side canonical/sitemap base URL)
+  - `REACT_APP_SITE_URL` (client-side canonical/meta base URL)
+
 ## What changed in this migration
 
 - Removed the local Payload CMS app and its build/start scripts

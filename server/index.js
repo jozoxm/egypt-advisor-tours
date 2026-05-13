@@ -25,6 +25,16 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
+const DEFAULT_PUBLIC_SITE_ORIGIN = new URL(DEFAULT_PUBLIC_SITE_URL).origin;
+const DEFAULT_PRERENDER_TIMEOUT_MS = 3000;
+const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || DEFAULT_PUBLIC_SITE_URL;
+const PRERENDER_TOKEN = process.env.PRERENDER_TOKEN || '';
+const PRERENDER_SERVICE_URL = process.env.PRERENDER_SERVICE_URL || 'https://service.prerender.io';
+const PRERENDER_TIMEOUT_MS = (() => {
+    const parsed = parseInt(process.env.PRERENDER_TIMEOUT_MS || String(DEFAULT_PRERENDER_TIMEOUT_MS), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PRERENDER_TIMEOUT_MS;
+})();
 
 // Trust Vercel's (and other reverse-proxy's) X-Forwarded-For header so that
 // req.ip reflects the real client IP.  This is required for the rate-limiter
@@ -83,6 +93,23 @@ const allowedOrigins = new Set(
     ].filter(Boolean)
 );
 
+const BOT_USER_AGENTS =
+    /bot|crawler|spider|crawling|google|bing|yandex|duckduck|slurp|baiduspider|facebookexternalhit|twitterbot|linkedinbot/i;
+const STATIC_FILE_EXTENSIONS =
+    /\.(?:js|mjs|css|png|jpg|jpeg|gif|svg|webp|avif|ico|map|txt|xml|pdf|woff2?|ttf|eot)$/i;
+
+function parseOrigin(value) {
+    if (!value) {
+        return null;
+    }
+
+    try {
+        return new URL(String(value)).origin;
+    } catch (_error) {
+        return null;
+    }
+}
+
 app.use((req, res, next) => {
     const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
     if (getStoryblokVersion(req) === 'draft' || isAdminPath) {
@@ -129,6 +156,58 @@ app.use((req, res, next) => {
     }
 
     return next();
+});
+
+app.use(async (req, res, next) => {
+    if (!PRERENDER_TOKEN) {
+        return next();
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+        return next();
+    }
+    if (req.path.startsWith('/api') || req.path.startsWith('/admin') || req.path === '/health') {
+        return next();
+    }
+    if (STATIC_FILE_EXTENSIONS.test(req.path)) {
+        return next();
+    }
+
+    const userAgent = req.get('user-agent') || '';
+    const isCrawler = BOT_USER_AGENTS.test(userAgent) || Object.hasOwn(req.query, '_escaped_fragment_');
+    if (!isCrawler) {
+        return next();
+    }
+
+    const baseUrl = getBaseSiteUrl();
+    const fullUrl = `${baseUrl}${req.originalUrl || req.url}`;
+    const prerenderTarget = `${PRERENDER_SERVICE_URL.replace(/\/+$/, '')}/${encodeURIComponent(fullUrl)}`;
+    let timeoutId;
+
+    try {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), PRERENDER_TIMEOUT_MS);
+        const prerenderResponse = await fetch(prerenderTarget, {
+            headers: {
+                'X-Prerender-Token': PRERENDER_TOKEN,
+                'User-Agent': userAgent,
+            },
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!prerenderResponse.ok) {
+            return next();
+        }
+
+        const body = await prerenderResponse.text();
+        const contentType = prerenderResponse.headers.get('content-type') || 'text/html; charset=utf-8';
+        res.status(prerenderResponse.status);
+        res.set('Content-Type', contentType);
+        return res.send(body);
+    } catch (_error) {
+        clearTimeout(timeoutId);
+        return next();
+    }
 });
 
 // ============================================
@@ -671,6 +750,47 @@ function escapeHtml(value = '') {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function getBaseSiteUrl() {
+    const explicitOrigin = parseOrigin(String(PUBLIC_SITE_URL || '').trim());
+    if (explicitOrigin) {
+        return explicitOrigin;
+    }
+
+    return DEFAULT_PUBLIC_SITE_ORIGIN;
+}
+
+function buildAbsoluteUrl(baseUrl, routePath = '/') {
+    const normalizedBase = String(baseUrl || '').replace(/\/+$/, '');
+    const normalizedPath = routePath.startsWith('/') ? routePath : `/${routePath}`;
+    return `${normalizedBase}${normalizedPath}`;
+}
+
+function normalizeCollection(data, key) {
+    if (Array.isArray(data)) {
+        return data;
+    }
+    if (data && Array.isArray(data[key])) {
+        return data[key];
+    }
+    return [];
+}
+
+function readSeoCollections() {
+    const toursData =
+        store.tours ||
+        readData('tours', /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/) ||
+        { tours: [] };
+    const blogsData =
+        store.blogs ||
+        readData('blogs', /export const blogs = (\[[\s\S]*?\]);/) ||
+        { blogs: [] };
+
+    return {
+        tours: normalizeCollection(toursData, 'tours'),
+        blogs: normalizeCollection(blogsData, 'blogs'),
+    };
 }
 
 function getAdminFrameSources(storyblokAdminUrl) {
@@ -1470,6 +1590,63 @@ app.post('/api/destinations', writeLimiter, requireAdminAuth, async (req, res) =
     }
 });
 
+app.get('/robots.txt', readLimiter, (req, res) => {
+    const baseUrl = getBaseSiteUrl();
+    res.type('text/plain');
+    res.send(
+        [
+            'User-agent: *',
+            'Allow: /',
+            'Disallow: /admin',
+            'Disallow: /api/',
+            `Sitemap: ${buildAbsoluteUrl(baseUrl, '/sitemap.xml')}`,
+        ].join('\n')
+    );
+});
+
+app.get('/sitemap.xml', readLimiter, async (req, res) => {
+    const baseUrl = getBaseSiteUrl();
+    const staticRoutes = [
+        { path: '/', priority: '1.0', changefreq: 'weekly' },
+        { path: '/tours', priority: '0.9', changefreq: 'weekly' },
+        { path: '/blogs', priority: '0.8', changefreq: 'weekly' },
+        { path: '/destinations', priority: '0.8', changefreq: 'weekly' },
+        { path: '/special-offers', priority: '0.7', changefreq: 'weekly' },
+        { path: '/about', priority: '0.7', changefreq: 'monthly' },
+    ];
+
+    try {
+        const [cmsTours, cmsBlogs] = await Promise.all([
+            readCmsContent('tours', req, /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/),
+            readCmsContent('blogs', req, /export const blogs = (\[[\s\S]*?\]);/),
+        ]);
+        if (cmsTours?.tours) store.tours = cmsTours;
+        if (cmsBlogs?.blogs) store.blogs = cmsBlogs;
+    } catch (_error) {
+        // Fall back to local store/data if CMS read fails.
+    }
+
+    const { tours } = readSeoCollections();
+    const dynamicTourRoutes = tours
+        .filter((tour) => Number.isFinite(tour?.id))
+        .map((tour) => ({ path: `/tours/${tour.id}`, priority: '0.8', changefreq: 'weekly' }));
+
+    const urls = [...staticRoutes, ...dynamicTourRoutes];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+        `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+        urls
+            .map((entry) => `  <url>\n` +
+                `    <loc>${escapeHtml(buildAbsoluteUrl(baseUrl, entry.path))}</loc>\n` +
+                `    <changefreq>${entry.changefreq}</changefreq>\n` +
+                `    <priority>${entry.priority}</priority>\n` +
+                `  </url>`)
+            .join('\n') +
+        `\n</urlset>`;
+
+    res.type('application/xml');
+    res.send(xml);
+});
+
 // Return a JSON 404 for any unmatched /api/* routes so they are never
 // swallowed by the SPA catch-all below.
 app.use('/api', (req, res) => {
@@ -1484,7 +1661,17 @@ app.use('/api', (req, res) => {
 // this block is intentionally skipped there.
 const buildPath = path.join(__dirname, '../build');
 if (!process.env.VERCEL && process.env.NODE_ENV !== 'development' && fs.existsSync(buildPath)) {
-    app.use(express.static(buildPath));
+    app.use(express.static(buildPath, {
+        setHeaders: (res, filePath) => {
+            if (STATIC_FILE_EXTENSIONS.test(filePath) && !/index\.html$/i.test(filePath)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                return;
+            }
+            if (/index\.html$/i.test(filePath)) {
+                res.setHeader('Cache-Control', 'no-cache');
+            }
+        },
+    }));
     app.get('*', readLimiter, (req, res) => {
         // Admin redirects are handled above; if a request somehow reaches the
         // SPA fallback, return 404 rather than letting React Router swallow it.

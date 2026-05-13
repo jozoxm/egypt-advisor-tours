@@ -1,9 +1,14 @@
 import React from 'react';
-import useTitle from '../hooks/useTitle';
+import useSeoMeta from '../hooks/useSeoMeta';
 import { useData } from '../context/DataContext';
 
 const PromotionsPage = ({ onTailorTrip }) => {
-  useTitle('Special Offers');
+  useSeoMeta({
+    title: 'Special Offers',
+    description:
+      'Discover limited-time Egypt travel deals, seasonal discounts, and exclusive offers from Egypt Advisor Tours.',
+    path: '/special-offers',
+  });
   const { promotions, loading } = useData();
 
   const active = promotions.filter((p) => {
@@ -36,6 +41,8 @@ const PromotionsPage = ({ onTailorTrip }) => {
               <img
                 src={promo.imageUrl}
                 alt={promo.title}
+                loading="lazy"
+                decoding="async"
                 style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: '8px 8px 0 0' }}
               />
             ) : (

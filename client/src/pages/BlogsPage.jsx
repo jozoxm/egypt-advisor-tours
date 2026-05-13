@@ -1,6 +1,7 @@
 import React from 'react';
 import { blogs as defaultBlogs } from '../data/blogs-data';
-import useTitle from '../hooks/useTitle';
+import useSeoMeta from '../hooks/useSeoMeta';
+import getSiteUrl from '../utils/siteUrl';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -13,7 +14,32 @@ const formatBlogDate = (dateString) => {
 };
 
 const BlogsPage = ({ onTailorTrip, blogs = defaultBlogs }) => {
-  useTitle('Travel Blogs');
+  const siteUrl = getSiteUrl();
+
+  useSeoMeta({
+    title: 'Travel Blogs',
+    description:
+      'Read travel insights, practical tips, and Egypt cultural guides from the Egypt Advisor Tours team.',
+    path: '/blogs',
+    structuredData: {
+      '@context': 'https://schema.org',
+      '@type': 'Blog',
+      name: 'Egypt Advisor Tours Blog',
+      url: `${siteUrl}/blogs`,
+      blogPost: blogs.map((blog) => ({
+        '@type': 'BlogPosting',
+        headline: blog.title,
+        datePublished: blog.date,
+        author: {
+          '@type': 'Person',
+          name: blog.author || 'Egypt Advisor Team',
+        },
+        description: blog.excerpt || '',
+        url: `${siteUrl}/blogs#${blog.id}`,
+      })),
+    },
+  });
+
   return (
   <section className="blogs">
     <div className="section-header">

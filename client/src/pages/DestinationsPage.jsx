@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import useTitle from '../hooks/useTitle';
+import useSeoMeta from '../hooks/useSeoMeta';
 import { useData } from '../context/DataContext';
 
 const REGION_LABELS = {
@@ -12,7 +12,12 @@ const REGION_LABELS = {
 };
 
 const DestinationsPage = ({ onTailorTrip }) => {
-  useTitle('Destinations');
+  useSeoMeta({
+    title: 'Destinations',
+    description:
+      "Explore Egypt's top destinations from Cairo to Aswan with regional highlights, travel tips, and trip inspiration.",
+    path: '/destinations',
+  });
   const { destinations, loading } = useData();
   const [selected, setSelected] = useState(null);
 
@@ -56,11 +61,13 @@ const DestinationsPage = ({ onTailorTrip }) => {
             ← Back to all destinations
           </button>
           {current.imageUrl && (
-            <img
-              src={current.imageUrl}
-              alt={current.name}
-              style={{ width: '100%', maxHeight: '320px', objectFit: 'cover', borderRadius: '8px', marginBottom: '1.5rem' }}
-            />
+              <img
+                src={current.imageUrl}
+                alt={current.name}
+                loading="lazy"
+                decoding="async"
+                style={{ width: '100%', maxHeight: '320px', objectFit: 'cover', borderRadius: '8px', marginBottom: '1.5rem' }}
+              />
           )}
           <h2 style={{ marginBottom: '0.25rem' }}>{current.name}</h2>
           {current.region && (
@@ -101,6 +108,8 @@ const DestinationsPage = ({ onTailorTrip }) => {
               <img
                 src={dest.imageUrl}
                 alt={dest.name}
+                loading="lazy"
+                decoding="async"
                 style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: '8px 8px 0 0' }}
               />
             ) : (

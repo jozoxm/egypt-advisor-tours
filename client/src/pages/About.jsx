@@ -1,8 +1,13 @@
 import React from 'react';
-import useTitle from '../hooks/useTitle';
+import useSeoMeta from '../hooks/useSeoMeta';
 
 const About = () => {
-  useTitle('About Us');
+  useSeoMeta({
+    title: 'About Us',
+    description:
+      'Learn why travelers choose Egypt Advisor Tours for expert guides, personalized service, and trusted local support.',
+    path: '/about',
+  });
   return (
   <section id="about" className="about">
     <div className="about-content">
