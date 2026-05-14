@@ -388,6 +388,34 @@ describe('GET /api/tours', () => {
         expect(res.body).toHaveProperty('tours');
         expect(Array.isArray(res.body.tours)).toBe(true);
     });
+
+    it('does not reuse in-memory cache when CMS_PROVIDER=wordpress', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest
+            .fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ tours: [{ id: 1 }] }) })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ tours: [{ id: 2 }] }) });
+
+        try {
+            const first = await request(app).get('/api/tours');
+            const second = await request(app).get('/api/tours');
+
+            expect(first.status).toBe(200);
+            expect(second.status).toBe(200);
+            expect(first.body.tours[0].id).toBe(1);
+            expect(second.body.tours[0].id).toBe(2);
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            global.fetch = originalFetch;
+        }
+    });
 });
 
 describe('GET /api/contact', () => {
