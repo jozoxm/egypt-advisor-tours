@@ -1,4 +1,49 @@
-- name: Install SSH private key
-  run: |
-    printf '%s' "${{ secrets.HOSTINGER_SSH_KEY }}" | tr -d '\r' > ~/.ssh/hostinger_deploy
-    chmod 600 ~/.ssh/hostinger_deploy
+diff --git a/.github/workflows/deploy-hostinger.yml b/.github/workflows/deploy-hostinger.yml
+--- a/.github/workflows/deploy-hostinger.yml
++++ b/.github/workflows/deploy-hostinger.yml
+@@ -122,11 +122,22 @@ jobs:
+           printf '%s\n' "${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+           chmod 600 ~/.ssh/known_hosts
+ 
+       - name: Install SSH private key
+         run: |
+-          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
++          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/hostinger_deploy
+           chmod 600 ~/.ssh/hostinger_deploy
++
++      - name: Validate SSH private key format
++        run: |
++          ssh-keygen -l -f ~/.ssh/hostinger_deploy
++
++      - name: Verify SSH connectivity
++        run: |
++          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
++          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
++          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
++          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
++          echo "Checking SSH connection to ${DEPLOY_HOST}:${DEPLOY_PORT} as ${DEPLOY_USER}"
++          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH preflight OK"
+ 
+       - name: Write environment files to server
+         env:
+           _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+@@ -153,7 +164,7 @@ jobs:
+           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+-          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
++          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+ 
+           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
+             mkdir -p '${DEPLOY_DIR}'
+@@ -199,7 +210,7 @@ jobs:
+           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+-          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
++          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+ 
+           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
+             export NVM_DIR=\"\$HOME/.nvm\"
