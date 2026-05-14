@@ -389,7 +389,7 @@ describe('GET /api/tours', () => {
         expect(Array.isArray(res.body.tours)).toBe(true);
     });
 
-    it('does not reuse in-memory cache when CMS_PROVIDER=wordpress', async () => {
+    it('fetches fresh data on each request when CMS_PROVIDER=wordpress', async () => {
         const originalProvider = process.env.CMS_PROVIDER;
         const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
         const originalFetch = global.fetch;
