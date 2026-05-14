@@ -124,7 +124,7 @@ jobs:
 
       - name: Install SSH private key
         run: |
-          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY_B64 }}" | base64 --decode > ~/.ssh/hostinger_deploy
+          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/hostinger_deploy
           chmod 600 ~/.ssh/hostinger_deploy
 
       - name: Inspect SSH private key file (safe)
