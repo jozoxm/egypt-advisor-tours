@@ -52,7 +52,12 @@ jobs:
 
       - name: Install SSH private key
         run: |
-          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
+          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/hostinger_deploy
+          [ -s ~/.ssh/hostinger_deploy ] || { echo "::error::Decoded SSH key file is empty."; exit 1; }
+          grep -q '^-----BEGIN .*PRIVATE KEY-----$' ~/.ssh/hostinger_deploy || {
+            echo "::error::Decoded SSH key does not start with a valid PRIVATE KEY header."
+            exit 1
+          }
           chmod 600 ~/.ssh/hostinger_deploy
 
       - name: Download data files from server

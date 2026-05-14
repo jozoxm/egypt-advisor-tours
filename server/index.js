@@ -631,11 +631,11 @@ async function persistCmsContent(key, data) {
     return { persisted: writeData(key, data), provider: 'filesystem' };
 }
 
-// Only reuse the in-memory store when Storyblok is not configured and the
-// request is for published content. Draft/preview requests must always bypass
-// the cache so editors see the latest Storyblok state immediately.
+// Only reuse the in-memory store for filesystem mode. External CMS providers
+// (WordPress/Storyblok) must re-fetch so admin-side edits are reflected quickly.
+// Storyblok draft/preview requests also always bypass cache.
 function shouldUseMemoryStore(req) {
-    return getCmsProvider() !== 'storyblok' && getStoryblokVersion(req) === 'published';
+    return getCmsProvider() === 'filesystem' && getStoryblokVersion(req) === 'published';
 }
 
 // Seed all JSON data files from their JS source equivalents on startup so that

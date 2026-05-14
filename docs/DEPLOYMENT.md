@@ -42,7 +42,7 @@ Go to: **GitHub repo → Settings → Secrets and variables → Actions → New 
 | `HOSTINGER_SSH_HOST` | e.g. `server123.web-hosting.com` |
 | `HOSTINGER_SSH_PORT` | e.g. `65002` |
 | `HOSTINGER_SSH_USER` | e.g. `u123456789` |
-| `HOSTINGER_SSH_KEY` | Contents of `~/.ssh/hostinger_deploy` (private key) |
+| `HOSTINGER_SSH_KEY_B64` | Base64-encoded contents of `~/.ssh/hostinger_deploy` (private key) |
 | `HOSTINGER_APP_DIR` | e.g. `/home/u123456789/egyptadvisortours.com` |
 | `HOSTINGER_SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -p 65002 server123.web-hosting.com` |
 | `ADMIN_SECRET` | A long random string (JWT signing key) — generate at https://generate-secret.now.sh/32 |
@@ -56,6 +56,16 @@ Optional EmailJS secrets (needed for booking/trip-tailor emails):
 - `REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID`
 - `REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID`
 - `REACT_APP_EMAILJS_PUBLIC_KEY`
+
+Create `HOSTINGER_SSH_KEY_B64` from your private key:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("hostinger_deploy"))
+```
+
+```bash
+base64 -w 0 ~/.ssh/hostinger_deploy
+```
 
 ---
 
