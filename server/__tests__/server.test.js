@@ -412,7 +412,11 @@ describe('GET /api/tours', () => {
             expect(global.fetch).toHaveBeenCalledTimes(2);
         } finally {
             process.env.CMS_PROVIDER = originalProvider;
-            process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
             global.fetch = originalFetch;
         }
     });

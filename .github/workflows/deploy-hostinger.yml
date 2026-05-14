@@ -86,9 +86,6 @@ jobs:
           if [ "$CMS_PROVIDER" = "storyblok" ] && [ -z "$_STORYBLOK_PREVIEW_TOKEN" ]; then
             missing+=("STORYBLOK_PREVIEW_TOKEN")
           fi
-          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
-            missing+=("WORDPRESS_BASE_URL")
-          fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             exit 1
