@@ -54,9 +54,14 @@ function normalizeResourceShape(key, data) {
   switch (key) {
     case 'tours':
       if (Array.isArray(data)) return { tours: data, testimonials: [] };
+      if (typeof data !== 'object') return { tours: [], testimonials: [] };
       return {
-        tours: Array.isArray(data.tours) ? data.tours : [],
-        testimonials: Array.isArray(data.testimonials) ? data.testimonials : [],
+        tours: Array.isArray(data.tours)
+          ? data.tours
+          : (Array.isArray(data.tours && data.tours.tours) ? data.tours.tours : []),
+        testimonials: Array.isArray(data.testimonials)
+          ? data.testimonials
+          : (Array.isArray(data.testimonials && data.testimonials.testimonials) ? data.testimonials.testimonials : []),
       };
     case 'blogs':
       if (Array.isArray(data)) return { blogs: data };
@@ -99,9 +104,14 @@ function extractWordpressData(key, payload) {
     const first = payload[0];
     if (!first || typeof first !== 'object') return null;
     const acf = first.acf || {};
+    const hasStructuredToursAcf =
+      key === 'tours' &&
+      typeof acf === 'object' &&
+      !Array.isArray(acf) &&
+      (Object.prototype.hasOwnProperty.call(acf, 'tours') || Object.prototype.hasOwnProperty.call(acf, 'testimonials'));
     return normalizeResourceShape(
       key,
-      acf[key] ||
+      (hasStructuredToursAcf ? acf : acf[key]) ||
       acf.payload ||
       acf.data ||
       parseJsonContent(first.content && first.content.rendered) ||
@@ -110,7 +120,15 @@ function extractWordpressData(key, payload) {
   }
 
   if (typeof payload === 'object') {
-    return normalizeResourceShape(key, payload[key] || payload.data || payload.payload || payload);
+    const hasStructuredToursPayload =
+      key === 'tours' &&
+      !Array.isArray(payload) &&
+      (Object.prototype.hasOwnProperty.call(payload, 'tours') ||
+        Object.prototype.hasOwnProperty.call(payload, 'testimonials'));
+    return normalizeResourceShape(
+      key,
+      (hasStructuredToursPayload ? payload : payload[key]) || payload.data || payload.payload || payload
+    );
   }
 
   return null;
