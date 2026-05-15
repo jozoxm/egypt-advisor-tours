@@ -231,6 +231,29 @@ jobs:
             "umask 077; cat > '${DEPLOY_DIR}/.env'" < "$server_env_file"
           rm -f "$server_env_file"
 
+      - name: Verify env files on server
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "
+            check_env_file() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              if [ -f \"\$path\" ]; then
+                perms_size=\$(ls -l \"\$path\" | awk '{print \"permissions=\" \$1 \" size=\" \$5 \"B\"}')
+                echo \"\$label: present (\$perms_size)\"
+              else
+                echo \"::warning::\$label not found at \$path — env file may not have been written correctly\"
+              fi
+            }
+            check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
+            check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
+          "
+
       - name: Pull & restart on Hostinger
         run: |
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
@@ -249,9 +272,31 @@ jobs:
             git checkout main
             git reset --hard origin/main
             npm install --production=false
-            rm -f client/.env.production.local
             mkdir -p tmp
             touch tmp/restart.txt"
+
+      - name: Verify env files after restart
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "
+            check_env_file() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              if [ -f \"\$path\" ]; then
+                perms_size=\$(ls -l \"\$path\" | awk '{print \"permissions=\" \$1 \" size=\" \$5 \"B\"}')
+                echo \"\$label: present (\$perms_size)\"
+              else
+                echo \"::warning::\$label not found at \$path after restart — app may start without required env vars\"
+              fi
+            }
+            check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
+            check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
+          "
 
       - name: Health check
         run: |
@@ -267,9 +312,26 @@ jobs:
             echo "::error::Health check failed for $url (HTTP $status)"
             exit 1
           }
+          run_check_info() {
+            local url="$1"
+            local label="$2"
+            local status
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo "000")
+            case "$status" in
+              2[0-9][0-9])
+                echo "${label}: OK (HTTP ${status})"
+                ;;
+              *)
+                echo "::warning::${label} returned HTTP ${status} — CMS may be degraded but app is still up. URL: ${url}"
+                echo "${label}: DEGRADED (HTTP ${status})"
+                ;;
+            esac
+          }
           run_check "https://egyptadvisortours.com/health" "strict"
-          run_check "https://egyptadvisortours.com/api/admin/health" "strict"
+          echo "App liveness: OK"
+          run_check_info "https://egyptadvisortours.com/api/admin/health" "CMS health"
           run_check "https://egyptadvisortours.com/admin" "redirect-ok"
+          echo "Admin route: OK"
 
       - name: Deployment summary
         run: |
