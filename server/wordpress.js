@@ -97,6 +97,11 @@ function parseJsonContent(content) {
   }
 }
 
+function parseMaybeJsonValue(value) {
+  if (typeof value !== 'string') return value;
+  return parseJsonContent(value);
+}
+
 function extractWordpressData(key, payload) {
   if (!payload) return null;
 
@@ -104,6 +109,8 @@ function extractWordpressData(key, payload) {
     const first = payload[0];
     if (!first || typeof first !== 'object') return null;
     const acf = first.acf || {};
+    const parsedAcfPayload = parseMaybeJsonValue(acf.payload);
+    const parsedAcfData = parseMaybeJsonValue(acf.data);
     const hasStructuredToursAcf =
       key === 'tours' &&
       typeof acf === 'object' &&
@@ -112,14 +119,16 @@ function extractWordpressData(key, payload) {
     return normalizeResourceShape(
       key,
       (hasStructuredToursAcf ? acf : acf[key]) ||
-      acf.payload ||
-      acf.data ||
+      parsedAcfPayload ||
+      parsedAcfData ||
       parseJsonContent(first.content && first.content.rendered) ||
       acf
     );
   }
 
   if (typeof payload === 'object') {
+    const parsedPayloadData = parseMaybeJsonValue(payload.data);
+    const parsedPayloadPayload = parseMaybeJsonValue(payload.payload);
     const hasStructuredToursPayload =
       key === 'tours' &&
       !Array.isArray(payload) &&
@@ -127,7 +136,7 @@ function extractWordpressData(key, payload) {
         Object.prototype.hasOwnProperty.call(payload, 'testimonials'));
     return normalizeResourceShape(
       key,
-      (hasStructuredToursPayload ? payload : payload[key]) || payload.data || payload.payload || payload
+      (hasStructuredToursPayload ? payload : payload[key]) || parsedPayloadData || parsedPayloadPayload || payload
     );
   }
 

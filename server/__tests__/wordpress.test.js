@@ -123,4 +123,46 @@ describe('WordPress namespace and fallback behavior', () => {
       testimonials: [{ id: 'payload' }],
     });
   });
+
+  it('parses contact data from stringified acf.payload and keeps payload precedence', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({ email: 'payload@example.com' }),
+            data: JSON.stringify({ email: 'data@example.com' }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('contact');
+
+    expect(result).toEqual({ email: 'payload@example.com' });
+  });
+
+  it('parses contact data from stringified acf.data when payload is not usable', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: 'not-json',
+            data: JSON.stringify({ phone: '+20-12345' }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('contact');
+
+    expect(result).toEqual({ phone: '+20-12345' });
+  });
 });
