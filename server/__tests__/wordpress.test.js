@@ -67,4 +67,102 @@ describe('WordPress namespace and fallback behavior', () => {
       'https://cms.egyptadvisortours.com/wp-json/wp/v2/posts?slug=cms-tours&_fields=acf,content',
     ]);
   });
+
+  it('parses structured acf tours and testimonials sibling fields', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(
+        ok([
+          {
+            acf: {
+              tours: { tours: [{ id: 1 }] },
+              testimonials: { testimonials: [{ id: 'a' }] },
+            },
+          },
+        ])
+      );
+
+    const result = await fetchWordpressResource('tours');
+
+    expect(result).toEqual({
+      tours: [{ id: 1 }],
+      testimonials: [{ id: 'a' }],
+    });
+  });
+
+  it('keeps acf payload fallback behavior for tours resource', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: {
+              tours: [{ id: 2 }],
+              testimonials: [{ id: 'payload' }],
+            },
+          },
+          content: {
+            rendered: JSON.stringify({ tours: [{ id: 999 }], testimonials: [{ id: 'content' }] }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('tours');
+
+    expect(result).toEqual({
+      tours: [{ id: 2 }],
+      testimonials: [{ id: 'payload' }],
+    });
+  });
+
+  it('parses contact data from stringified acf.payload and keeps payload precedence', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({ email: 'payload@example.com' }),
+            data: JSON.stringify({ email: 'data@example.com' }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('contact');
+
+    expect(result).toEqual({ email: 'payload@example.com' });
+  });
+
+  it('parses contact data from stringified acf.data when payload is not usable', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: 'not-json',
+            data: JSON.stringify({ phone: '+20-12345' }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('contact');
+
+    expect(result).toEqual({ phone: '+20-12345' });
+  });
 });
