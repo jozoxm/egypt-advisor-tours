@@ -124,6 +124,82 @@ describe('WordPress namespace and fallback behavior', () => {
     });
   });
 
+  it('uses parsed stringified acf.payload tours data directly when present', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({
+              tours: [{ id: 22 }],
+              testimonials: [{ id: 'acf-free-payload' }],
+            }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('tours');
+
+    expect(result).toEqual({
+      tours: [{ id: 22 }],
+      testimonials: [{ id: 'acf-free-payload' }],
+    });
+  });
+
+  it('uses parsed acf.payload for tours when acf.tours is present but not usable', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            tours: 'legacy-string',
+            payload: JSON.stringify({
+              tours: [{ id: 3 }],
+              testimonials: [{ id: 'payload-3' }],
+            }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('tours');
+
+    expect(result).toEqual({
+      tours: [{ id: 3 }],
+      testimonials: [{ id: 'payload-3' }],
+    });
+  });
+
+  it('uses parsed top-level payload for tours object responses when payload.tours is not usable', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok({
+        tours: 'legacy-string',
+        payload: JSON.stringify({
+          tours: [{ id: 4 }],
+          testimonials: [{ id: 'payload-4' }],
+        }),
+      })
+    );
+
+    const result = await fetchWordpressResource('tours');
+
+    expect(result).toEqual({
+      tours: [{ id: 4 }],
+      testimonials: [{ id: 'payload-4' }],
+    });
+  });
+
   it('parses contact data from stringified acf.payload and keeps payload precedence', async () => {
     process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
     delete process.env.WORDPRESS_API_NAMESPACE;
