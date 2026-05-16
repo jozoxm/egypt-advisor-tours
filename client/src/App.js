@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link, NavLink, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import About from './pages/About';
+import Faq from './pages/Faq';
 import BlogsPage from './pages/BlogsPage';
 import TourDetail from './pages/TourDetail';
 import HomePage from './pages/HomePage';
@@ -12,6 +13,8 @@ import TailorTripModal from './components/TailorTripModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import useStoryblokPreview from './hooks/useStoryblokPreview';
 import { useData } from './context/DataContext';
+import { getFooter, getNavigation } from './api/cms';
+import { fallbackFooter, fallbackNavigation } from './data/cms-fallbacks';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.3';
@@ -26,6 +29,8 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tourSearch, setTourSearch] = useState('');
   const [showTripTailor, setShowTripTailor] = useState(false);
+  const [navigationContent, setNavigationContent] = useState(fallbackNavigation);
+  const [footerContent, setFooterContent] = useState(fallbackFooter);
   const navigate = useNavigate();
   const location = useLocation();
   const scrollTimeoutsRef = useRef([]);
@@ -68,6 +73,44 @@ useEffect(() => {
   };
 }, []);
 
+useEffect(() => {
+  let isMounted = true;
+
+  getNavigation()
+    .then((data) => {
+      if (!isMounted || !data || typeof data !== 'object') return;
+      setNavigationContent((prev) => ({
+        ...prev,
+        ...data,
+        primaryLinks: Array.isArray(data.primaryLinks) && data.primaryLinks.length > 0
+          ? data.primaryLinks
+          : prev.primaryLinks,
+        secondaryLinks: Array.isArray(data.secondaryLinks) ? data.secondaryLinks : prev.secondaryLinks,
+        cta: data.cta && typeof data.cta === 'object' ? { ...prev.cta, ...data.cta } : prev.cta,
+        mobileMenu: data.mobileMenu && typeof data.mobileMenu === 'object'
+          ? { ...prev.mobileMenu, ...data.mobileMenu }
+          : prev.mobileMenu,
+      }));
+    })
+    .catch(() => {});
+
+  getFooter()
+    .then((data) => {
+      if (!isMounted || !data || typeof data !== 'object') return;
+      setFooterContent((prev) => ({
+        ...prev,
+        ...data,
+        quickLinks: Array.isArray(data.quickLinks) && data.quickLinks.length > 0 ? data.quickLinks : prev.quickLinks,
+        legalLinks: Array.isArray(data.legalLinks) ? data.legalLinks : prev.legalLinks,
+      }));
+    })
+    .catch(() => {});
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
+
   // Data is loaded from DataContext (DataProvider wraps the app in index.js).
   // Admin panel changes are reflected immediately without a rebuild.
 
@@ -100,15 +143,67 @@ useEffect(() => {
     scrollTimeoutsRef.current.push(timeoutId);
   };
 
+  const navLinks = [
+    ...(Array.isArray(navigationContent?.primaryLinks) ? navigationContent.primaryLinks : []),
+    ...(Array.isArray(navigationContent?.secondaryLinks) ? navigationContent.secondaryLinks : []),
+  ];
+  const navCtaLabel = navigationContent?.cta?.label || fallbackNavigation.cta.label;
+  const navCtaAction = navigationContent?.cta?.action || fallbackNavigation.cta.action;
+  const mobileCtaLabel = navigationContent?.mobileMenu?.ctaLabel || fallbackNavigation.mobileMenu.ctaLabel;
+
+  const handleCmsAction = (action, href) => {
+    if (action === 'open-tailor-trip-modal') {
+      scrollToTripTailor();
+      return;
+    }
+
+    if (typeof href === 'string' && href.startsWith('#')) {
+      goToSection(href.replace(/^#/, ''));
+      return;
+    }
+
+    if (typeof href === 'string' && href) {
+      if (/^https?:\/\//i.test(href)) {
+        window.location.assign(href);
+        return;
+      }
+      navigate(href);
+    }
+  };
+
+  const handleNavItemClick = (event, link) => {
+    const href = typeof link?.href === 'string' ? link.href : '';
+    const action = link?.action;
+
+    if (action === 'open-tailor-trip-modal') {
+      event.preventDefault();
+      scrollToTripTailor();
+      return;
+    }
+
+    if (href.startsWith('#')) {
+      event.preventDefault();
+      goToSection(href.replace(/^#/, ''));
+      return;
+    }
+
+    if (href === '/tours' && location.pathname === '/tours') {
+      event.preventDefault();
+      scrollToSectionWithRetry('tours');
+    }
+
+    setMenuOpen(false);
+  };
+
   return (
     <div className="App">
       <nav className={`navbar ${scrolled ? 'scrolled' : ''}`}>
         <div className="nav-container">
           <Link to="/" className="logo-link" onClick={() => { setMenuOpen(false); }}>
-            <img src="/Gold Logo.png?v=5" alt="Egypt Advisor Tours" className="logo-image" />
+            <img src="/Gold Logo.png?v=5" alt={navigationContent.logoText || 'Egypt Advisor Tours'} className="logo-image" />
           </Link>
-          <button 
-            className="hamburger" 
+          <button
+            className="hamburger"
             onClick={() => setMenuOpen(!menuOpen)}
             aria-label="Toggle menu"
             aria-expanded={menuOpen}
@@ -122,31 +217,49 @@ useEffect(() => {
             aria-hidden={!menuOpen}
             inert={!menuOpen ? '' : undefined}
           >
-            <li><Link to="/" onClick={() => { setMenuOpen(false); }}>Home</Link></li>
-            <li>
-              <NavLink
-                to="/tours"
-                onClick={(e) => {
-                  if (location.pathname === '/tours') {
-                    e.preventDefault();
-                    scrollToSectionWithRetry('tours');
-                  }
-                  setMenuOpen(false);
-                }}
-              >
-                Tours
-              </NavLink>
-            </li>
-            <li><NavLink to="/blogs" onClick={() => { setMenuOpen(false); }}>Blogs</NavLink></li>
-            <li><NavLink to="/destinations" onClick={() => { setMenuOpen(false); }}>Destinations</NavLink></li>
-            <li><NavLink to="/special-offers" onClick={() => { setMenuOpen(false); }}>Special Offers</NavLink></li>
-            <li><NavLink to="/about" onClick={() => { setMenuOpen(false); }}>About</NavLink></li>
+            {(navLinks.length > 0 ? navLinks : fallbackNavigation.primaryLinks).map((link, index) => {
+              const href = typeof link?.href === 'string' && link.href ? link.href : '/';
+              const label = link?.label || `Link ${index + 1}`;
+              const key = `${label}-${href}-${index}`;
+
+              if (link?.action === 'open-tailor-trip-modal') {
+                return (
+                  <li key={key}>
+                    <button className="nav-link-button" type="button" onClick={(e) => handleNavItemClick(e, link)}>
+                      {label}
+                    </button>
+                  </li>
+                );
+              }
+
+              if (href.startsWith('http')) {
+                return (
+                  <li key={key}>
+                    <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => handleNavItemClick(e, link)}>
+                      {label}
+                    </a>
+                  </li>
+                );
+              }
+
+              return (
+                <li key={key}>
+                  <NavLink
+                    to={href}
+                    end={href === '/'}
+                    onClick={(e) => handleNavItemClick(e, link)}
+                  >
+                    {label}
+                  </NavLink>
+                </li>
+              );
+            })}
           </ul>
             <button 
               className="contact-btn"
-              onClick={scrollToTripTailor}
+              onClick={() => handleCmsAction(navCtaAction, navigationContent?.cta?.href)}
             >
-              Trip Tailor
+              {navCtaLabel}
             </button>
         </div>
       </nav>
@@ -196,6 +309,7 @@ useEffect(() => {
         <Route path="/special-offers" element={<ErrorBoundary><PromotionsPage onTailorTrip={scrollToTripTailor} /></ErrorBoundary>} />
 
         <Route path="/about" element={<ErrorBoundary><About /></ErrorBoundary>} />
+        <Route path="/faq" element={<ErrorBoundary><Faq onTailorTrip={scrollToTripTailor} /></ErrorBoundary>} />
 
         <Route path="/tours/:id" element={<ErrorBoundary><TourDetail /></ErrorBoundary>} />
 
@@ -209,41 +323,81 @@ useEffect(() => {
       />
 
       {/* Mobile Trip Tailor Button - Fixed at Bottom */}
-      <button 
+      <button
         className="mobile-inquiry-btn"
         onClick={scrollToTripTailor}
       >
-        ✨ Tailor My Trip
+        {mobileCtaLabel}
       </button>
 
       <footer className="footer">
         <div className="footer-content">
           <div className="footer-section">
             <h4>{contactInfo.companyName}</h4>
-            <p>{contactInfo.companyTagline}</p>
+            <p>{footerContent.companyBlurb || contactInfo.companyTagline}</p>
           </div>
           <div className="footer-section">
             <h4>Quick Links</h4>
             <ul>
-              <li>
-                <Link
-                  to="/tours"
-                  onClick={(e) => {
-                    if (location.pathname === '/tours') {
-                      e.preventDefault();
-                      scrollToSectionWithRetry('tours');
-                    }
-                  }}
-                >
-                  Tours
-                </Link>
-              </li>
-              <li><Link to="/blogs">Blogs</Link></li>
-              <li><Link to="/destinations">Destinations</Link></li>
-              <li><Link to="/special-offers">Special Offers</Link></li>
-              <li><Link to="/about">About Us</Link></li>
+              {(Array.isArray(footerContent.quickLinks) ? footerContent.quickLinks : fallbackFooter.quickLinks).map((link, index) => {
+                const href = typeof link?.href === 'string' && link.href ? link.href : '/';
+                const label = link?.label || `Quick Link ${index + 1}`;
+                const key = `${label}-${href}-${index}`;
+
+                if (link?.action === 'open-tailor-trip-modal') {
+                  return (
+                    <li key={key}>
+                      <button className="nav-link-button" type="button" onClick={() => scrollToTripTailor()}>
+                        {label}
+                      </button>
+                    </li>
+                  );
+                }
+
+                if (href.startsWith('http')) {
+                  return (
+                    <li key={key}>
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {label}
+                      </a>
+                    </li>
+                  );
+                }
+
+                return (
+                  <li key={key}>
+                    <Link
+                      to={href}
+                      onClick={(e) => {
+                        if (href === '/tours' && location.pathname === '/tours') {
+                          e.preventDefault();
+                          scrollToSectionWithRetry('tours');
+                        }
+                      }}
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
+          {Array.isArray(footerContent.legalLinks) && footerContent.legalLinks.length > 0 && (
+            <div className="footer-section">
+              <h4>Legal</h4>
+              <ul>
+                {footerContent.legalLinks.map((link, index) => {
+                  const href = typeof link?.href === 'string' && link.href ? link.href : '#';
+                  const label = link?.label || `Legal Link ${index + 1}`;
+                  return (
+                    <li key={`${label}-${href}-${index}`}>
+                      <a href={href}>{label}</a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
           <div className="footer-section">
             <h4>Contact Info</h4>
             <p>📧 {contactInfo.emailPrimary}</p>
@@ -260,7 +414,7 @@ useEffect(() => {
           </div>
         </div>
         <div className="footer-bottom">
-          <p>&copy; 2026 {contactInfo.companyName}. All rights reserved. | Privacy Policy | Terms of Service</p>
+          <p>{footerContent.copyright || fallbackFooter.copyright}</p>
         </div>
       </footer>
     </div>

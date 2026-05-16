@@ -1675,6 +1675,7 @@ app.get('/sitemap.xml', readLimiter, async (req, res) => {
         { path: '/destinations', priority: '0.8', changefreq: 'weekly' },
         { path: '/special-offers', priority: '0.7', changefreq: 'weekly' },
         { path: '/about', priority: '0.7', changefreq: 'monthly' },
+        { path: '/faq', priority: '0.7', changefreq: 'monthly' },
     ];
 
     try {
