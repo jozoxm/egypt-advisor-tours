@@ -45,8 +45,6 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
     };
   }, []);
 
-  if (!isOpen) return null;
-
   const formFields = tailorTripContent?.form?.fields || fallbackTailorTrip.form.fields;
   const travelStyleOptions = useMemo(() => {
     const options = formFields?.travelStyle?.options;
@@ -63,6 +61,8 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
       };
     }).filter((option) => option.value && option.label);
   }, [formFields?.travelStyle?.options]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
