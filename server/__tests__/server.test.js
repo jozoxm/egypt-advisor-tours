@@ -549,6 +549,39 @@ describe('GET /api/tailor-trip', () => {
     });
 });
 
+describe('WordPress read failures for new CMS endpoints', () => {
+    it.each([
+        ['/api/navigation', 'navigation'],
+        ['/api/faq', 'FAQ'],
+        ['/api/tailor-trip', 'tailor trip'],
+        ['/api/homepage', 'homepage'],
+        ['/api/about', 'about'],
+        ['/api/footer', 'footer'],
+    ])('returns 500 for %s when WordPress read fails', async (route, label) => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+
+        try {
+            const res = await request(app).get(route);
+            expect(res.status).toBe(500);
+            expect(res.body.error).toContain(`Failed to read ${label} data from WordPress`);
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
 describe('GET /api/blogs', () => {
     it('returns 200 with blogs array', async () => {
         const res = await request(app).get('/api/blogs');
