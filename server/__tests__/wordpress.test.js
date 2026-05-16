@@ -241,4 +241,132 @@ describe('WordPress namespace and fallback behavior', () => {
 
     expect(result).toEqual({ phone: '+20-12345' });
   });
+
+  it('parses navigation object from stringified acf.payload', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({
+              logoText: 'Egypt Advisor Tours',
+              primaryLinks: [{ label: 'Home', href: '/', type: 'route' }],
+            }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('navigation');
+
+    expect(result).toEqual({
+      logoText: 'Egypt Advisor Tours',
+      primaryLinks: [{ label: 'Home', href: '/', type: 'route' }],
+    });
+  });
+
+  it('normalizes faq object shape with categories wrapper', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({
+              pageTitle: 'Frequently Asked Questions',
+              pageIntro: 'Find answers',
+              categories: [{ title: 'Booking', items: [] }],
+            }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('faq');
+
+    expect(result).toEqual({
+      pageTitle: 'Frequently Asked Questions',
+      pageIntro: 'Find answers',
+      categories: [{ title: 'Booking', items: [] }],
+      contactCta: null,
+    });
+  });
+
+  it('normalizes faq array payload to categories object', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify([
+              { title: 'Booking', items: [{ question: 'Q?', answer: 'A' }] },
+            ]),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('faq');
+
+    expect(result).toEqual({
+      categories: [{ title: 'Booking', items: [{ question: 'Q?', answer: 'A' }] }],
+    });
+  });
+
+  it('parses tailorTrip object from stringified acf.payload', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({
+              hero: { title: 'Tailor Your Egypt Journey' },
+              form: { submitLabel: 'Send My Request' },
+            }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('tailorTrip');
+
+    expect(result).toEqual({
+      hero: { title: 'Tailor Your Egypt Journey' },
+      form: { submitLabel: 'Send My Request' },
+    });
+  });
+
+  it.each(['homepage', 'about', 'footer'])(
+    'normalizes %s as object content',
+    async (resourceKey) => {
+      process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+      delete process.env.WORDPRESS_API_NAMESPACE;
+
+      const { fetchWordpressResource } = require('../wordpress');
+      global.fetch.mockResolvedValueOnce(
+        ok([
+          {
+            acf: {
+              payload: JSON.stringify({ sectionTitle: `${resourceKey} section` }),
+            },
+          },
+        ])
+      );
+
+      const result = await fetchWordpressResource(resourceKey);
+
+      expect(result).toEqual({ sectionTitle: `${resourceKey} section` });
+    }
+  );
 });

@@ -454,6 +454,101 @@ describe('GET /api/contact', () => {
     });
 });
 
+describe('GET /api/navigation', () => {
+    it('returns 200 with WordPress navigation content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ logoText: 'Egypt Advisor Tours' }),
+        });
+
+        try {
+            const res = await request(app).get('/api/navigation');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ logoText: 'Egypt Advisor Tours' });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/faq', () => {
+    it('returns 200 with WordPress faq content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                pageTitle: 'Frequently Asked Questions',
+                categories: [{ title: 'Booking', items: [] }],
+            }),
+        });
+
+        try {
+            const res = await request(app).get('/api/faq');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({
+                pageTitle: 'Frequently Asked Questions',
+                pageIntro: '',
+                categories: [{ title: 'Booking', items: [] }],
+                contactCta: null,
+            });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/tailor-trip', () => {
+    it('returns 200 with WordPress tailor trip content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ hero: { title: 'Tailor Your Egypt Journey' } }),
+        });
+
+        try {
+            const res = await request(app).get('/api/tailor-trip');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ hero: { title: 'Tailor Your Egypt Journey' } });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
 describe('GET /api/blogs', () => {
     it('returns 200 with blogs array', async () => {
         const res = await request(app).get('/api/blogs');
