@@ -124,6 +124,32 @@ describe('WordPress namespace and fallback behavior', () => {
     });
   });
 
+  it('uses parsed stringified acf.payload tours data directly when present', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(
+      ok([
+        {
+          acf: {
+            payload: JSON.stringify({
+              tours: [{ id: 22 }],
+              testimonials: [{ id: 'acf-free-payload' }],
+            }),
+          },
+        },
+      ])
+    );
+
+    const result = await fetchWordpressResource('tours');
+
+    expect(result).toEqual({
+      tours: [{ id: 22 }],
+      testimonials: [{ id: 'acf-free-payload' }],
+    });
+  });
+
   it('uses parsed acf.payload for tours when acf.tours is present but not usable', async () => {
     process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
     delete process.env.WORDPRESS_API_NAMESPACE;
