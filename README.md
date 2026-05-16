@@ -42,6 +42,8 @@ WORDPRESS_BASE_URL=https://cms.egyptadvisortours.com
 WORDPRESS_API_NAMESPACE=ramacf/v1
 ```
 
+When `CMS_PROVIDER=wordpress`, public API content is read directly from WordPress on every request (no filesystem fallback for tours), so site content stays synced with the CMS.
+
 Server read order in WordPress mode:
 
 1. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/<resource>`

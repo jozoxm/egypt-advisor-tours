@@ -86,6 +86,9 @@ jobs:
           if [ "$CMS_PROVIDER" = "storyblok" ] && [ -z "$_STORYBLOK_PREVIEW_TOKEN" ]; then
             missing+=("STORYBLOK_PREVIEW_TOKEN")
           fi
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
+            missing+=("WORDPRESS_BASE_URL")
+          fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             exit 1
@@ -174,6 +177,14 @@ jobs:
           _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
           _WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
           _WORDPRESS_API_NAMESPACE: ${{ secrets.WORDPRESS_API_NAMESPACE }}
+          _WORDPRESS_TOURS_SLUG: ${{ secrets.WORDPRESS_TOURS_SLUG }}
+          _WORDPRESS_CONTACT_SLUG: ${{ secrets.WORDPRESS_CONTACT_SLUG }}
+          _WORDPRESS_BLOGS_SLUG: ${{ secrets.WORDPRESS_BLOGS_SLUG }}
+          _WORDPRESS_GALLERY_SLUG: ${{ secrets.WORDPRESS_GALLERY_SLUG }}
+          _WORDPRESS_SLIDESHOW_SLUG: ${{ secrets.WORDPRESS_SLIDESHOW_SLUG }}
+          _WORDPRESS_SETTINGS_SLUG: ${{ secrets.WORDPRESS_SETTINGS_SLUG }}
+          _WORDPRESS_PROMOTIONS_SLUG: ${{ secrets.WORDPRESS_PROMOTIONS_SLUG }}
+          _WORDPRESS_DESTINATIONS_SLUG: ${{ secrets.WORDPRESS_DESTINATIONS_SLUG }}
           _WORDPRESS_TIMEOUT_MS: ${{ secrets.WORDPRESS_TIMEOUT_MS }}
           _WORDPRESS_HEALTH_TIMEOUT_MS: ${{ secrets.WORDPRESS_HEALTH_TIMEOUT_MS }}
           _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
@@ -219,6 +230,14 @@ jobs:
           [ -n "${_STORYBLOK_PREVIEW_TOKEN}" ] && printf 'STORYBLOK_PREVIEW_TOKEN=%s\n' "${_STORYBLOK_PREVIEW_TOKEN}" >> "$server_env_file"
           [ -n "${_WORDPRESS_BASE_URL}" ] && printf 'WORDPRESS_BASE_URL=%s\n' "${_WORDPRESS_BASE_URL}" >> "$server_env_file"
           [ -n "${_WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${_WORDPRESS_API_NAMESPACE}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_TOURS_SLUG}" ] && printf 'WORDPRESS_TOURS_SLUG=%s\n' "${_WORDPRESS_TOURS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_CONTACT_SLUG}" ] && printf 'WORDPRESS_CONTACT_SLUG=%s\n' "${_WORDPRESS_CONTACT_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_BLOGS_SLUG}" ] && printf 'WORDPRESS_BLOGS_SLUG=%s\n' "${_WORDPRESS_BLOGS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_GALLERY_SLUG}" ] && printf 'WORDPRESS_GALLERY_SLUG=%s\n' "${_WORDPRESS_GALLERY_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_SLIDESHOW_SLUG}" ] && printf 'WORDPRESS_SLIDESHOW_SLUG=%s\n' "${_WORDPRESS_SLIDESHOW_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_SETTINGS_SLUG}" ] && printf 'WORDPRESS_SETTINGS_SLUG=%s\n' "${_WORDPRESS_SETTINGS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_PROMOTIONS_SLUG}" ] && printf 'WORDPRESS_PROMOTIONS_SLUG=%s\n' "${_WORDPRESS_PROMOTIONS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_DESTINATIONS_SLUG}" ] && printf 'WORDPRESS_DESTINATIONS_SLUG=%s\n' "${_WORDPRESS_DESTINATIONS_SLUG}" >> "$server_env_file"
           [ -n "${_WORDPRESS_TIMEOUT_MS}" ] && printf 'WORDPRESS_TIMEOUT_MS=%s\n' "${_WORDPRESS_TIMEOUT_MS}" >> "$server_env_file"
           [ -n "${_WORDPRESS_HEALTH_TIMEOUT_MS}" ] && printf 'WORDPRESS_HEALTH_TIMEOUT_MS=%s\n' "${_WORDPRESS_HEALTH_TIMEOUT_MS}" >> "$server_env_file"
           [ -n "${_ADMIN_USERNAME}" ] && printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"

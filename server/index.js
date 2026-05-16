@@ -574,7 +574,9 @@ function getCmsProvider() {
 }
 
 async function readCmsContent(key, req, jsRegex) {
-    if (getCmsProvider() === 'wordpress') {
+    const provider = getCmsProvider();
+
+    if (provider === 'wordpress') {
         try {
             const wordpressData = await withTimeout(
                 fetchWordpressResource(key),
@@ -588,9 +590,12 @@ async function readCmsContent(key, req, jsRegex) {
         } catch (error) {
             console.warn(`[WordPress] Failed to load "${key}" from WordPress:`, error.message);
         }
+        // In explicit WordPress mode, do not silently fall back to local files.
+        // This keeps website content in sync with the CMS source of truth.
+        return null;
     }
 
-    if (getCmsProvider() === 'storyblok') {
+    if (provider === 'storyblok') {
         try {
             const storyblokData = await withTimeout(
                 fetchStoryblokResource(key, { source: req }),
@@ -1227,6 +1232,9 @@ app.get('/api/tours', readLimiter, async (req, res) => {
     const data = await readCmsContent('tours', req, /export const tours = (\[[\s\S]*?\]);[\s\S]*export const testimonials = (\[[\s\S]*?\]);/);
     if (data) {
         return res.json(data);
+    }
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read tours data from WordPress' });
     }
     // Try extracting separately
     const jsContent = fs.existsSync(JS_FILES.tours) ? fs.readFileSync(JS_FILES.tours, 'utf8') : '';

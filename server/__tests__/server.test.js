@@ -420,6 +420,30 @@ describe('GET /api/tours', () => {
             global.fetch = originalFetch;
         }
     });
+
+    it('does not fall back to local tours when WordPress fetch fails in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+
+        try {
+            const res = await request(app).get('/api/tours');
+            expect(res.status).toBe(500);
+            expect(res.body.error).toContain('WordPress');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
 });
 
 describe('GET /api/contact', () => {
