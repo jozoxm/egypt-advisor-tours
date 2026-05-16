@@ -54,14 +54,9 @@ function normalizeResourceShape(key, data) {
   switch (key) {
     case 'tours':
       if (Array.isArray(data)) return { tours: data, testimonials: [] };
-      if (typeof data !== 'object') return { tours: [], testimonials: [] };
       return {
-        tours: Array.isArray(data.tours)
-          ? data.tours
-          : (Array.isArray(data.tours && data.tours.tours) ? data.tours.tours : []),
-        testimonials: Array.isArray(data.testimonials)
-          ? data.testimonials
-          : (Array.isArray(data.testimonials && data.testimonials.testimonials) ? data.testimonials.testimonials : []),
+        tours: Array.isArray(data.tours) ? data.tours : [],
+        testimonials: Array.isArray(data.testimonials) ? data.testimonials : [],
       };
     case 'blogs':
       if (Array.isArray(data)) return { blogs: data };
@@ -97,11 +92,6 @@ function parseJsonContent(content) {
   }
 }
 
-function parseMaybeJsonValue(value) {
-  if (typeof value !== 'string') return value;
-  return parseJsonContent(value);
-}
-
 function extractWordpressData(key, payload) {
   if (!payload) return null;
 
@@ -109,35 +99,18 @@ function extractWordpressData(key, payload) {
     const first = payload[0];
     if (!first || typeof first !== 'object') return null;
     const acf = first.acf || {};
-    const parsedAcfPayload = parseMaybeJsonValue(acf.payload);
-    const parsedAcfData = parseMaybeJsonValue(acf.data);
-    const hasStructuredToursAcf =
-      key === 'tours' &&
-      typeof acf === 'object' &&
-      !Array.isArray(acf) &&
-      (Object.prototype.hasOwnProperty.call(acf, 'tours') || Object.prototype.hasOwnProperty.call(acf, 'testimonials'));
     return normalizeResourceShape(
       key,
-      (hasStructuredToursAcf ? acf : acf[key]) ||
-      parsedAcfPayload ||
-      parsedAcfData ||
+      acf[key] ||
+      acf.payload ||
+      acf.data ||
       parseJsonContent(first.content && first.content.rendered) ||
       acf
     );
   }
 
   if (typeof payload === 'object') {
-    const parsedPayloadData = parseMaybeJsonValue(payload.data);
-    const parsedPayloadPayload = parseMaybeJsonValue(payload.payload);
-    const hasStructuredToursPayload =
-      key === 'tours' &&
-      !Array.isArray(payload) &&
-      (Object.prototype.hasOwnProperty.call(payload, 'tours') ||
-        Object.prototype.hasOwnProperty.call(payload, 'testimonials'));
-    return normalizeResourceShape(
-      key,
-      (hasStructuredToursPayload ? payload : payload[key]) || parsedPayloadData || parsedPayloadPayload || payload
-    );
+    return normalizeResourceShape(key, payload[key] || payload.data || payload.payload || payload);
   }
 
   return null;
