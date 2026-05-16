@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import emailjs from '@emailjs/browser';
+import { getTailorTrip } from '../api/cms';
+import { fallbackTailorTrip } from '../data/cms-fallbacks';
 
 // EmailJS configuration — set in .env.production / hosting panel.
 const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID          || '';
@@ -9,8 +11,58 @@ const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY     
 const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage]       = useState('');
+  const [tailorTripContent, setTailorTripContent] = useState(fallbackTailorTrip);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getTailorTrip()
+      .then((data) => {
+        if (!isMounted || !data || typeof data !== 'object') return;
+        setTailorTripContent((prev) => ({
+          ...prev,
+          ...data,
+          hero: data.hero && typeof data.hero === 'object' ? { ...prev.hero, ...data.hero } : prev.hero,
+          form: data.form && typeof data.form === 'object'
+            ? {
+                ...prev.form,
+                ...data.form,
+                fields: data.form.fields && typeof data.form.fields === 'object'
+                  ? { ...prev.form.fields, ...data.form.fields }
+                  : prev.form.fields,
+              }
+            : prev.form,
+          contactBlock: data.contactBlock && typeof data.contactBlock === 'object'
+            ? { ...prev.contactBlock, ...data.contactBlock }
+            : prev.contactBlock,
+          highlights: Array.isArray(data.highlights) && data.highlights.length > 0 ? data.highlights : prev.highlights,
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (!isOpen) return null;
+
+  const formFields = tailorTripContent?.form?.fields || fallbackTailorTrip.form.fields;
+  const travelStyleOptions = useMemo(() => {
+    const options = formFields?.travelStyle?.options;
+    if (!Array.isArray(options) || options.length === 0) {
+      return fallbackTailorTrip.form.fields.travelStyle.options;
+    }
+    return options.map((option) => {
+      if (typeof option === 'string') {
+        return { value: option.toLowerCase().replace(/\s+/g, '-'), label: option };
+      }
+      return {
+        value: option?.value || option?.label || '',
+        label: option?.label || option?.value || '',
+      };
+    }).filter((option) => option.value && option.label);
+  }, [formFields?.travelStyle?.options]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,30 +124,45 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
         <button className="close-button" onClick={onClose} aria-label="Close trip tailor form">✕</button>
         <div className="trip-tailor-grid">
           <div className="trip-tailor-copy">
-            <h2>Tailor Your Egypt Journey</h2>
-            <p>Share your dream experiences and we'll craft a bespoke itinerary with expert Egyptologists, luxury stays, and seamless logistics.</p>
+            <h2>{tailorTripContent?.hero?.title || fallbackTailorTrip.hero.title}</h2>
+            <p>{tailorTripContent?.hero?.subtitle || fallbackTailorTrip.hero.subtitle}</p>
             <ul className="trip-highlights">
-              <li>✔️ Private guides & skip-the-line access</li>
-              <li>✔️ Handpicked stays in Cairo, Luxor, Aswan & the Red Sea</li>
-              <li>✔️ Flexible pace with cultural, culinary, and family-friendly options</li>
+              {(Array.isArray(tailorTripContent?.highlights) ? tailorTripContent.highlights : fallbackTailorTrip.highlights).map((highlight, index) => (
+                <li key={`${highlight}-${index}`}>{highlight}</li>
+              ))}
             </ul>
             <div className="trip-contact">
-              <span>📧 {contactInfo.emailPrimary}</span>
-              <span>📞 {contactInfo.phone}</span>
+              {tailorTripContent?.contactBlock?.title ? <strong>{tailorTripContent.contactBlock.title}</strong> : null}
+              {tailorTripContent?.contactBlock?.description ? <span>{tailorTripContent.contactBlock.description}</span> : null}
+              <span>{tailorTripContent?.contactBlock?.emailLabel || fallbackTailorTrip.contactBlock.emailLabel}: {contactInfo.emailPrimary}</span>
+              <span>{tailorTripContent?.contactBlock?.phoneLabel || fallbackTailorTrip.contactBlock.phoneLabel}: {contactInfo.phone}</span>
             </div>
           </div>
 
           <form className="trip-tailor-form" onSubmit={handleSubmit}>
+            <h3>{tailorTripContent?.form?.title || fallbackTailorTrip.form.title}</h3>
             <div className="form-row">
-              <input name="fullName" type="text" placeholder="Full Name" aria-label="Full Name" required />
-              <input name="email" type="email" placeholder="Email Address" aria-label="Email Address" required />
+              <input
+                name="fullName"
+                type="text"
+                placeholder={formFields?.fullName?.placeholder || fallbackTailorTrip.form.fields.fullName.placeholder}
+                aria-label={formFields?.fullName?.label || fallbackTailorTrip.form.fields.fullName.label}
+                required
+              />
+              <input
+                name="email"
+                type="email"
+                placeholder={formFields?.email?.placeholder || fallbackTailorTrip.form.fields.email.placeholder}
+                aria-label={formFields?.email?.label || fallbackTailorTrip.form.fields.email.label}
+                required
+              />
             </div>
             <div className="form-row">
               <input
                 name="phone"
                 type="tel"
-                placeholder="+20 123 456 7890 (WhatsApp)"
-                aria-label="Phone number (international format)"
+                placeholder={formFields?.phone?.placeholder || fallbackTailorTrip.form.fields.phone.placeholder}
+                aria-label={formFields?.phone?.label || fallbackTailorTrip.form.fields.phone.label}
                 required
               />
               <label className="checkbox-item inline-checkbox">
@@ -106,8 +173,8 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
               <input
                 name="travelDates"
                 type="text"
-                placeholder="Preferred travel dates or month (e.g., Oct 2026)"
-                aria-label="Preferred travel dates or month"
+                placeholder={formFields?.travelDates?.placeholder || fallbackTailorTrip.form.fields.travelDates.placeholder}
+                aria-label={formFields?.travelDates?.label || fallbackTailorTrip.form.fields.travelDates.label}
                 required
               />
               <input
@@ -115,18 +182,22 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
                 type="number"
                 min="1"
                 max="50"
-                placeholder="Number of travelers"
-                aria-label="Number of travelers"
+                placeholder={formFields?.travelers?.placeholder || fallbackTailorTrip.form.fields.travelers.placeholder}
+                aria-label={formFields?.travelers?.label || fallbackTailorTrip.form.fields.travelers.label}
                 required
               />
             </div>
             <div className="form-row">
-              <select name="travelStyle" aria-label="Travel style" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Travel style</option>
-                <option value="luxury">Luxury & private</option>
-                <option value="cultural">Cultural immersion</option>
-                <option value="adventure">Adventure & outdoors</option>
-                <option value="family">Family friendly</option>
+              <select
+                name="travelStyle"
+                aria-label={formFields?.travelStyle?.label || fallbackTailorTrip.form.fields.travelStyle.label}
+                defaultValue="placeholder"
+                required
+              >
+                <option value="placeholder" disabled hidden>{formFields?.travelStyle?.placeholder || fallbackTailorTrip.form.fields.travelStyle.placeholder}</option>
+                {travelStyleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
               <select name="accommodation" aria-label="Accommodation preference" defaultValue="placeholder" required>
                 <option value="placeholder" disabled hidden>Accommodation preference</option>
@@ -162,7 +233,12 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
               </select>
             </div>
             <div className="form-row">
-              <input name="mustSee" type="text" placeholder="Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)" aria-label="Must-see sites (optional)" />
+              <input
+                name="mustSee"
+                type="text"
+                placeholder={formFields?.destinations?.placeholder || fallbackTailorTrip.form.fields.destinations.placeholder}
+                aria-label={formFields?.destinations?.label || fallbackTailorTrip.form.fields.destinations.label}
+              />
               <select name="language" aria-label="Guiding language preference" defaultValue="placeholder">
                 <option value="placeholder" disabled hidden>Guiding language (optional)</option>
                 <option value="english">English</option>
@@ -174,11 +250,17 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
               </select>
             </div>
             <div className="form-group">
-              <textarea name="notes" placeholder="Tell us about your ideal Egypt trip, interests, and pace." aria-label="Tell us about your ideal Egypt trip, interests, and pace." rows="4" required></textarea>
+              <textarea
+                name="notes"
+                placeholder={formFields?.notes?.placeholder || fallbackTailorTrip.form.fields.notes.placeholder}
+                aria-label={formFields?.notes?.label || fallbackTailorTrip.form.fields.notes.label}
+                rows="4"
+                required
+              ></textarea>
             </div>
             {message === 'success' && (
               <div className="trip-tailor-success" role="alert">
-                ✓ Thank you! We've received your enquiry and will be in touch within 24 hours.
+                {tailorTripContent?.form?.successMessage || fallbackTailorTrip.form.successMessage}
               </div>
             )}
             {message === 'error' && (
@@ -191,7 +273,11 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
               className="btn btn-primary submit-button"
               disabled={submitting || message === 'success'}
             >
-              {submitting ? 'Sending…' : message === 'success' ? 'Sent ✓' : 'Tailor my trip'}
+              {submitting
+                ? 'Sending…'
+                : message === 'success'
+                  ? 'Sent ✓'
+                  : (tailorTripContent?.form?.submitLabel || fallbackTailorTrip.form.submitLabel)}
             </button>
           </form>
         </div>

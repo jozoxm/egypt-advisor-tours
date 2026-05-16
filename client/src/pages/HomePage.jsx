@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import HeroSlideshow from '../components/HeroSlideshow';
 import ToursSection from './ToursSection';
 import useSeoMeta from '../hooks/useSeoMeta';
 import getSiteUrl from '../utils/siteUrl';
+import { getHomepage } from '../api/cms';
+import { fallbackHomepage } from '../data/cms-fallbacks';
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);
@@ -27,6 +30,67 @@ const HomePage = ({
   onTailorTrip,
 }) => {
   const siteUrl = getSiteUrl();
+  const navigate = useNavigate();
+  const [homepageContent, setHomepageContent] = useState(fallbackHomepage);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getHomepage()
+      .then((data) => {
+        if (!isMounted || !data || typeof data !== 'object') return;
+        setHomepageContent((prev) => ({
+          ...prev,
+          ...data,
+          hero: data.hero && typeof data.hero === 'object' ? { ...prev.hero, ...data.hero } : prev.hero,
+          highlights: Array.isArray(data.highlights) && data.highlights.length > 0 ? data.highlights : prev.highlights,
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const heroContent = useMemo(() => ({
+    ...fallbackHomepage.hero,
+    ...(homepageContent.hero || {}),
+    title: homepageContent?.hero?.title || siteSettings?.hero?.title || fallbackHomepage.hero.title,
+    subtitle: homepageContent?.hero?.subtitle || siteSettings?.hero?.subtitle || fallbackHomepage.hero.subtitle,
+    primaryButtonText:
+      homepageContent?.hero?.primaryButtonText || siteSettings?.hero?.primaryButtonText || fallbackHomepage.hero.primaryButtonText,
+    secondaryButtonText:
+      homepageContent?.hero?.secondaryButtonText || siteSettings?.hero?.secondaryButtonText || fallbackHomepage.hero.secondaryButtonText,
+  }), [homepageContent, siteSettings]);
+
+  const highlights = Array.isArray(homepageContent?.highlights) && homepageContent.highlights.length > 0
+    ? homepageContent.highlights
+    : (Array.isArray(siteSettings?.stats) && siteSettings.stats.length > 0 ? siteSettings.stats : fallbackHomepage.highlights);
+
+  const handlePrimaryHeroAction = () => {
+    const href = heroContent?.primaryButtonHref;
+
+    if (typeof href === 'string' && href.startsWith('#')) {
+      goToSection(href.replace(/^#/, ''));
+      return;
+    }
+
+    if (typeof href === 'string' && href && href !== '/') {
+      navigate(href);
+      return;
+    }
+
+    goToSection('tours');
+  };
+
+  const handleSecondaryHeroAction = () => {
+    if (heroContent?.secondaryButtonAction === 'open-tailor-trip-modal') {
+      onTailorTrip();
+      return;
+    }
+    onTailorTrip();
+  };
 
   useSeoMeta({
     title: null,
@@ -49,36 +113,37 @@ const HomePage = ({
       <HeroSlideshow />
       <div className="hero-overlay"></div>
       <div className="hero-content">
-        <span className="hero-tag">{siteSettings.hero.badge}</span>
-        <h1>{siteSettings.hero.title}</h1>
-        <p>{siteSettings.hero.subtitle}</p>
+        <span className="hero-tag">{siteSettings?.hero?.badge || ''}</span>
+        <h1>{heroContent.title}</h1>
+        <p>{heroContent.subtitle}</p>
         <div className="hero-buttons">
-          <button className="btn btn-primary" onClick={() => goToSection('tours')}>
-            {siteSettings.hero.primaryButtonText}
+          <button className="btn btn-primary" onClick={handlePrimaryHeroAction}>
+            {heroContent.primaryButtonText}
           </button>
-          <button className="btn btn-secondary" onClick={onTailorTrip}>
-            {siteSettings.hero.secondaryButtonText}
+          <button className="btn btn-secondary" onClick={handleSecondaryHeroAction}>
+            {heroContent.secondaryButtonText}
           </button>
         </div>
       </div>
     </section>
 
     <section className="stats">
-      {siteSettings.stats.map((stat, i) => (
+      {highlights.map((stat, i) => (
         <div key={i} className="stat-item">
-          <h3>{stat.value}</h3>
-          <p>{stat.label}</p>
+          <h3>{stat?.value || ''}</h3>
+          <p>{stat?.label || ''}</p>
         </div>
       ))}
     </section>
 
-    <ToursSection
-      filteredTours={filteredTours}
-      tourSearch={tourSearch}
-      setTourSearch={setTourSearch}
-      totalTours={totalTours}
-      toursLoading={toursLoading}
-    />
+      <ToursSection
+        filteredTours={filteredTours}
+        tourSearch={tourSearch}
+        setTourSearch={setTourSearch}
+        totalTours={totalTours}
+        toursLoading={toursLoading}
+        heading={homepageContent?.featuredSectionTitle || fallbackHomepage.featuredSectionTitle}
+      />
 
     <section id="blogs" className="blogs">
       <div className="section-header">
