@@ -1,11 +1,65 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import HeroSlideshow from '../components/HeroSlideshow';
+import { slides as defaultSlides } from '../data/slideshow-data';
 import ToursSection from './ToursSection';
 import useSeoMeta from '../hooks/useSeoMeta';
 import getSiteUrl from '../utils/siteUrl';
 import { getHomepage } from '../api/cms';
 import { fallbackHomepage } from '../data/cms-fallbacks';
+
+const API_URL = process.env.REACT_APP_API_URL || '';
+
+const HeroSlideshow = () => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [slides, setSlides] = useState(defaultSlides);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/slideshow`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data && data.slides && data.slides.length > 0) {
+          setSlides(data.slides);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % slides.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [slides.length]);
+
+  if (slides.length === 0) return null;
+
+  const nextIndex = (currentIndex + 1) % slides.length;
+  const visibleIndices = new Set([currentIndex, nextIndex]);
+
+  return (
+    <div className="hero-slideshow" aria-hidden="true">
+      {slides.map((slide, index) => {
+        if (!visibleIndices.has(index)) return null;
+        const isActive = index === currentIndex;
+        const bgStyle = slide.image
+          ? { backgroundImage: `url("${slide.image}")`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : {};
+        return (
+          <div
+            key={slide.id || slide.name}
+            className={`hero-slide${isActive ? ' active' : ''}`}
+            style={{
+              ...bgStyle,
+              background: slide.image
+                ? `url("${slide.image}") center/cover no-repeat, ${slide.gradient}`
+                : slide.gradient
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+};
 
 const formatBlogDate = (dateString) => {
   const parsedDate = new Date(dateString);

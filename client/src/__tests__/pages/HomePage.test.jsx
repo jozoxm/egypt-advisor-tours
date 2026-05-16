@@ -8,7 +8,6 @@ jest.mock('../../api/cms', () => ({
   getHomepage: jest.fn(),
 }));
 
-jest.mock('../../components/HeroSlideshow', () => () => <div data-testid="hero-slideshow" />);
 jest.mock('../../pages/ToursSection', () => ({ heading }) => <div data-testid="tours-section-heading">{heading}</div>);
 
 const defaultProps = {
@@ -36,6 +35,11 @@ const defaultProps = {
 describe('HomePage', () => {
   beforeEach(() => {
     getHomepage.mockRejectedValue(new Error('offline'));
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   const renderHome = (props = {}) => render(
@@ -43,6 +47,11 @@ describe('HomePage', () => {
       <HomePage {...defaultProps} {...props} />
     </MemoryRouter>
   );
+
+  it('renders the hero slideshow', () => {
+    renderHome();
+    expect(document.querySelector('.hero-slideshow')).toBeInTheDocument();
+  });
 
   it('renders fallback hero values when CMS is unavailable', () => {
     renderHome();
