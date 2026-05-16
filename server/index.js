@@ -1530,6 +1530,60 @@ app.post('/api/settings', writeLimiter, requireAdminAuth, async (req, res) => {
     }
 });
 
+app.get('/api/navigation', readLimiter, async (req, res) => {
+    const data = await readCmsContent('navigation', req);
+    if (data) return res.json(data);
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read navigation data from WordPress' });
+    }
+    return res.status(404).json({ error: 'Navigation content not found' });
+});
+
+app.get('/api/faq', readLimiter, async (req, res) => {
+    const data = await readCmsContent('faq', req);
+    if (data) return res.json(data);
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read FAQ data from WordPress' });
+    }
+    return res.status(404).json({ error: 'FAQ content not found' });
+});
+
+app.get('/api/tailor-trip', readLimiter, async (req, res) => {
+    const data = await readCmsContent('tailorTrip', req);
+    if (data) return res.json(data);
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read tailor trip data from WordPress' });
+    }
+    return res.status(404).json({ error: 'Tailor trip content not found' });
+});
+
+app.get('/api/homepage', readLimiter, async (req, res) => {
+    const data = await readCmsContent('homepage', req);
+    if (data) return res.json(data);
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read homepage data from WordPress' });
+    }
+    return res.status(404).json({ error: 'Homepage content not found' });
+});
+
+app.get('/api/about', readLimiter, async (req, res) => {
+    const data = await readCmsContent('about', req);
+    if (data) return res.json(data);
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read about data from WordPress' });
+    }
+    return res.status(404).json({ error: 'About content not found' });
+});
+
+app.get('/api/footer', readLimiter, async (req, res) => {
+    const data = await readCmsContent('footer', req);
+    if (data) return res.json(data);
+    if (getCmsProvider() === 'wordpress') {
+        return res.status(500).json({ error: 'Failed to read footer data from WordPress' });
+    }
+    return res.status(404).json({ error: 'Footer content not found' });
+});
+
 // ============================================
 // PROMOTIONS API ENDPOINTS
 // ============================================
