@@ -143,7 +143,6 @@ useEffect(() => {
     scrollTimeoutsRef.current.push(timeoutId);
   };
 
-  const mobileMenuEnabled = navigationContent?.mobileMenu?.enabled !== false;
   const navLinks = [
     ...(Array.isArray(navigationContent?.primaryLinks) ? navigationContent.primaryLinks : []),
     ...(Array.isArray(navigationContent?.secondaryLinks) ? navigationContent.secondaryLinks : []),
@@ -164,6 +163,10 @@ useEffect(() => {
     }
 
     if (typeof href === 'string' && href) {
+      if (/^https?:\/\//i.test(href)) {
+        window.location.assign(href);
+        return;
+      }
       navigate(href);
     }
   };
@@ -199,22 +202,20 @@ useEffect(() => {
           <Link to="/" className="logo-link" onClick={() => { setMenuOpen(false); }}>
             <img src="/Gold Logo.png?v=5" alt={navigationContent.logoText || 'Egypt Advisor Tours'} className="logo-image" />
           </Link>
-          {mobileMenuEnabled && (
-            <button
-              className="hamburger"
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="Toggle menu"
-              aria-expanded={menuOpen}
-            >
-              <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
-              <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
-              <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
-            </button>
-          )}
+          <button
+            className="hamburger"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
+            <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
+            <span className={`hamburger-line ${menuOpen ? 'open' : ''}`}></span>
+          </button>
           <ul 
-            className={`nav-menu ${mobileMenuEnabled && menuOpen ? 'mobile-open' : ''}`}
-            aria-hidden={mobileMenuEnabled ? !menuOpen : undefined}
-            inert={mobileMenuEnabled && !menuOpen ? '' : undefined}
+            className={`nav-menu ${menuOpen ? 'mobile-open' : ''}`}
+            aria-hidden={!menuOpen}
+            inert={!menuOpen ? '' : undefined}
           >
             {(navLinks.length > 0 ? navLinks : fallbackNavigation.primaryLinks).map((link, index) => {
               const href = typeof link?.href === 'string' && link.href ? link.href : '/';
@@ -224,7 +225,7 @@ useEffect(() => {
               if (link?.action === 'open-tailor-trip-modal') {
                 return (
                   <li key={key}>
-                    <button type="button" onClick={(e) => handleNavItemClick(e, link)}>
+                    <button className="nav-link-button" type="button" onClick={(e) => handleNavItemClick(e, link)}>
                       {label}
                     </button>
                   </li>
@@ -322,14 +323,12 @@ useEffect(() => {
       />
 
       {/* Mobile Trip Tailor Button - Fixed at Bottom */}
-      {mobileMenuEnabled && (
-        <button
-          className="mobile-inquiry-btn"
-          onClick={scrollToTripTailor}
-        >
-          {mobileCtaLabel}
-        </button>
-      )}
+      <button
+        className="mobile-inquiry-btn"
+        onClick={scrollToTripTailor}
+      >
+        {mobileCtaLabel}
+      </button>
 
       <footer className="footer">
         <div className="footer-content">
@@ -348,7 +347,7 @@ useEffect(() => {
                 if (link?.action === 'open-tailor-trip-modal') {
                   return (
                     <li key={key}>
-                      <button type="button" onClick={() => scrollToTripTailor()}>
+                      <button className="nav-link-button" type="button" onClick={() => scrollToTripTailor()}>
                         {label}
                       </button>
                     </li>

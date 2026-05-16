@@ -65,6 +65,7 @@ describe('SEO discovery endpoints', () => {
         expect(res.status).toBe(200);
         expect(res.headers['content-type']).toMatch(/xml/);
         expect(res.text).toContain(`<loc>${expectedBaseUrl}/tours</loc>`);
+        expect(res.text).toContain(`<loc>${expectedBaseUrl}/faq</loc>`);
         expect(res.text).toContain(`<loc>${expectedBaseUrl}/tours/1</loc>`);
     });
 });

@@ -56,6 +56,7 @@ const HomePage = ({
   const heroContent = useMemo(() => ({
     ...fallbackHomepage.hero,
     ...(homepageContent.hero || {}),
+    badge: homepageContent?.hero?.badge || siteSettings?.hero?.badge || '',
     title: homepageContent?.hero?.title || siteSettings?.hero?.title || fallbackHomepage.hero.title,
     subtitle: homepageContent?.hero?.subtitle || siteSettings?.hero?.subtitle || fallbackHomepage.hero.subtitle,
     primaryButtonText:
@@ -77,6 +78,10 @@ const HomePage = ({
     }
 
     if (typeof href === 'string' && href && href !== '/') {
+      if (/^https?:\/\//i.test(href)) {
+        window.location.assign(href);
+        return;
+      }
       navigate(href);
       return;
     }
@@ -113,7 +118,7 @@ const HomePage = ({
       <HeroSlideshow />
       <div className="hero-overlay"></div>
       <div className="hero-content">
-        <span className="hero-tag">{siteSettings?.hero?.badge || ''}</span>
+        <span className="hero-tag">{heroContent.badge}</span>
         <h1>{heroContent.title}</h1>
         <p>{heroContent.subtitle}</p>
         <div className="hero-buttons">

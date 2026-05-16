@@ -36,6 +36,7 @@ export const fallbackFooter = {
 
 export const fallbackHomepage = {
   hero: {
+    badge: '🌟 Premium Travel Experiences',
     title: 'Discover the Wonders of Ancient Egypt',
     subtitle:
       'Embark on an unforgettable journey through millennia of history, culture, and breathtaking landscapes with expert local guides',
@@ -158,6 +159,9 @@ export const fallbackTailorTrip = {
         label: 'Phone number (international format)',
         placeholder: '+20 123 456 7890 (WhatsApp)',
       },
+      whatsapp: {
+        label: 'WhatsApp',
+      },
       travelDates: {
         label: 'Preferred travel dates or month',
         placeholder: 'Preferred travel dates or month (e.g., Oct 2026)',
@@ -176,9 +180,60 @@ export const fallbackTailorTrip = {
           { value: 'family', label: 'Family friendly' },
         ],
       },
+      accommodation: {
+        label: 'Accommodation preference',
+        placeholder: 'Accommodation preference',
+        options: [
+          { value: 'boutique', label: 'Boutique & character stays' },
+          { value: 'luxury-hotels', label: 'Luxury hotels & resorts' },
+          { value: 'heritage', label: 'Heritage stays & eco-lodges' },
+          { value: 'budget', label: 'Comfort/budget friendly' },
+        ],
+      },
+      interests: {
+        label: 'Travel interests (select all that apply)',
+        options: [
+          { value: 'history', label: 'Ancient history & temples' },
+          { value: 'nile', label: 'Nile cruise experiences' },
+          { value: 'red-sea', label: 'Red Sea beaches & diving' },
+          { value: 'food', label: 'Food & culinary tours' },
+          { value: 'desert', label: 'Desert adventures & oases' },
+          { value: 'family', label: 'Family-friendly activities' },
+        ],
+      },
+      pace: {
+        label: 'Preferred trip pace',
+        placeholder: 'Preferred pace',
+        options: [
+          { value: 'relaxed', label: 'Relaxed (more downtime)' },
+          { value: 'balanced', label: 'Balanced (mix of sights & rest)' },
+          { value: 'packed', label: 'See-it-all (full days)' },
+        ],
+      },
+      budget: {
+        label: 'Budget range',
+        placeholder: 'Budget range',
+        options: [
+          { value: 'premium', label: 'Premium (top-tier)' },
+          { value: 'mid', label: 'Mid-range' },
+          { value: 'value', label: 'Value-focused' },
+        ],
+      },
       destinations: {
         label: 'Must-see sites (optional)',
         placeholder: 'Must-see sites (optional, e.g., Giza, Abu Simbel, Nile cruise)',
+      },
+      language: {
+        label: 'Guiding language preference',
+        placeholder: 'Guiding language (optional)',
+        options: [
+          { value: 'english', label: 'English' },
+          { value: 'arabic', label: 'Arabic' },
+          { value: 'french', label: 'French' },
+          { value: 'spanish', label: 'Spanish' },
+          { value: 'german', label: 'German' },
+          { value: 'other', label: 'Other (share in notes)' },
+        ],
       },
       notes: {
         label: 'Trip notes',

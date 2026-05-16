@@ -8,6 +8,24 @@ const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID     
 const EMAILJS_TRIPTAILOR_TEMPLATE = process.env.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID || '';
 const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY           || '';
 
+const normalizeOptions = (options, fallbackOptions) => {
+  if (!Array.isArray(options) || options.length === 0) {
+    return fallbackOptions;
+  }
+
+  return options
+    .map((option) => {
+      if (typeof option === 'string') {
+        return { value: option.toLowerCase().replace(/\s+/g, '-'), label: option };
+      }
+      return {
+        value: option?.value || option?.label || '',
+        label: option?.label || option?.value || '',
+      };
+    })
+    .filter((option) => option.value && option.label);
+};
+
 const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage]       = useState('');
@@ -46,21 +64,35 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
   }, []);
 
   const formFields = tailorTripContent?.form?.fields || fallbackTailorTrip.form.fields;
-  const travelStyleOptions = useMemo(() => {
-    const options = formFields?.travelStyle?.options;
-    if (!Array.isArray(options) || options.length === 0) {
-      return fallbackTailorTrip.form.fields.travelStyle.options;
-    }
-    return options.map((option) => {
-      if (typeof option === 'string') {
-        return { value: option.toLowerCase().replace(/\s+/g, '-'), label: option };
-      }
-      return {
-        value: option?.value || option?.label || '',
-        label: option?.label || option?.value || '',
-      };
-    }).filter((option) => option.value && option.label);
-  }, [formFields?.travelStyle?.options]);
+  const travelStyleOptions = useMemo(
+    () => normalizeOptions(formFields?.travelStyle?.options, fallbackTailorTrip.form.fields.travelStyle.options),
+    [formFields?.travelStyle?.options]
+  );
+  const accommodationOptions = useMemo(
+    () => normalizeOptions(formFields?.accommodation?.options, fallbackTailorTrip.form.fields.accommodation.options),
+    [formFields?.accommodation?.options]
+  );
+  const paceOptions = useMemo(
+    () => normalizeOptions(formFields?.pace?.options, fallbackTailorTrip.form.fields.pace.options),
+    [formFields?.pace?.options]
+  );
+  const budgetOptions = useMemo(
+    () => normalizeOptions(formFields?.budget?.options, fallbackTailorTrip.form.fields.budget.options),
+    [formFields?.budget?.options]
+  );
+  const languageOptions = useMemo(
+    () => normalizeOptions(formFields?.language?.options, fallbackTailorTrip.form.fields.language.options),
+    [formFields?.language?.options]
+  );
+  const interestOptions = useMemo(
+    () => normalizeOptions(formFields?.interests?.options, fallbackTailorTrip.form.fields.interests.options),
+    [formFields?.interests?.options]
+  );
+  const interestFieldNames = ['interestHistory', 'interestNile', 'interestRedSea', 'interestFood', 'interestDesert', 'interestFamily'];
+  const interestSelections = interestOptions.slice(0, interestFieldNames.length).map((option, index) => ({
+    field: interestFieldNames[index],
+    label: option.label,
+  }));
 
   if (!isOpen) return null;
 
@@ -70,14 +102,10 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
     setMessage('');
 
     const fd = new FormData(e.target);
-    const interests = [
-      fd.get('interestHistory') ? 'Ancient history & temples' : '',
-      fd.get('interestNile')    ? 'Nile cruise' : '',
-      fd.get('interestRedSea')  ? 'Red Sea beaches & diving' : '',
-      fd.get('interestFood')    ? 'Food & culinary' : '',
-      fd.get('interestDesert')  ? 'Desert adventures' : '',
-      fd.get('interestFamily')  ? 'Family-friendly' : '',
-    ].filter(Boolean).join(', ') || 'Not specified';
+    const interests = interestSelections
+      .filter((item) => fd.get(item.field))
+      .map((item) => item.label)
+      .join(', ') || 'Not specified';
 
     const templateParams = {
       full_name:     fd.get('fullName'),
@@ -166,7 +194,12 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
                 required
               />
               <label className="checkbox-item inline-checkbox">
-                <input name="whatsapp" type="checkbox" defaultChecked aria-label="WhatsApp" /> WhatsApp
+                <input
+                  name="whatsapp"
+                  type="checkbox"
+                  defaultChecked
+                  aria-label={formFields?.whatsapp?.label || fallbackTailorTrip.form.fields.whatsapp.label}
+                /> {formFields?.whatsapp?.label || fallbackTailorTrip.form.fields.whatsapp.label}
               </label>
             </div>
             <div className="form-row">
@@ -199,37 +232,58 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
-              <select name="accommodation" aria-label="Accommodation preference" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Accommodation preference</option>
-                <option value="boutique">Boutique & character stays</option>
-                <option value="luxury-hotels">Luxury hotels & resorts</option>
-                <option value="heritage">Heritage stays & eco-lodges</option>
-                <option value="budget">Comfort/budget friendly</option>
+              <select
+                name="accommodation"
+                aria-label={formFields?.accommodation?.label || fallbackTailorTrip.form.fields.accommodation.label}
+                defaultValue="placeholder"
+                required
+              >
+                <option value="placeholder" disabled hidden>
+                  {formFields?.accommodation?.placeholder || fallbackTailorTrip.form.fields.accommodation.placeholder}
+                </option>
+                {accommodationOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
             <div className="form-group checkbox-group">
-              <span className="field-label">Travel interests (select all that apply)</span>
+              <span className="field-label">{formFields?.interests?.label || fallbackTailorTrip.form.fields.interests.label}</span>
               <div className="options-grid spacious-options">
-                <label className="checkbox-item"><input name="interestHistory" type="checkbox" /> Ancient history & temples</label>
-                <label className="checkbox-item"><input name="interestNile" type="checkbox" /> Nile cruise experiences</label>
-                <label className="checkbox-item"><input name="interestRedSea" type="checkbox" /> Red Sea beaches & diving</label>
-                <label className="checkbox-item"><input name="interestFood" type="checkbox" /> Food & culinary tours</label>
-                <label className="checkbox-item"><input name="interestDesert" type="checkbox" /> Desert adventures & oases</label>
-                <label className="checkbox-item"><input name="interestFamily" type="checkbox" /> Family-friendly activities</label>
+                {interestOptions.slice(0, interestFieldNames.length).map((option, index) => (
+                  <label className="checkbox-item" key={`${option.value}-${index}`}>
+                    <input name={interestFieldNames[index]} type="checkbox" />
+                    {' '}
+                    {option.label}
+                  </label>
+                ))}
               </div>
             </div>
             <div className="form-row">
-              <select name="pace" aria-label="Preferred trip pace" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Preferred pace</option>
-                <option value="relaxed">Relaxed (more downtime)</option>
-                <option value="balanced">Balanced (mix of sights & rest)</option>
-                <option value="packed">See-it-all (full days)</option>
+              <select
+                name="pace"
+                aria-label={formFields?.pace?.label || fallbackTailorTrip.form.fields.pace.label}
+                defaultValue="placeholder"
+                required
+              >
+                <option value="placeholder" disabled hidden>
+                  {formFields?.pace?.placeholder || fallbackTailorTrip.form.fields.pace.placeholder}
+                </option>
+                {paceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
-              <select name="budget" aria-label="Budget range" defaultValue="placeholder" required>
-                <option value="placeholder" disabled hidden>Budget range</option>
-                <option value="premium">Premium (top-tier)</option>
-                <option value="mid">Mid-range</option>
-                <option value="value">Value-focused</option>
+              <select
+                name="budget"
+                aria-label={formFields?.budget?.label || fallbackTailorTrip.form.fields.budget.label}
+                defaultValue="placeholder"
+                required
+              >
+                <option value="placeholder" disabled hidden>
+                  {formFields?.budget?.placeholder || fallbackTailorTrip.form.fields.budget.placeholder}
+                </option>
+                {budgetOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
             <div className="form-row">
@@ -239,14 +293,17 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
                 placeholder={formFields?.destinations?.placeholder || fallbackTailorTrip.form.fields.destinations.placeholder}
                 aria-label={formFields?.destinations?.label || fallbackTailorTrip.form.fields.destinations.label}
               />
-              <select name="language" aria-label="Guiding language preference" defaultValue="placeholder">
-                <option value="placeholder" disabled hidden>Guiding language (optional)</option>
-                <option value="english">English</option>
-                <option value="arabic">Arabic</option>
-                <option value="french">French</option>
-                <option value="spanish">Spanish</option>
-                <option value="german">German</option>
-                <option value="other">Other (share in notes)</option>
+              <select
+                name="language"
+                aria-label={formFields?.language?.label || fallbackTailorTrip.form.fields.language.label}
+                defaultValue="placeholder"
+              >
+                <option value="placeholder" disabled hidden>
+                  {formFields?.language?.placeholder || fallbackTailorTrip.form.fields.language.placeholder}
+                </option>
+                {languageOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
             <div className="form-group">
