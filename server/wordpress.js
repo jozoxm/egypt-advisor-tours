@@ -9,6 +9,12 @@ const WORDPRESS_SLUGS = {
   settings: process.env.WORDPRESS_SETTINGS_SLUG || 'cms-settings',
   promotions: process.env.WORDPRESS_PROMOTIONS_SLUG || 'cms-promotions',
   destinations: process.env.WORDPRESS_DESTINATIONS_SLUG || 'cms-destinations',
+  navigation: process.env.WORDPRESS_NAVIGATION_SLUG || 'cms-navigation',
+  faq: process.env.WORDPRESS_FAQ_SLUG || 'cms-faq',
+  tailorTrip: process.env.WORDPRESS_TAILOR_TRIP_SLUG || 'cms-tailor-trip',
+  homepage: process.env.WORDPRESS_HOMEPAGE_SLUG || 'cms-homepage',
+  about: process.env.WORDPRESS_ABOUT_SLUG || 'cms-about',
+  footer: process.env.WORDPRESS_FOOTER_SLUG || 'cms-footer',
 };
 
 function normalizeBaseUrl(rawUrl) {
@@ -80,7 +86,22 @@ function normalizeResourceShape(key, data) {
       return data.destinations ? data : { destinations: [] };
     case 'contact':
     case 'settings':
+    case 'navigation':
+    case 'tailorTrip':
+    case 'homepage':
+    case 'about':
+    case 'footer':
       return (typeof data === 'object' && !Array.isArray(data)) ? data : null;
+    case 'faq':
+      if (Array.isArray(data)) return { categories: data };
+      return (typeof data === 'object' && !Array.isArray(data))
+        ? {
+            pageTitle: data.pageTitle || '',
+            pageIntro: data.pageIntro || '',
+            categories: Array.isArray(data.categories) ? data.categories : [],
+            contactCta: data.contactCta || null,
+          }
+        : { categories: [] };
     default:
       return data;
   }

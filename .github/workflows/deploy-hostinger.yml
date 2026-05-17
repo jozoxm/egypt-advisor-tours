@@ -185,6 +185,12 @@ jobs:
           _WORDPRESS_SETTINGS_SLUG: ${{ secrets.WORDPRESS_SETTINGS_SLUG }}
           _WORDPRESS_PROMOTIONS_SLUG: ${{ secrets.WORDPRESS_PROMOTIONS_SLUG }}
           _WORDPRESS_DESTINATIONS_SLUG: ${{ secrets.WORDPRESS_DESTINATIONS_SLUG }}
+          _WORDPRESS_NAVIGATION_SLUG: ${{ secrets.WORDPRESS_NAVIGATION_SLUG }}
+          _WORDPRESS_FAQ_SLUG: ${{ secrets.WORDPRESS_FAQ_SLUG }}
+          _WORDPRESS_TAILOR_TRIP_SLUG: ${{ secrets.WORDPRESS_TAILOR_TRIP_SLUG }}
+          _WORDPRESS_HOMEPAGE_SLUG: ${{ secrets.WORDPRESS_HOMEPAGE_SLUG }}
+          _WORDPRESS_ABOUT_SLUG: ${{ secrets.WORDPRESS_ABOUT_SLUG }}
+          _WORDPRESS_FOOTER_SLUG: ${{ secrets.WORDPRESS_FOOTER_SLUG }}
           _WORDPRESS_TIMEOUT_MS: ${{ secrets.WORDPRESS_TIMEOUT_MS }}
           _WORDPRESS_HEALTH_TIMEOUT_MS: ${{ secrets.WORDPRESS_HEALTH_TIMEOUT_MS }}
           _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
@@ -238,6 +244,12 @@ jobs:
           [ -n "${_WORDPRESS_SETTINGS_SLUG}" ] && printf 'WORDPRESS_SETTINGS_SLUG=%s\n' "${_WORDPRESS_SETTINGS_SLUG}" >> "$server_env_file"
           [ -n "${_WORDPRESS_PROMOTIONS_SLUG}" ] && printf 'WORDPRESS_PROMOTIONS_SLUG=%s\n' "${_WORDPRESS_PROMOTIONS_SLUG}" >> "$server_env_file"
           [ -n "${_WORDPRESS_DESTINATIONS_SLUG}" ] && printf 'WORDPRESS_DESTINATIONS_SLUG=%s\n' "${_WORDPRESS_DESTINATIONS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_NAVIGATION_SLUG}" ] && printf 'WORDPRESS_NAVIGATION_SLUG=%s\n' "${_WORDPRESS_NAVIGATION_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_FAQ_SLUG}" ] && printf 'WORDPRESS_FAQ_SLUG=%s\n' "${_WORDPRESS_FAQ_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_TAILOR_TRIP_SLUG}" ] && printf 'WORDPRESS_TAILOR_TRIP_SLUG=%s\n' "${_WORDPRESS_TAILOR_TRIP_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_HOMEPAGE_SLUG}" ] && printf 'WORDPRESS_HOMEPAGE_SLUG=%s\n' "${_WORDPRESS_HOMEPAGE_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_ABOUT_SLUG}" ] && printf 'WORDPRESS_ABOUT_SLUG=%s\n' "${_WORDPRESS_ABOUT_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_FOOTER_SLUG}" ] && printf 'WORDPRESS_FOOTER_SLUG=%s\n' "${_WORDPRESS_FOOTER_SLUG}" >> "$server_env_file"
           [ -n "${_WORDPRESS_TIMEOUT_MS}" ] && printf 'WORDPRESS_TIMEOUT_MS=%s\n' "${_WORDPRESS_TIMEOUT_MS}" >> "$server_env_file"
           [ -n "${_WORDPRESS_HEALTH_TIMEOUT_MS}" ] && printf 'WORDPRESS_HEALTH_TIMEOUT_MS=%s\n' "${_WORDPRESS_HEALTH_TIMEOUT_MS}" >> "$server_env_file"
           [ -n "${_ADMIN_USERNAME}" ] && printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"
