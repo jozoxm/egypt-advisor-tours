@@ -43,6 +43,7 @@ jobs:
         with:
           ref: data-backup
           fetch-depth: 1
+          submodules: false
 
       - name: Add Hostinger to known_hosts
         run: |
