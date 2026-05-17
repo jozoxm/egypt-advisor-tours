@@ -68,6 +68,52 @@ describe('WordPress namespace and fallback behavior', () => {
     ]);
   });
 
+  it('uses custom WORDPRESS_FOOTER_SLUG for wp/v2 fallback', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    process.env.WORDPRESS_FOOTER_SLUG = 'custom-footer-slug';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(ok([{ acf: { copyright: '© Egypt Advisor Tours' } }]));
+
+    await fetchWordpressResource('footer');
+
+    expect(global.fetch.mock.calls.map(([url]) => url)).toContain(
+      'https://cms.egyptadvisortours.com/wp-json/wp/v2/pages?slug=custom-footer-slug&_fields=acf,content'
+    );
+  });
+
+  it('uses configured slug fallback for footer without throwing', async () => {
+    process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(notFound())
+      .mockResolvedValueOnce(
+        ok([
+          {
+            acf: {
+              payload: JSON.stringify({ copyright: '© Egypt Advisor Tours' }),
+            },
+          },
+        ])
+      );
+
+    const result = await fetchWordpressResource('footer');
+
+    expect(result).toEqual({ copyright: '© Egypt Advisor Tours' });
+    expect(global.fetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://cms.egyptadvisortours.com/wp-json/ramacf/v1/footer',
+      'https://cms.egyptadvisortours.com/wp-json/ramacf/v1/content/footer',
+      'https://cms.egyptadvisortours.com/wp-json/wp/v2/pages?slug=cms-footer&_fields=acf,content',
+    ]);
+  });
+
   it('parses structured acf tours and testimonials sibling fields', async () => {
     process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
     delete process.env.WORDPRESS_API_NAMESPACE;

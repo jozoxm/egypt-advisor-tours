@@ -635,6 +635,36 @@ describe('GET /api/footer', () => {
             global.fetch = originalFetch;
         }
     });
+
+    it('returns 200 for /api/footer when wp namespace endpoints fail but page slug fallback succeeds', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn()
+            .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+            .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ([{ acf: { payload: JSON.stringify({ copyright: '© Egypt Advisor Tours' }) } }]),
+            });
+
+        try {
+            const res = await request(app).get('/api/footer');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ copyright: '© Egypt Advisor Tours' });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
 });
 
 describe('WordPress read failures for new CMS endpoints', () => {
