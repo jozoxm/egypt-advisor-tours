@@ -214,25 +214,8 @@ async function fetchWordpressResource(key) {
     throw new Error('WordPress is not configured.');
   }
 
- const WORDPRESS_SLUGS = {
-  tours: process.env.WORDPRESS_TOURS_SLUG || 'cms-tours',
-  contact: process.env.WORDPRESS_CONTACT_SLUG || 'cms-contact',
-  blogs: process.env.WORDPRESS_BLOGS_SLUG || 'cms-blogs',
-  gallery: process.env.WORDPRESS_GALLERY_SLUG || 'cms-gallery',
-  slideshow: process.env.WORDPRESS_SLIDESHOW_SLUG || 'cms-slideshow',
-  settings: process.env.WORDPRESS_SETTINGS_SLUG || 'cms-settings',
-  promotions: process.env.WORDPRESS_PROMOTIONS_SLUG || 'cms-promotions',
-  destinations: process.env.WORDPRESS_DESTINATIONS_SLUG || 'cms-destinations',
-
-  navigation: process.env.WORDPRESS_NAVIGATION_SLUG || 'cms-navigation',
-  faq: process.env.WORDPRESS_FAQ_SLUG || 'cms-faq',
-  tailorTrip: process.env.WORDPRESS_TAILOR_TRIP_SLUG || 'cms-tailor-trip',
-
-  homepage: process.env.WORDPRESS_HOMEPAGE_SLUG || 'cms-homepage',
-  about: process.env.WORDPRESS_ABOUT_SLUG || 'cms-about',
-  footer: process.env.WORDPRESS_FOOTER_SLUG || 'cms-footer'
-};
   const namespace = getWordpressApiNamespace();
+  const slug = WORDPRESS_SLUGS[key] || key;
   const candidates = [
     `${baseUrl}/wp-json/${namespace}/${key}`,
     `${baseUrl}/wp-json/${namespace}/content/${key}`,
