@@ -368,6 +368,135 @@ jobs:
           run_check "https://egyptadvisortours.com/admin" "redirect-ok"
           echo "Admin route: OK"
 
+      - name: One-shot post-deploy debug snapshot
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          BASE_URL="https://egyptadvisortours.com"
+
+          echo "=== Public endpoint checks ==="
+          check_public() {
+            local path="$1"
+            local url="${BASE_URL}${path}"
+            local body_file
+            body_file=$(mktemp)
+            local status
+            status=$(curl -sS -L --max-time 25 -o "$body_file" -w "%{http_code}" "$url" || echo "000")
+            snippet=$(head -c 180 "$body_file" | tr '\n' ' ')
+            rm -f "$body_file"
+            echo "PUBLIC ${path} -> HTTP ${status} :: ${snippet}"
+          }
+          check_public "/health"
+          check_public "/api/admin/health"
+          check_public "/api/tours"
+          check_public "/api/navigation"
+          check_public "/api/homepage"
+          check_public "/api/about"
+          check_public "/api/footer"
+
+          echo "=== Hostinger process/env/local checks ==="
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$DEPLOY_DIR'" <<'EOF'
+          set -eu
+          DEPLOY_DIR="$1"
+          ENV_FILE="${DEPLOY_DIR}/.env"
+
+          get_env() {
+            local key="$1"
+            if [ -f "$ENV_FILE" ]; then
+              sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1
+            fi
+          }
+
+          check_local() {
+            local path="$1"
+            local body_file
+            body_file=$(mktemp)
+            local status
+            status=$(curl -sS --max-time 20 -o "$body_file" -w "%{http_code}" "http://127.0.0.1:5000${path}" || echo "000")
+            local snippet
+            snippet=$(head -c 180 "$body_file" | tr '\n' ' ')
+            rm -f "$body_file"
+            echo "LOCAL  ${path} -> HTTP ${status} :: ${snippet}"
+          }
+
+          echo "--- Process snapshot ---"
+          ps -eo pid,ppid,cmd | grep -E '[n]ode|[p]m2|[p]assenger' || true
+          NODE_COUNT=$(ps -eo cmd | grep -E '[n]ode .*start\.js|[n]ode .*server/index\.js' | wc -l | tr -d '[:space:]')
+          echo "Detected Node app process count: ${NODE_COUNT:-0}"
+          if [ "${NODE_COUNT:-0}" -gt 1 ]; then
+            echo "::warning::Multiple Node app processes detected; verify process manager has a single app instance during debugging."
+          fi
+
+          echo "--- Effective CMS env snapshot (.env presence only) ---"
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "::warning::.env missing at ${ENV_FILE}"
+          fi
+          CMS_PROVIDER=$(get_env CMS_PROVIDER)
+          CMS_PROVIDER=${CMS_PROVIDER:-auto}
+          echo "CMS_PROVIDER=${CMS_PROVIDER}"
+          if [ "$CMS_PROVIDER" = "auto" ]; then
+            echo "::warning::CMS_PROVIDER is auto; set an explicit provider (wordpress/storyblok/filesystem) during debug runs."
+          fi
+
+          WORDPRESS_BASE_URL=$(get_env WORDPRESS_BASE_URL)
+          WORDPRESS_API_NAMESPACE=$(get_env WORDPRESS_API_NAMESPACE)
+          WORDPRESS_API_NAMESPACE=${WORDPRESS_API_NAMESPACE:-ramacf/v1}
+          STORYBLOK_PREVIEW_TOKEN=$(get_env STORYBLOK_PREVIEW_TOKEN)
+          STORYBLOK_SPACE_ID=$(get_env STORYBLOK_SPACE_ID)
+          STORYBLOK_REGION=$(get_env STORYBLOK_REGION)
+          STORYBLOK_REGION=${STORYBLOK_REGION:-eu}
+
+          if [ "$CMS_PROVIDER" = "wordpress" ]; then
+            [ -n "$WORDPRESS_BASE_URL" ] || echo "::warning::WORDPRESS_BASE_URL is empty while CMS_PROVIDER=wordpress."
+          fi
+          if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
+            [ -n "$STORYBLOK_PREVIEW_TOKEN" ] || echo "::warning::STORYBLOK_PREVIEW_TOKEN is empty for storyblok/auto mode."
+          fi
+          [ -n "$WORDPRESS_API_NAMESPACE" ] || echo "::warning::WORDPRESS_API_NAMESPACE is empty."
+
+          for key in WORDPRESS_TOURS_SLUG WORDPRESS_NAVIGATION_SLUG WORDPRESS_HOMEPAGE_SLUG WORDPRESS_ABOUT_SLUG WORDPRESS_FOOTER_SLUG; do
+            value=$(get_env "$key")
+            if [ -z "$value" ]; then
+              echo "::warning::${key} not set in .env (default slug behavior will be used)."
+            fi
+          done
+
+          echo "--- Local endpoint checks (Hostinger localhost) ---"
+          check_local "/health"
+          check_local "/api/admin/health"
+          check_local "/api/tours"
+          check_local "/api/navigation"
+          check_local "/api/homepage"
+          check_local "/api/about"
+          check_local "/api/footer"
+
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -n "$WORDPRESS_BASE_URL" ]; then
+            echo "--- WordPress upstream reachability ---"
+            for url in \
+              "${WORDPRESS_BASE_URL%/}/wp-json/" \
+              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/" \
+              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/tours" \
+              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/navigation" \
+              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/homepage" \
+              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/about" \
+              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/footer"
+            do
+              status=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000")
+              echo "WORDPRESS ${url} -> HTTP ${status}"
+            done
+          fi
+
+          if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
+            echo "--- Storyblok config presence ---"
+            [ -n "$STORYBLOK_SPACE_ID" ] && echo "STORYBLOK_SPACE_ID is set" || echo "::warning::STORYBLOK_SPACE_ID missing."
+            [ -n "$STORYBLOK_PREVIEW_TOKEN" ] && echo "STORYBLOK_PREVIEW_TOKEN is set" || echo "::warning::STORYBLOK_PREVIEW_TOKEN missing."
+            echo "STORYBLOK_REGION=${STORYBLOK_REGION}"
+          fi
+          EOF
+
       - name: Deployment summary
         run: |
           echo "✅ Deployed to https://egyptadvisortours.com"

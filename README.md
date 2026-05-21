@@ -191,3 +191,25 @@ npm run test:server -- --watchAll=false --forceExit
 npm run test:client -- --watchAll=false --passWithNoTests
 npm run build
 ```
+
+## Hostinger one-shot debug snapshot
+
+The Hostinger deploy workflow now runs a post-deploy debug snapshot that logs:
+
+- Node/process count on Hostinger (to catch accidental double app instances)
+- Effective CMS env presence checks (`CMS_PROVIDER`, provider-specific keys, slug vars)
+- Public endpoint status + short body snippets for:
+  - `/health`
+  - `/api/admin/health`
+  - `/api/tours`
+  - `/api/navigation`
+  - `/api/homepage`
+  - `/api/about`
+  - `/api/footer`
+- Same endpoint checks from Hostinger localhost (`127.0.0.1:5000`)
+- WordPress upstream reachability checks when `CMS_PROVIDER=wordpress`
+
+Use this snapshot after each redeploy to quickly separate:
+
+- app/config or CMS connectivity issues (both public + localhost failing),
+- vs. proxy/domain routing issues (public failing but localhost healthy).
