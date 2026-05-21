@@ -415,7 +415,7 @@ jobs:
             local body_file
             body_file=$(mktemp)
             local status
-            status=$(curl -sS --max-time 20 -o "$body_file" -w "%{http_code}" "http://127.0.0.1:5000${path}" || echo "000")
+            status=$(curl -sS --max-time 20 -o "$body_file" -w "%{http_code}" "http://127.0.0.1:${PORT}${path}" || echo "000")
             local snippet
             snippet=$(head -c 180 "$body_file" | tr '\n' ' ')
             rm -f "$body_file"
@@ -448,6 +448,8 @@ jobs:
           STORYBLOK_SPACE_ID=$(get_env STORYBLOK_SPACE_ID)
           STORYBLOK_REGION=$(get_env STORYBLOK_REGION)
           STORYBLOK_REGION=${STORYBLOK_REGION:-eu}
+          PORT=$(get_env PORT)
+          PORT=${PORT:-5000}
 
           if [ "$CMS_PROVIDER" = "wordpress" ]; then
             [ -n "$WORDPRESS_BASE_URL" ] || echo "::warning::WORDPRESS_BASE_URL is empty while CMS_PROVIDER=wordpress."
