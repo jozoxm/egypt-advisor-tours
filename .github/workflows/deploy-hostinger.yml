@@ -442,6 +442,7 @@ jobs:
           fi
 
           WORDPRESS_BASE_URL=$(get_env WORDPRESS_BASE_URL)
+          WORDPRESS_DEFAULT_BASE_URL="https://cms.egyptadvisortours.com"
           WORDPRESS_API_NAMESPACE=$(get_env WORDPRESS_API_NAMESPACE)
           WORDPRESS_API_NAMESPACE=${WORDPRESS_API_NAMESPACE:-ramacf/v1}
           STORYBLOK_PREVIEW_TOKEN=$(get_env STORYBLOK_PREVIEW_TOKEN)
@@ -450,10 +451,19 @@ jobs:
           STORYBLOK_REGION=${STORYBLOK_REGION:-eu}
           PORT=$(get_env PORT)
           PORT=${PORT:-5000}
+          EFFECTIVE_WORDPRESS_BASE_URL="$WORDPRESS_BASE_URL"
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$EFFECTIVE_WORDPRESS_BASE_URL" ]; then
+            EFFECTIVE_WORDPRESS_BASE_URL="$WORDPRESS_DEFAULT_BASE_URL"
+          fi
 
           if [ "$CMS_PROVIDER" = "wordpress" ]; then
-            [ -n "$WORDPRESS_BASE_URL" ] || echo "::warning::WORDPRESS_BASE_URL is empty while CMS_PROVIDER=wordpress."
+            if [ -n "$WORDPRESS_BASE_URL" ]; then
+              echo "WORDPRESS_BASE_URL source=.env"
+            else
+              echo "::notice::WORDPRESS_BASE_URL is empty while CMS_PROVIDER=wordpress; using repo default ${EFFECTIVE_WORDPRESS_BASE_URL}."
+            fi
           fi
+          [ -n "$EFFECTIVE_WORDPRESS_BASE_URL" ] && echo "WORDPRESS_BASE_URL_EFFECTIVE=${EFFECTIVE_WORDPRESS_BASE_URL}" || echo "::warning::Effective WordPress base URL is empty."
           if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
             [ -n "$STORYBLOK_PREVIEW_TOKEN" ] || echo "::warning::STORYBLOK_PREVIEW_TOKEN is empty for storyblok/auto mode."
           fi
@@ -475,16 +485,34 @@ jobs:
           check_local "/api/about"
           check_local "/api/footer"
 
-          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -n "$WORDPRESS_BASE_URL" ]; then
+          echo "--- Filesystem fallback presence checks ---"
+          SERVER_DATA_DIR="${DEPLOY_DIR}/server/data"
+          CLIENT_DATA_DIR="${DEPLOY_DIR}/client/src/data"
+          SERVER_DATA_JSON_COUNT=$(find "$SERVER_DATA_DIR" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d '[:space:]')
+          CLIENT_DATA_JS_COUNT=$(find "$CLIENT_DATA_DIR" -maxdepth 1 -type f -name '*.js' 2>/dev/null | wc -l | tr -d '[:space:]')
+          echo "server/data/*.json count: ${SERVER_DATA_JSON_COUNT:-0}"
+          echo "client/src/data/*.js count: ${CLIENT_DATA_JS_COUNT:-0}"
+          if [ "${SERVER_DATA_JSON_COUNT:-0}" -eq 0 ]; then
+            echo "::warning::No server/data/*.json files found at ${SERVER_DATA_DIR}; filesystem CMS fallback may be missing."
+          else
+            find "$SERVER_DATA_DIR" -maxdepth 1 -type f -name '*.json' | sort | head -n 5
+          fi
+          if [ "${CLIENT_DATA_JS_COUNT:-0}" -eq 0 ]; then
+            echo "::warning::No client/src/data/*.js files found at ${CLIENT_DATA_DIR}; client fallback content may be missing."
+          else
+            find "$CLIENT_DATA_DIR" -maxdepth 1 -type f -name '*.js' | sort | head -n 8
+          fi
+
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -n "$EFFECTIVE_WORDPRESS_BASE_URL" ]; then
             echo "--- WordPress upstream reachability ---"
             for url in \
-              "${WORDPRESS_BASE_URL%/}/wp-json/" \
-              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/" \
-              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/tours" \
-              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/navigation" \
-              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/homepage" \
-              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/about" \
-              "${WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/footer"
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/tours" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/navigation" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/homepage" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/about" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/footer"
             do
               status=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000")
               echo "WORDPRESS ${url} -> HTTP ${status}"
