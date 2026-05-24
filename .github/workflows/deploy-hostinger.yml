@@ -442,28 +442,24 @@ jobs:
           fi
 
           WORDPRESS_BASE_URL=$(get_env WORDPRESS_BASE_URL)
-          WORDPRESS_DEFAULT_BASE_URL="https://cms.egyptadvisortours.com"
           WORDPRESS_API_NAMESPACE=$(get_env WORDPRESS_API_NAMESPACE)
           WORDPRESS_API_NAMESPACE=${WORDPRESS_API_NAMESPACE:-ramacf/v1}
+          EFFECTIVE_WORDPRESS_BASE_URL=${WORDPRESS_BASE_URL:-https://cms.egyptadvisortours.com}
           STORYBLOK_PREVIEW_TOKEN=$(get_env STORYBLOK_PREVIEW_TOKEN)
           STORYBLOK_SPACE_ID=$(get_env STORYBLOK_SPACE_ID)
           STORYBLOK_REGION=$(get_env STORYBLOK_REGION)
           STORYBLOK_REGION=${STORYBLOK_REGION:-eu}
           PORT=$(get_env PORT)
           PORT=${PORT:-5000}
-          EFFECTIVE_WORDPRESS_BASE_URL="$WORDPRESS_BASE_URL"
-          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$EFFECTIVE_WORDPRESS_BASE_URL" ]; then
-            EFFECTIVE_WORDPRESS_BASE_URL="$WORDPRESS_DEFAULT_BASE_URL"
-          fi
 
           if [ "$CMS_PROVIDER" = "wordpress" ]; then
             if [ -n "$WORDPRESS_BASE_URL" ]; then
-              echo "WORDPRESS_BASE_URL source=.env"
+              echo "WORDPRESS_BASE_URL is explicitly set"
             else
-              echo "::notice::WORDPRESS_BASE_URL is empty while CMS_PROVIDER=wordpress; using repo default ${EFFECTIVE_WORDPRESS_BASE_URL}."
+              echo "::notice::WORDPRESS_BASE_URL is unset; using default ${EFFECTIVE_WORDPRESS_BASE_URL}"
             fi
+            echo "EFFECTIVE_WORDPRESS_BASE_URL=${EFFECTIVE_WORDPRESS_BASE_URL}"
           fi
-          [ -n "$EFFECTIVE_WORDPRESS_BASE_URL" ] && echo "WORDPRESS_BASE_URL_EFFECTIVE=${EFFECTIVE_WORDPRESS_BASE_URL}" || echo "::warning::Effective WordPress base URL is empty."
           if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
             [ -n "$STORYBLOK_PREVIEW_TOKEN" ] || echo "::warning::STORYBLOK_PREVIEW_TOKEN is empty for storyblok/auto mode."
           fi
@@ -485,25 +481,50 @@ jobs:
           check_local "/api/about"
           check_local "/api/footer"
 
-          echo "--- Filesystem fallback presence checks ---"
-          SERVER_DATA_DIR="${DEPLOY_DIR}/server/data"
-          CLIENT_DATA_DIR="${DEPLOY_DIR}/client/src/data"
-          SERVER_DATA_JSON_COUNT=$(find "$SERVER_DATA_DIR" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d '[:space:]')
-          CLIENT_DATA_JS_COUNT=$(find "$CLIENT_DATA_DIR" -maxdepth 1 -type f -name '*.js' 2>/dev/null | wc -l | tr -d '[:space:]')
-          echo "server/data/*.json count: ${SERVER_DATA_JSON_COUNT:-0}"
-          echo "client/src/data/*.js count: ${CLIENT_DATA_JS_COUNT:-0}"
-          if [ "${SERVER_DATA_JSON_COUNT:-0}" -eq 0 ]; then
-            echo "::warning::No server/data/*.json files found at ${SERVER_DATA_DIR}; filesystem CMS fallback may be missing."
-          else
-            find "$SERVER_DATA_DIR" -maxdepth 1 -type f -name '*.json' | sort | head -n 5
-          fi
-          if [ "${CLIENT_DATA_JS_COUNT:-0}" -eq 0 ]; then
-            echo "::warning::No client/src/data/*.js files found at ${CLIENT_DATA_DIR}; client fallback content may be missing."
-          else
-            find "$CLIENT_DATA_DIR" -maxdepth 1 -type f -name '*.js' | sort | head -n 8
-          fi
+          echo "--- Filesystem CMS snapshot ---"
+          for dir in \
+            "$DEPLOY_DIR/server" \
+            "$DEPLOY_DIR/server/data" \
+            "$DEPLOY_DIR/client" \
+            "$DEPLOY_DIR/client/src" \
+            "$DEPLOY_DIR/client/src/data"
+          do
+            if [ -d "$dir" ]; then
+              echo "DIR OK  $dir"
+            else
+              echo "::warning::Missing directory: $dir"
+            fi
+          done
 
-          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -n "$EFFECTIVE_WORDPRESS_BASE_URL" ]; then
+          for file in \
+            "$DEPLOY_DIR/server/data/tours.json" \
+            "$DEPLOY_DIR/server/data/contact.json" \
+            "$DEPLOY_DIR/server/data/blogs.json" \
+            "$DEPLOY_DIR/server/data/gallery.json" \
+            "$DEPLOY_DIR/server/data/bookings.json" \
+            "$DEPLOY_DIR/server/data/slideshow.json" \
+            "$DEPLOY_DIR/server/data/settings.json" \
+            "$DEPLOY_DIR/server/data/promotions.json" \
+            "$DEPLOY_DIR/server/data/destinations.json" \
+            "$DEPLOY_DIR/client/src/data/tours-data.js" \
+            "$DEPLOY_DIR/client/src/data/contact-info.js" \
+            "$DEPLOY_DIR/client/src/data/blogs-data.js" \
+            "$DEPLOY_DIR/client/src/data/gallery-data.js" \
+            "$DEPLOY_DIR/client/src/data/bookings-data.js" \
+            "$DEPLOY_DIR/client/src/data/slideshow-data.js" \
+            "$DEPLOY_DIR/client/src/data/site-settings.js" \
+            "$DEPLOY_DIR/client/src/data/promotions-data.js" \
+            "$DEPLOY_DIR/client/src/data/destinations-data.js" \
+            "$DEPLOY_DIR/client/src/data/cms-fallbacks.js"
+          do
+            if [ -f "$file" ]; then
+              echo "FILE OK $file"
+            else
+              echo "::warning::Missing file: $file"
+            fi
+          done
+
+          if [ "$CMS_PROVIDER" = "wordpress" ]; then
             echo "--- WordPress upstream reachability ---"
             for url in \
               "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/" \

@@ -206,7 +206,7 @@ The Hostinger deploy workflow now runs a post-deploy debug snapshot that logs:
   - `/api/homepage`
   - `/api/about`
   - `/api/footer`
-- Same endpoint checks from Hostinger localhost (`127.0.0.1:5000`)
+- Same endpoint checks from Hostinger localhost (`127.0.0.1:$PORT`, falling back to `5000`)
 - WordPress upstream reachability checks when `CMS_PROVIDER=wordpress`
 
 Use this snapshot after each redeploy to quickly separate:
