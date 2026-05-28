@@ -16,6 +16,7 @@ const {
 } = require('./storyblok');
 const {
     fetchWordpressResource,
+    getConfiguredWordpressBaseUrl,
     getWordpressAdminUrl,
     isWordpressConfigured,
     pingWordpress,
@@ -559,9 +560,17 @@ const WORDPRESS_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_TIMEOUT_MS, 
 const WORDPRESS_HEALTH_TIMEOUT_MS = parsePositiveInt(process.env.WORDPRESS_HEALTH_TIMEOUT_MS, 3000);
 
 function getCmsProvider() {
-    const configuredProvider = String(process.env.CMS_PROVIDER || 'auto').toLowerCase();
-    if (VALID_CMS_PROVIDERS.includes(configuredProvider)) {
+    const rawProvider = String(process.env.CMS_PROVIDER || 'auto').toLowerCase();
+    const configuredProvider = rawProvider === 'wp' ? 'wordpress' : rawProvider;
+    if (configuredProvider !== 'auto' && VALID_CMS_PROVIDERS.includes(configuredProvider)) {
         return configuredProvider;
+    }
+
+    // In auto mode, an explicitly configured WordPress URL should take
+    // precedence over any leftover Storyblok token so WP admin edits
+    // reliably flow through to the website API.
+    if (configuredProvider === 'auto' && getConfiguredWordpressBaseUrl() && isWordpressConfigured()) {
+        return 'wordpress';
     }
 
     if (isStoryblokConfigured()) {

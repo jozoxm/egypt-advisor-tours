@@ -23,10 +23,15 @@ function normalizeBaseUrl(rawUrl) {
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
+function getConfiguredWordpressBaseUrl() {
+  return process.env.WORDPRESS_BASE_URL || process.env.WORDPRESS_URL || process.env.CMS_URL || '';
+}
+
 function getWordpressBaseUrl() {
-  if (process.env.WORDPRESS_BASE_URL) {
+  const configuredWordpressBaseUrl = getConfiguredWordpressBaseUrl();
+  if (configuredWordpressBaseUrl) {
     try {
-      return normalizeBaseUrl(process.env.WORDPRESS_BASE_URL);
+      return normalizeBaseUrl(configuredWordpressBaseUrl);
     } catch (_error) {
       return '';
     }
@@ -252,6 +257,7 @@ module.exports = {
   fetchWordpressResource,
   getWordpressAdminUrl,
   getWordpressBaseUrl,
+  getConfiguredWordpressBaseUrl,
   isWordpressConfigured,
   pingWordpress,
 };

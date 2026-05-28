@@ -46,6 +46,24 @@ describe('WordPress namespace and fallback behavior', () => {
     );
   });
 
+  it('accepts WORDPRESS_URL as a base URL alias', async () => {
+    delete process.env.WORDPRESS_BASE_URL;
+    process.env.WORDPRESS_URL = 'https://cms.example.com';
+    delete process.env.WORDPRESS_API_NAMESPACE;
+
+    const { fetchWordpressResource } = require('../wordpress');
+    global.fetch.mockResolvedValueOnce(ok({ tours: [] }));
+
+    await fetchWordpressResource('tours');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://cms.example.com/wp-json/ramacf/v1/tours',
+      expect.objectContaining({
+        headers: { Accept: 'application/json' },
+      })
+    );
+  });
+
   it('keeps wp/v2 pages then posts fallbacks in the same read order', async () => {
     process.env.WORDPRESS_BASE_URL = 'https://cms.egyptadvisortours.com';
     delete process.env.WORDPRESS_API_NAMESPACE;

@@ -159,6 +159,36 @@ describe('GET /admin', () => {
             process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
         }
     });
+
+    it('prefers WordPress in auto mode when an explicit WordPress URL is configured', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const hadWordpressBaseUrl = Object.prototype.hasOwnProperty.call(process.env, 'WORDPRESS_BASE_URL');
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalStoryblokToken = process.env.STORYBLOK_PREVIEW_TOKEN;
+        process.env.CMS_PROVIDER = 'auto';
+        delete process.env.WORDPRESS_BASE_URL;
+        process.env.WORDPRESS_URL = 'https://cms.example.com';
+        process.env.STORYBLOK_PREVIEW_TOKEN = 'legacy-token-still-set';
+
+        const session = await adminSession();
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('https://cms.example.com/wp-admin/');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (hadWordpressBaseUrl) {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            } else {
+                delete process.env.WORDPRESS_BASE_URL;
+            }
+            process.env.STORYBLOK_PREVIEW_TOKEN = originalStoryblokToken;
+            delete process.env.WORDPRESS_URL;
+        }
+    });
 });
 
 describe('GET /admin/login', () => {
