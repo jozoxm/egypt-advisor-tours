@@ -82,17 +82,16 @@ jobs:
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
           [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
           CMS_PROVIDER="${_CMS_PROVIDER:-wordpress}"
-          [ "$CMS_PROVIDER" = "wp" ] && CMS_PROVIDER="wordpress"
-          PUBLIC_SITE_URL="${_PUBLIC_SITE_URL:-https://egyptadvisortours.com}"
-          CORS_ORIGIN="${_CORS_ORIGIN:-$PUBLIC_SITE_URL}"
-          REACT_APP_SITE_URL="${_REACT_APP_SITE_URL:-$PUBLIC_SITE_URL}"
-          case "$CMS_PROVIDER" in
-            storyblok|wordpress|filesystem) ;;
             *)
               echo "::error::CMS_PROVIDER must be one of: storyblok, wordpress, filesystem"
               exit 1
               ;;
           esac
+          
+          if [ -z "$CMS_PROVIDER" ]; then
+          echo "::error::CMS_PROVIDER must be set for deployments. Use 'wordpress' for production."
+          exit 1
+          fi
           if [ "$CMS_PROVIDER" = "storyblok" ] && [ -z "$_STORYBLOK_PREVIEW_TOKEN" ]; then
             missing+=("STORYBLOK_PREVIEW_TOKEN")
           fi
@@ -267,8 +266,6 @@ jobs:
           rm -f "$client_env_file"
 
           server_env_file=$(mktemp)
-          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\nDATA_PATH=%s\nCMS_PROVIDER=%s\nPUBLIC_SITE_URL=%s\nCORS_ORIGIN=%s\n' \
-            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${CMS_PROVIDER}" "${PUBLIC_SITE_URL}" "${CORS_ORIGIN}" > "$server_env_file"
           [ -n "${_STORYBLOK_PREVIEW_TOKEN}" ] && printf 'STORYBLOK_PREVIEW_TOKEN=%s\n' "${_STORYBLOK_PREVIEW_TOKEN}" >> "$server_env_file"
           [ -n "${_WORDPRESS_BASE_URL}" ] && printf 'WORDPRESS_BASE_URL=%s\n' "${_WORDPRESS_BASE_URL}" >> "$server_env_file"
           [ -n "${WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${WORDPRESS_API_NAMESPACE}" >> "$server_env_file"
@@ -558,7 +555,7 @@ jobs:
             echo "::warning::.env missing at ${ENV_FILE}"
           fi
           CMS_PROVIDER=$(get_env CMS_PROVIDER)
-          CMS_PROVIDER=${CMS_PROVIDER:-auto}
+          CMS_PROVIDER=${CMS_PROVIDER:-wordpress}
           echo "CMS_PROVIDER=${CMS_PROVIDER}"
           if [ "$CMS_PROVIDER" = "auto" ]; then
             echo "::warning::CMS_PROVIDER is auto; set an explicit provider (wordpress/storyblok/filesystem) during debug runs."

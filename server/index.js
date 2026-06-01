@@ -1044,6 +1044,19 @@ app.get('/api/admin/health', async (req, res) => {
     const isProduction = process.env.NODE_ENV === 'production';
     const provider = getCmsProvider();
 
+    if (provider === 'auto') {
+    const body = { status: 'degraded', cms: 'down' };
+    if (!isProduction) {
+        body.errorCode = 'AUTO_PROVIDER_NOT_ALLOWED';
+        body.hint = 'CMS_PROVIDER=auto is not supported in any production deployment. Set CMS_PROVIDER=wordpress.';
+        body.provider = 'auto';
+    }
+    return res.status(503).json(body);
+}
+if (!isProduction) {
+    body.provider = 'wordpress';
+    body.wordpressBaseUrl = process.env.WORDPRESS_BASE_URL || undefined;
+}
     if (provider === 'wordpress') {
         if (!isWordpressConfigured()) {
             const body = { status: 'degraded', cms: 'down' };
