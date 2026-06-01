@@ -18,6 +18,7 @@ const {
     fetchWordpressResource,
     getConfiguredWordpressBaseUrl,
     getWordpressAdminUrl,
+    getWordpressBaseUrl,
     isWordpressConfigured,
     pingWordpress,
 } = require('./wordpress');
@@ -1030,7 +1031,7 @@ app.get(['/admin', '/admin/*'], readLimiter, (req, res) => {
 // CMS HEALTH ENDPOINT
 // ============================================
 // GET /api/admin/health
-// Checks Storyblok delivery access so operators can quickly verify that the
+// Checks CMS provider health so operators can quickly verify that the
 // content source is reachable from the server.
 //
 // In production the response body is intentionally minimal — no internal
@@ -1045,24 +1046,23 @@ app.get('/api/admin/health', async (req, res) => {
     const provider = getCmsProvider();
 
     if (provider === 'auto') {
-    const body = { status: 'degraded', cms: 'down' };
-    if (!isProduction) {
-        body.errorCode = 'AUTO_PROVIDER_NOT_ALLOWED';
-        body.hint = 'CMS_PROVIDER=auto is not supported in any production deployment. Set CMS_PROVIDER=wordpress.';
-        body.provider = 'auto';
+        const body = { status: 'degraded', cms: 'down' };
+        if (!isProduction) {
+            body.errorCode = 'AUTO_PROVIDER_NOT_ALLOWED';
+            body.hint = 'CMS_PROVIDER=auto is not supported in any production deployment. Set CMS_PROVIDER=wordpress.';
+            body.provider = 'auto';
+        }
+        return res.status(503).json(body);
     }
-    return res.status(503).json(body);
-}
-if (!isProduction) {
-    body.provider = 'wordpress';
-    body.wordpressBaseUrl = process.env.WORDPRESS_BASE_URL || undefined;
-}
     if (provider === 'wordpress') {
+        const wordpressBaseUrl = getWordpressBaseUrl() || process.env.WORDPRESS_BASE_URL || undefined;
         if (!isWordpressConfigured()) {
             const body = { status: 'degraded', cms: 'down' };
             if (!isProduction) {
                 body.errorCode = 'WORDPRESS_NOT_CONFIGURED';
                 body.hint = 'Set WORDPRESS_BASE_URL and/or CMS_PROVIDER=wordpress.';
+                body.provider = 'wordpress';
+                body.wordpressBaseUrl = wordpressBaseUrl;
             }
             return res.status(503).json(body);
         }
@@ -1072,6 +1072,7 @@ if (!isProduction) {
             const body = { status: 'ok', cms: 'up' };
             if (!isProduction) {
                 body.provider = 'wordpress';
+                body.wordpressBaseUrl = wordpressBaseUrl;
             }
             return res.status(200).json(body);
         } catch (error) {
@@ -1081,6 +1082,8 @@ if (!isProduction) {
                 body.hint = error.code === 'ETIMEDOUT'
                     ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check network connectivity or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
                     : 'Verify WORDPRESS_BASE_URL is reachable and exposes /wp-json/.';
+                body.provider = 'wordpress';
+                body.wordpressBaseUrl = wordpressBaseUrl;
             }
             return res.status(503).json(body);
         }

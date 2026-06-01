@@ -98,6 +98,76 @@ describe('GET /api/admin/health', () => {
             process.env.CMS_PROVIDER = originalProvider;
         }
     });
+
+    it('includes wordpress provider diagnostics when wordpress is not configured', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'not-a-url';
+
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(503);
+            expect(res.body.errorCode).toBe('WORDPRESS_NOT_CONFIGURED');
+            expect(res.body.provider).toBe('wordpress');
+            expect(res.body.wordpressBaseUrl).toBe('not-a-url');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+        }
+    });
+
+    it('includes wordpress base URL diagnostics when wordpress health is up', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(200);
+            expect(res.body.provider).toBe('wordpress');
+            expect(res.body.wordpressBaseUrl).toBe('https://cms.example.com');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+
+    it('includes wordpress base URL diagnostics when wordpress health probe fails', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({ ok: false, status: 503 });
+
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(503);
+            expect(res.body.provider).toBe('wordpress');
+            expect(res.body.wordpressBaseUrl).toBe('https://cms.example.com');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
 });
 
 describe('GET /admin', () => {
