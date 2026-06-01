@@ -73,7 +73,17 @@
 
 > **The following section is for legacy/development only. In production, ignore all Storyblok instructions.**
 
-_(leave your existing Storyblok instructions here, but mark this header clearly)_
+- To run local development with Storyblok, set:
+  - `CMS_PROVIDER=storyblok`
+  - `STORYBLOK_PREVIEW_TOKEN=...` (required)
+  - `STORYBLOK_SPACE_ID=...` (optional)
+  - `STORYBLOK_REGION=...` (optional)
+  - `STORYBLOK_MANAGEMENT_TOKEN=...` (optional; needed for management API actions)
+- Storyblok is **not allowed in production** and is blocked by CI/CD checks.
+- When Storyblok is configured, the visual editor launcher is available at `/admin`.
+- Preview mode endpoints:
+  - Enable: `/api/admin/preview/enable`
+  - Exit: `/api/admin/preview/exit`
 
 ---
 
@@ -111,14 +121,6 @@ This deployment uses WordPress as its canonical CMS for all live content. "Story
 
 > "Content editing now happens in Storyblok."  
 **Delete or rephrase this** since the canonical editing system for production is now WordPress.
-
-## Health Diagnostics
-
-`/api/admin/health` (admin-only; non-prod)
-Shows:
-- Current active CMS provider (`cmsProvider`)
-- Effective WordPress Base URL (`wordpressBaseUrl`)
-- Site URLs (`siteUrl`)
 
 ## Environment Variables
 
