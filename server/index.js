@@ -17,6 +17,7 @@ const {
 const {
     fetchWordpressResource,
     getWordpressAdminUrl,
+    getWordpressBaseUrl,
     isWordpressConfigured,
     pingWordpress,
 } = require('./wordpress');
@@ -1045,13 +1046,14 @@ app.get('/api/admin/health', async (req, res) => {
         return res.status(503).json(body);
     }
     if (provider === 'wordpress') {
+        const wordpressBaseUrl = getWordpressBaseUrl() || process.env.WORDPRESS_BASE_URL || undefined;
         if (!isWordpressConfigured()) {
             const body = { status: 'degraded', cms: 'down' };
             if (!isProduction) {
                 body.errorCode = 'WORDPRESS_NOT_CONFIGURED';
                 body.hint = 'Set WORDPRESS_BASE_URL and/or CMS_PROVIDER=wordpress.';
                 body.provider = 'wordpress';
-                body.wordpressBaseUrl = process.env.WORDPRESS_BASE_URL || undefined;
+                body.wordpressBaseUrl = wordpressBaseUrl;
             }
             return res.status(503).json(body);
         }
@@ -1061,7 +1063,7 @@ app.get('/api/admin/health', async (req, res) => {
             const body = { status: 'ok', cms: 'up' };
             if (!isProduction) {
                 body.provider = 'wordpress';
-                body.wordpressBaseUrl = process.env.WORDPRESS_BASE_URL || undefined;
+                body.wordpressBaseUrl = wordpressBaseUrl;
             }
             return res.status(200).json(body);
         } catch (error) {
@@ -1072,7 +1074,7 @@ app.get('/api/admin/health', async (req, res) => {
                     ? `WordPress did not respond within ${WORDPRESS_HEALTH_TIMEOUT_MS}ms. Check network connectivity or increase WORDPRESS_HEALTH_TIMEOUT_MS.`
                     : 'Verify WORDPRESS_BASE_URL is reachable and exposes /wp-json/.';
                 body.provider = 'wordpress';
-                body.wordpressBaseUrl = process.env.WORDPRESS_BASE_URL || undefined;
+                body.wordpressBaseUrl = wordpressBaseUrl;
             }
             return res.status(503).json(body);
         }
