@@ -18,6 +18,22 @@ import { fallbackFooter, fallbackNavigation } from './data/cms-fallbacks';
 
 // App version for cache busting - increment when Admin button issues occur
 const APP_VERSION = '1.0.3';
+
+/**
+ * Merges CMS nav links with fallback links so every fallback route is always present.
+ * CMS links override the label of a matching fallback href; CMS-only links are prepended.
+ */
+function mergeNavLinks(cmsLinks, fallbackLinks) {
+  if (!Array.isArray(cmsLinks) || cmsLinks.length === 0) return fallbackLinks;
+
+  const merged = fallbackLinks.map((fb) => {
+    const override = cmsLinks.find((c) => c.href === fb.href);
+    return override ? { ...fb, ...override } : fb;
+  });
+
+  const cmsOnly = cmsLinks.filter((c) => !fallbackLinks.some((fb) => fb.href === c.href));
+  return [...cmsOnly, ...merged];
+}
 const MAX_SCROLL_RETRY_ATTEMPTS = 10;
 const SCROLL_RETRY_DELAY_MS = 50;
 
@@ -217,7 +233,7 @@ useEffect(() => {
             aria-hidden={!menuOpen}
             inert={!menuOpen ? '' : undefined}
           >
-            {(navLinks.length > 0 ? navLinks : fallbackNavigation.primaryLinks).map((link, index) => {
+            {mergeNavLinks(navLinks, fallbackNavigation.primaryLinks).map((link, index) => {
               const href = typeof link?.href === 'string' && link.href ? link.href : '/';
               const label = link?.label || `Link ${index + 1}`;
               const key = `${label}-${href}-${index}`;

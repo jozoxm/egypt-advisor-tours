@@ -33,9 +33,24 @@ describe('Navbar', () => {
     expect(screen.getByRole('link', { name: /^blogs$/i })).toHaveAttribute('href', '/blogs');
   });
 
+  it('renders the Destinations nav link', () => {
+    renderNavbar();
+    expect(screen.getByRole('link', { name: /^destinations$/i })).toHaveAttribute('href', '/destinations');
+  });
+
+  it('renders the Special Offers nav link', () => {
+    renderNavbar();
+    expect(screen.getByRole('link', { name: /^special offers$/i })).toHaveAttribute('href', '/special-offers');
+  });
+
   it('renders the About nav link', () => {
     renderNavbar();
     expect(screen.getByRole('link', { name: /^about$/i })).toHaveAttribute('href', '/about');
+  });
+
+  it('renders the FAQ nav link', () => {
+    renderNavbar();
+    expect(screen.getByRole('link', { name: /^faq$/i })).toHaveAttribute('href', '/faq');
   });
 
   it('renders a nav element', () => {

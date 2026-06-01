@@ -3,9 +3,9 @@ export const fallbackNavigation = {
   primaryLinks: [
     { label: 'Home', href: '/', type: 'route' },
     { label: 'Tours', href: '/tours', type: 'route' },
-    { label: 'Blogs', href: '/blogs', type: 'route' },
     { label: 'Destinations', href: '/destinations', type: 'route' },
     { label: 'Special Offers', href: '/special-offers', type: 'route' },
+    { label: 'Blogs', href: '/blogs', type: 'route' },
     { label: 'About', href: '/about', type: 'route' },
     { label: 'FAQ', href: '/faq', type: 'route' },
   ],
