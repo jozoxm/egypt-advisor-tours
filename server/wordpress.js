@@ -38,7 +38,7 @@ function getWordpressBaseUrl() {
   }
 
   const provider = String(process.env.CMS_PROVIDER || 'auto').toLowerCase();
-  if (provider === 'wordpress') {
+  if (provider === 'wordpress' || provider === 'wp') {
     return DEFAULT_WORDPRESS_BASE_URL;
   }
 
