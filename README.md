@@ -43,6 +43,8 @@ WORDPRESS_API_NAMESPACE=ramacf/v1
 ```
 
 When `CMS_PROVIDER=wordpress`, public API content is read directly from WordPress on every request (no filesystem fallback for tours), so site content stays synced with the CMS.
+`WORDPRESS_URL` and `CMS_URL` are also accepted as aliases for `WORDPRESS_BASE_URL`.
+When `CMS_PROVIDER=auto`, an explicitly configured WordPress URL is preferred over Storyblok token auto-detection.
 
 Server read order in WordPress mode:
 

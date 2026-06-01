@@ -64,8 +64,12 @@ jobs:
           _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           _CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
           _WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
+          _WORDPRESS_API_NAMESPACE: ${{ secrets.WORDPRESS_API_NAMESPACE }}
           _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
           _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
+          _PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          _CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          _REACT_APP_SITE_URL: ${{ secrets.REACT_APP_SITE_URL }}
         run: |
           missing=()
           [ -z "$_HOST" ] && missing+=("HOSTINGER_SSH_HOST")
@@ -78,12 +82,6 @@ jobs:
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
           [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
           CMS_PROVIDER="${_CMS_PROVIDER:-wordpress}"
-          case "$CMS_PROVIDER" in
-            storyblok|wordpress|filesystem) ;;
-            auto)
-              echo "::error::CMS_PROVIDER=auto is not supported for production deploys. Use CMS_PROVIDER=wordpress."
-              exit 1
-              ;;
             *)
               echo "::error::CMS_PROVIDER must be one of: storyblok, wordpress, filesystem"
               exit 1
@@ -99,6 +97,15 @@ jobs:
           fi
           if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
             missing+=("WORDPRESS_BASE_URL")
+          fi
+          if [ -z "$PUBLIC_SITE_URL" ]; then
+            missing+=("PUBLIC_SITE_URL")
+          fi
+          if [ -z "$CORS_ORIGIN" ]; then
+            missing+=("CORS_ORIGIN")
+          fi
+          if [ -z "$REACT_APP_SITE_URL" ]; then
+            missing+=("REACT_APP_SITE_URL")
           fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
@@ -212,6 +219,10 @@ jobs:
           _STORYBLOK_MANAGEMENT_TOKEN: ${{ secrets.STORYBLOK_MANAGEMENT_TOKEN }}
           _STORYBLOK_PREVIEW_SECRET: ${{ secrets.STORYBLOK_PREVIEW_SECRET }}
           _STORYBLOK_REGION: ${{ secrets.STORYBLOK_REGION }}
+          _PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          _CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          _REACT_APP_SITE_URL: ${{ secrets.REACT_APP_SITE_URL }}
+          _REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
           _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
           _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
           _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
@@ -222,6 +233,15 @@ jobs:
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
           SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          CMS_PROVIDER="${_CMS_PROVIDER:-wordpress}"
+          [ "$CMS_PROVIDER" = "wp" ] && CMS_PROVIDER="wordpress"
+          PUBLIC_SITE_URL="${_PUBLIC_SITE_URL:-https://egyptadvisortours.com}"
+          CORS_ORIGIN="${_CORS_ORIGIN:-$PUBLIC_SITE_URL}"
+          REACT_APP_SITE_URL="${_REACT_APP_SITE_URL:-$PUBLIC_SITE_URL}"
+          WORDPRESS_API_NAMESPACE="${_WORDPRESS_API_NAMESPACE}"
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$WORDPRESS_API_NAMESPACE" ]; then
+            WORDPRESS_API_NAMESPACE="ramacf/v1"
+          fi
 
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
             mkdir -p '${DEPLOY_DIR}'
@@ -233,22 +253,22 @@ jobs:
             mkdir -p '${DEPLOY_DIR}/client'"
 
           client_env_file=$(mktemp)
-          printf '%s\n%s\n%s\n%s\n' \
+          printf '%s\n%s\n%s\n%s\n%s\n' \
+            "REACT_APP_SITE_URL=${REACT_APP_SITE_URL}" \
             "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
             "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
             "REACT_APP_EMAILJS_PUBLIC_KEY=${_REACT_APP_EMAILJS_PUBLIC_KEY}" \
             > "$client_env_file"
+          [ -n "${_REACT_APP_API_URL}" ] && printf 'REACT_APP_API_URL=%s\n' "${_REACT_APP_API_URL}" >> "$client_env_file"
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
             "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'" < "$client_env_file"
           rm -f "$client_env_file"
 
           server_env_file=$(mktemp)
-          printf 'ADMIN_SECRET=%s\nADMIN_PASSWORD=%s\nDATA_PATH=%s\nCMS_PROVIDER=%s\n' \
-            "${_ADMIN_SECRET}" "${_ADMIN_PASSWORD}" "${_HOSTINGER_DATA_PATH}" "${CMS_PROVIDER}" > "$server_env_file"
           [ -n "${_STORYBLOK_PREVIEW_TOKEN}" ] && printf 'STORYBLOK_PREVIEW_TOKEN=%s\n' "${_STORYBLOK_PREVIEW_TOKEN}" >> "$server_env_file"
           [ -n "${_WORDPRESS_BASE_URL}" ] && printf 'WORDPRESS_BASE_URL=%s\n' "${_WORDPRESS_BASE_URL}" >> "$server_env_file"
-          [ -n "${_WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${_WORDPRESS_API_NAMESPACE}" >> "$server_env_file"
+          [ -n "${WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${WORDPRESS_API_NAMESPACE}" >> "$server_env_file"
           [ -n "${_WORDPRESS_TOURS_SLUG}" ] && printf 'WORDPRESS_TOURS_SLUG=%s\n' "${_WORDPRESS_TOURS_SLUG}" >> "$server_env_file"
           [ -n "${_WORDPRESS_CONTACT_SLUG}" ] && printf 'WORDPRESS_CONTACT_SLUG=%s\n' "${_WORDPRESS_CONTACT_SLUG}" >> "$server_env_file"
           [ -n "${_WORDPRESS_BLOGS_SLUG}" ] && printf 'WORDPRESS_BLOGS_SLUG=%s\n' "${_WORDPRESS_BLOGS_SLUG}" >> "$server_env_file"
@@ -294,8 +314,38 @@ jobs:
                 echo \"::warning::\$label not found at \$path — env file may not have been written correctly\"
               fi
             }
+            check_env_key() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              local key=\"\$3\"
+              local required=\"\$4\"
+              if grep -q \"^\${key}=\" \"\$path\"; then
+                echo \"\$label: \${key} present\"
+              elif [ \"\$required\" = \"required\" ]; then
+                echo \"::error::\$label missing required key \${key}\"
+                return 1
+              else
+                echo \"::warning::\$label missing optional key \${key}\"
+              fi
+            }
+            fail=0
+            server_env='${DEPLOY_DIR}/.env'
+            client_env='${DEPLOY_DIR}/client/.env.production.local'
             check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
             check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
+            check_env_key 'Server .env' \"\$server_env\" 'CMS_PROVIDER' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' required || fail=1
+            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' required || fail=1
+            cms_provider=\$(sed -n 's/^CMS_PROVIDER=//p' \"\$server_env\" | tail -n 1)
+            [ \"\$cms_provider\" = 'wp' ] && cms_provider='wordpress'
+            if [ \"\$cms_provider\" = 'wordpress' ]; then
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_BASE_URL' required || fail=1
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_API_NAMESPACE' required || fail=1
+            fi
+            if [ \"\$fail\" -ne 0 ]; then
+              exit 1
+            fi
           "
 
       - name: Pull & restart on Hostinger
@@ -338,13 +388,57 @@ jobs:
                 echo \"::warning::\$label not found at \$path after restart — app may start without required env vars\"
               fi
             }
+            check_env_key() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              local key=\"\$3\"
+              local required=\"\$4\"
+              if grep -q \"^\${key}=\" \"\$path\"; then
+                echo \"\$label: \${key} present after restart\"
+              elif [ \"\$required\" = \"required\" ]; then
+                echo \"::error::\$label missing required key \${key} after restart\"
+                return 1
+              else
+                echo \"::warning::\$label missing optional key \${key} after restart\"
+              fi
+            }
+            fail=0
+            server_env='${DEPLOY_DIR}/.env'
+            client_env='${DEPLOY_DIR}/client/.env.production.local'
             check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
             check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
+            check_env_key 'Server .env' \"\$server_env\" 'CMS_PROVIDER' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' required || fail=1
+            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' required || fail=1
+            cms_provider=\$(sed -n 's/^CMS_PROVIDER=//p' \"\$server_env\" | tail -n 1)
+            [ \"\$cms_provider\" = 'wp' ] && cms_provider='wordpress'
+            if [ \"\$cms_provider\" = 'wordpress' ]; then
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_BASE_URL' required || fail=1
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_API_NAMESPACE' required || fail=1
+            fi
+            if [ \"\$fail\" -ne 0 ]; then
+              exit 1
+            fi
           "
 
       - name: Health check
+        env:
+          CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
         run: |
           sleep 20
+          provider=$(printf '%s' "${CMS_PROVIDER:-wordpress}" | tr '[:upper:]' '[:lower:]')
+          [ "$provider" = "wp" ] && provider="wordpress"
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          node_count=$(ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "ps -eo cmd | grep -E '[n]ode .*start\\.js|[n]ode .*server/index\\.js' | wc -l | tr -d '[:space:]'")
+          echo "Detected Node app process count after restart: ${node_count:-0}"
+          if [ "${node_count:-0}" -gt 1 ]; then
+            echo "::error::Multiple Node app processes detected after restart."
+            exit 1
+          fi
           run_check() {
             local url="$1"
             local mode="$2"
@@ -375,6 +469,11 @@ jobs:
           echo "App liveness: OK"
           run_check_info "https://egyptadvisortours.com/api/admin/health" "CMS health"
           run_check "https://egyptadvisortours.com/admin" "redirect-ok"
+          if [ "$provider" = "wordpress" ]; then
+            run_check "https://egyptadvisortours.com/api/navigation" "strict"
+            run_check "https://egyptadvisortours.com/api/homepage" "strict"
+            echo "WordPress content endpoints: OK"
+          fi
           echo "Admin route: OK"
 
       - name: One-shot post-deploy debug snapshot
@@ -407,9 +506,10 @@ jobs:
           check_public "/api/footer"
 
           echo "=== Hostinger process/env/local checks ==="
-          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$DEPLOY_DIR'" <<'EOF'
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$DEPLOY_DIR' '$BASE_URL'" <<'EOF'
           set -eu
           DEPLOY_DIR="$1"
+          BASE_URL="$2"
           ENV_FILE="${DEPLOY_DIR}/.env"
 
           get_env() {
@@ -429,6 +529,17 @@ jobs:
             snippet=$(head -c 180 "$body_file" | tr '\n' ' ')
             rm -f "$body_file"
             echo "LOCAL  ${path} -> HTTP ${status} :: ${snippet}"
+          }
+          get_status() {
+            local url="$1"
+            curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000"
+          }
+          slug_or_default() {
+            local key="$1"
+            local fallback="$2"
+            local value
+            value=$(get_env "$key")
+            printf '%s' "${value:-$fallback}"
           }
 
           echo "--- Process snapshot ---"
@@ -489,6 +600,17 @@ jobs:
           check_local "/api/homepage"
           check_local "/api/about"
           check_local "/api/footer"
+          PUBLIC_HOMEPAGE_STATUS=$(get_status "${BASE_URL}/api/homepage")
+          LOCAL_HOMEPAGE_STATUS=$(get_status "http://127.0.0.1:${PORT}/api/homepage")
+          if [ "$PUBLIC_HOMEPAGE_STATUS" = "200" ] && [ "$LOCAL_HOMEPAGE_STATUS" = "200" ]; then
+            echo "Homepage parity: public and localhost are both healthy."
+          elif [ "$PUBLIC_HOMEPAGE_STATUS" != "200" ] && [ "$LOCAL_HOMEPAGE_STATUS" = "200" ]; then
+            echo "::warning::Public /api/homepage is failing while localhost succeeds — check proxy/routing/CDN configuration."
+          elif [ "$PUBLIC_HOMEPAGE_STATUS" = "200" ] && [ "$LOCAL_HOMEPAGE_STATUS" != "200" ]; then
+            echo "::warning::Local /api/homepage is failing while public succeeds — check process state and on-host networking."
+          else
+            echo "::warning::Public and localhost /api/homepage are both failing — check CMS connectivity and runtime env."
+          fi
 
           echo "--- Filesystem CMS snapshot ---"
           for dir in \
@@ -547,6 +669,20 @@ jobs:
               status=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000")
               echo "WORDPRESS ${url} -> HTTP ${status}"
             done
+            echo "--- WordPress wp/v2 slug fallback reachability ---"
+            check_wordpress_slug() {
+              local resource="$1"
+              local slug="$2"
+              for type in pages posts; do
+                url="${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/wp/v2/${type}?slug=${slug}&_fields=acf,content"
+                status=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000")
+                echo "WORDPRESS ${resource} ${type} slug=${slug} -> HTTP ${status}"
+              done
+            }
+            check_wordpress_slug "navigation" "$(slug_or_default WORDPRESS_NAVIGATION_SLUG cms-navigation)"
+            check_wordpress_slug "homepage" "$(slug_or_default WORDPRESS_HOMEPAGE_SLUG cms-homepage)"
+            check_wordpress_slug "about" "$(slug_or_default WORDPRESS_ABOUT_SLUG cms-about)"
+            check_wordpress_slug "footer" "$(slug_or_default WORDPRESS_FOOTER_SLUG cms-footer)"
           fi
 
           if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
@@ -558,5 +694,28 @@ jobs:
           EOF
 
       - name: Deployment summary
+        env:
+          CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+          WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
+          PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          REACT_APP_SITE_URL: ${{ secrets.REACT_APP_SITE_URL }}
         run: |
           echo "✅ Deployed to https://egyptadvisortours.com"
+          provider=$(printf '%s' "${CMS_PROVIDER:-wordpress}" | tr '[:upper:]' '[:lower:]')
+          [ "$provider" = "wp" ] && provider="wordpress"
+          echo "CMS provider deployed: ${provider}"
+          if [ -n "${WORDPRESS_BASE_URL}" ]; then
+            echo "WordPress base URL configured: yes"
+          else
+            echo "WordPress base URL configured: no"
+          fi
+          if [ -n "${PUBLIC_SITE_URL}" ]; then
+            echo "Public site URL configured from secret: yes"
+          else
+            echo "Public site URL configured from workflow default: yes"
+          fi
+          if [ -n "${REACT_APP_SITE_URL}" ]; then
+            echo "Client site URL configured from secret: yes"
+          else
+            echo "Client site URL configured from workflow default: yes"
+          fi

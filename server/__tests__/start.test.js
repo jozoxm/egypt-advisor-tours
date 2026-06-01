@@ -42,6 +42,20 @@ describe('production startup environment', () => {
     expect(env.CMS_PROVIDER).toBe('wordpress');
     expect(env.WORDPRESS_BASE_URL).toBe('https://cms.egyptadvisortours.com');
   });
+  it('accepts legacy WordPress URL aliases and wp provider alias', () => {
+    const envFromWordpressUrl = buildRuntimeEnv({
+      CMS_PROVIDER: 'wp',
+      WORDPRESS_URL: 'https://cms.example.com',
+    });
+    const envFromCmsUrl = buildRuntimeEnv({
+      CMS_PROVIDER: 'auto',
+      CMS_URL: 'https://cms.example.org',
+    });
+
+    expect(envFromWordpressUrl.CMS_PROVIDER).toBe('wordpress');
+    expect(envFromWordpressUrl.WORDPRESS_BASE_URL).toBe('https://cms.example.com');
+    expect(envFromCmsUrl.WORDPRESS_BASE_URL).toBe('https://cms.example.org');
+  });
 });
 
 describe('validateRuntimeEnv', () => {

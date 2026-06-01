@@ -23,17 +23,22 @@ function normalizeBaseUrl(rawUrl) {
   return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
+function getConfiguredWordpressBaseUrl() {
+  return process.env.WORDPRESS_BASE_URL || process.env.WORDPRESS_URL || process.env.CMS_URL || '';
+}
+
 function getWordpressBaseUrl() {
-  if (process.env.WORDPRESS_BASE_URL) {
+  const configuredWordpressBaseUrl = getConfiguredWordpressBaseUrl();
+  if (configuredWordpressBaseUrl) {
     try {
-      return normalizeBaseUrl(process.env.WORDPRESS_BASE_URL);
+      return normalizeBaseUrl(configuredWordpressBaseUrl);
     } catch (_error) {
       return '';
     }
   }
 
   const provider = String(process.env.CMS_PROVIDER || 'auto').toLowerCase();
-  if (provider === 'wordpress') {
+  if (provider === 'wordpress' || provider === 'wp') {
     return DEFAULT_WORDPRESS_BASE_URL;
   }
 
@@ -252,6 +257,7 @@ module.exports = {
   fetchWordpressResource,
   getWordpressAdminUrl,
   getWordpressBaseUrl,
+  getConfiguredWordpressBaseUrl,
   isWordpressConfigured,
   pingWordpress,
 };
