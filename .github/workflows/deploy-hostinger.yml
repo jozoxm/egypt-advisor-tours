@@ -82,30 +82,19 @@ jobs:
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
           [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
           CMS_PROVIDER="${_CMS_PROVIDER:-wordpress}"
+          [ "$CMS_PROVIDER" = "wp" ] && CMS_PROVIDER="wordpress"
+          case "$CMS_PROVIDER" in
+            storyblok|wordpress|filesystem) ;;
             *)
               echo "::error::CMS_PROVIDER must be one of: storyblok, wordpress, filesystem"
               exit 1
               ;;
           esac
-          
-          if [ -z "$CMS_PROVIDER" ]; then
-          echo "::error::CMS_PROVIDER must be set for deployments. Use 'wordpress' for production."
-          exit 1
-          fi
           if [ "$CMS_PROVIDER" = "storyblok" ] && [ -z "$_STORYBLOK_PREVIEW_TOKEN" ]; then
             missing+=("STORYBLOK_PREVIEW_TOKEN")
           fi
           if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
             missing+=("WORDPRESS_BASE_URL")
-          fi
-          if [ -z "$PUBLIC_SITE_URL" ]; then
-            missing+=("PUBLIC_SITE_URL")
-          fi
-          if [ -z "$CORS_ORIGIN" ]; then
-            missing+=("CORS_ORIGIN")
-          fi
-          if [ -z "$REACT_APP_SITE_URL" ]; then
-            missing+=("REACT_APP_SITE_URL")
           fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
