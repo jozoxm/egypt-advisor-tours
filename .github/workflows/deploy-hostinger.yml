@@ -96,15 +96,6 @@ jobs:
           if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
             missing+=("WORDPRESS_BASE_URL")
           fi
-          if [ -z "$_PUBLIC_SITE_URL" ]; then
-            missing+=("PUBLIC_SITE_URL")
-          fi
-          if [ -z "$_CORS_ORIGIN" ]; then
-            missing+=("CORS_ORIGIN")
-          fi
-          if [ -z "$_REACT_APP_SITE_URL" ]; then
-            missing+=("REACT_APP_SITE_URL")
-          fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             exit 1
