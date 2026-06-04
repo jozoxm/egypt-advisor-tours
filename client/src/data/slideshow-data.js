@@ -9,25 +9,25 @@ export const slides = [
   {
     "id": 1,
     "name": "Pyramids of Giza",
-    "image": "https://images.unsplash.com/photo-1539650116574-75c0c6d27b35?auto=format&fit=crop&w=1600&q=80",
+    "image": "https://github.com/jozoxm/egypt-advisor-tours/blob/44602e5dba512ce1f95d72b0359a50711e54fbe2/Assets/362.JPG",
     "gradient": "linear-gradient(135deg, #8B6914 0%, #C9A961 50%, #D4AF37 100%)"
   },
   {
     "id": 2,
     "name": "The Great Sphinx",
-    "image": "https://images.unsplash.com/photo-1553913861-c0fddf2619ee?auto=format&fit=crop&w=1600&q=80",
+    "image": "https://github.com/jozoxm/egypt-advisor-tours/blob/44602e5dba512ce1f95d72b0359a50711e54fbe2/Assets/376.JPG",
     "gradient": "linear-gradient(135deg, #6B4F1A 0%, #9B7540 50%, #C9A040 100%)"
   },
   {
     "id": 3,
     "name": "Nile River",
-    "image": "https://images.unsplash.com/photo-1586348943529-beaae6c28db9?auto=format&fit=crop&w=1600&q=80",
+    "image": "https://github.com/jozoxm/egypt-advisor-tours/blob/44602e5dba512ce1f95d72b0359a50711e54fbe2/Assets/415.JPG",
     "gradient": "linear-gradient(135deg, #0d3b6e 0%, #1a6fa8 50%, #2196c8 100%)"
   },
   {
     "id": 4,
-    "name": "Luxor Temple",
-    "image": "https://images.unsplash.com/photo-1568322445389-f64ac2515020?auto=format&fit=crop&w=1600&q=80",
+    "name": "Abu Simbel Temple",
+    "image": "https://github.com/jozoxm/egypt-advisor-tours/blob/44602e5dba512ce1f95d72b0359a50711e54fbe2/Assets/610.JPG",
     "gradient": "linear-gradient(135deg, #8B6914 0%, #B8964A 50%, #D4AF37 100%)"
   },
   {
