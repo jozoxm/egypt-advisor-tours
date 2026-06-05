@@ -33,7 +33,7 @@ export const slides = [
   {
     "id": 5,
     "name": "Red Sea Diving",
-    "image": "/Assets/Underwater.mp4",
+    "image": "/Assets/Red sea.mov",
     "gradient": "linear-gradient(135deg, #A88B2D 0%, #C9B037 50%, #1a6fa8 100%)"
   },
   {
