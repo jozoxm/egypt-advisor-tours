@@ -25,6 +25,7 @@ function buildRuntimeEnv(sourceEnv = process.env) {
   const configuredWordpressBaseUrl = getWordpressBaseUrlFromEnv(sourceEnv);
   return {
     ...sourceEnv,
+    NODE_ENV: sourceEnv.NODE_ENV || 'production',
     PORT: sourceEnv.PORT || '5000',
     CMS_PROVIDER: cmsProvider,
     WORDPRESS_BASE_URL:
