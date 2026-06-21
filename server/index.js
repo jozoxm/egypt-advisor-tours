@@ -1,3 +1,11 @@
+require('dotenv').config(); // This must be at the very top
+const mongoose = require('mongoose');
+
+// Now you can safely use process.env.MONGODB_URI
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log("Connected to MongoDB"))
+  .catch(err => console.error("Database connection failed:", err));
+  
 const express = require('express');
 const mongoose = require('mongoose');
 const setupAdmin = require('./adminSetup'); // Only one instance!
