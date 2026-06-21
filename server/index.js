@@ -1,3 +1,7 @@
+// Add these lines at the absolute top of index.js
+const dns = require('node:dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
+
 require('dotenv').config(); // This must be at the very top
 const mongoose = require('mongoose');
 
