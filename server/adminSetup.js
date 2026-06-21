@@ -4,10 +4,9 @@ const AdminJSExpress = require('@adminjs/express');
 const AdminJSMongoose = require('@adminjs/mongoose');
 const uploadFeature = require('@adminjs/upload');
 
-// Register the Mongoose Adapter
+// MUST register the adapter before creating the AdminJS instance
 AdminJS.registerAdapter(AdminJSMongoose);
 
-// Import your database models (Adjust this path if your model is in a different folder)
 const tours = require('./data/tours.json');
 function setupAdmin(app) {
   const adminOptions = {
@@ -42,10 +41,28 @@ function setupAdmin(app) {
   const admin = new AdminJS(adminOptions);
 
   // Build the admin route
-  const adminRouter = AdminJSExpress.buildRouter(admin);
+const AdminJS = require('adminjs');
+const AdminJSMongoose = require('@adminjs/mongoose');
+const AdminJSExpress = require('@adminjs/express');
 
-  // Attach it to your main Express app
+// MUST register the adapter before creating the AdminJS instance
+AdminJS.registerAdapter(AdminJSMongoose); 
+
+const Tour = require('./models/Tour'); // Ensure this path is correct!
+
+const setupAdmin = (app) => {
+  const admin = new AdminJS({
+    resources: [
+      {
+        resource: Tour, // The actual Mongoose model
+        options: { parent: { name: 'Content Management' } }
+      }
+    ],
+    rootPath: '/admin',
+  });
+
+  const adminRouter = AdminJSExpress.buildRouter(admin);
   app.use(admin.options.rootPath, adminRouter);
-}
+};
 
 module.exports = setupAdmin;
