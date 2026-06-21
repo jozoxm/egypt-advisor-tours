@@ -8,28 +8,26 @@ const uploadFeature = require('@adminjs/upload');
 AdminJS.registerAdapter(AdminJSMongoose);
 
 const tours = require('./data/tours.json');
+const tours = require('./data/blogs.json');
+const tours = require('./data/bookings.json');
+const tours = require('./data/contact.json');
+const tours = require('./data/destinations.json');
+const tours = require('./data/gallery.json');
+const tours = require('./data/promotions.json');
+const tours = require('./data/settings.json');
+const tours = require('./data/slideshow.json');
 function setupAdmin(app) {
   const adminOptions = {
     resources: [
-      {
-        resource: tours,
-        options: {
-          properties: {
-            description: { type: 'richtext' }, // Creates a text editor
-            photoUrl: { isVisible: { list: true, show: true, edit: false } }
-          }
-        },
-        features: [
-          uploadFeature({
-            provider: { local: { bucket: 'public/uploads' } },
-            properties: {
-              key: 'photoUrl', // The database field for the photo
-              file: 'uploadFile',
-            },
-            validation: { mimeTypes: ['image/png', 'image/jpeg', 'image/jpg'] },
-          })
-        ]
-      }
+      { resource: tour, options: { parent: { name: 'Tours' } } },
+      { resource: blogs, options: { parent: { name: 'Blogs' } } },
+      { resource: bookings, options: { parent: { name: 'Bookings' } } },
+      { resource: contact, options: { parent: { name: 'Contact' } } },
+      { resource: destinations, options: { parent: { name: 'Destinations' } } },
+      { resource: gallery, options: { parent: { name: 'Gallery' } } },
+      { resource: promotions, options: { parent: { name: 'Promotions' } } },
+      { resource: settings, options: { parent: { name: 'Settings' } } },
+      { resource: slideshow, options: { parent: { name: 'Homepage' } } }
     ],
     rootPath: '/admin',
     branding: {
