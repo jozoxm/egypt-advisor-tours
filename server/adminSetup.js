@@ -38,7 +38,15 @@ function setupAdmin(app) {
     },
   };
 
-  const admin = new AdminJS(adminOptions);
+ const admin = new AdminJS({
+  // ... resources
+  // Add this inside the new AdminJS({ ... }) block
+  loginPath: '/admin/login',
+  // Simple auth check
+  allowLocalAuthentication: true,
+  // Or add a simple password check
+  // (In production, use a proper session/cookie strategy)
+});
 
   // Build the admin route
 const AdminJS = require('adminjs');
