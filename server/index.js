@@ -26,6 +26,18 @@ const { VALID_CMS_PROVIDERS } = require('./cms-config');
 require('dotenv').config();
 
 const app = express();
+const express = require('express');
+const setupAdmin = require('./adminSetup'); // 1. Import the file we just made
+
+const app = express();
+
+// 2. Run the admin setup
+setupAdmin(app);
+
+// Make sure your server can display the uploaded photos
+app.use('/uploads', express.static('public/uploads'));
+
+// ... the rest of your routes and server listening code ...
 const PORT = process.env.PORT || 5000;
 const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
 const DEFAULT_PUBLIC_SITE_ORIGIN = new URL(DEFAULT_PUBLIC_SITE_URL).origin;
