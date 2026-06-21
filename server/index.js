@@ -7,7 +7,6 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error("Database connection failed:", err));
   
 const express = require('express');
-const mongoose = require('mongoose');
 const setupAdmin = require('./adminSetup'); // Only one instance!
 const cors = require('cors');
 const fs = require('fs');
