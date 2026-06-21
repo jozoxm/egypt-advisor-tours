@@ -26,6 +26,21 @@ const { VALID_CMS_PROVIDERS } = require('./cms-config');
 require('dotenv').config();
 
 const app = express();
+// ... existing imports ...
+const setupAdmin = require('./adminSetup');
+
+// Ensure database connection happens BEFORE AdminJS setup
+mongoose.connect(process.env.MONGODB_URI, { 
+    useNewUrlParser: true, 
+    useUnifiedTopology: true 
+})
+.then(() => {
+    console.log("MongoDB Connected Successfully");
+    
+    // NOW call the setup function
+    setupAdmin(app);
+})
+.catch(err => console.error("Database connection error:", err));
 const setupAdmin = require('./adminSetup'); // 1. Import the file we just made
 
 // 2. Run the admin setup
