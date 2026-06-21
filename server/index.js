@@ -1,4 +1,6 @@
 const express = require('express');
+const mongoose = require('mongoose');
+const setupAdmin = require('./adminSetup'); // Only one instance!
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
@@ -26,25 +28,21 @@ const { VALID_CMS_PROVIDERS } = require('./cms-config');
 require('dotenv').config();
 
 const app = express();
-// ... existing imports ...
-const setupAdmin = require('./adminSetup');
 
-// Ensure database connection happens BEFORE AdminJS setup
-mongoose.connect(process.env.MONGODB_URI, { 
-    useNewUrlParser: true, 
-    useUnifiedTopology: true 
-})
-.then(() => {
-    console.log("MongoDB Connected Successfully");
-    
-    // NOW call the setup function
-    setupAdmin(app);
-})
-.catch(err => console.error("Database connection error:", err));
-const setupAdmin = require('./adminSetup'); // 1. Import the file we just made
+// 2. Connect to Database first
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+      console.log("Database connected");
 
-// 2. Run the admin setup
-setupAdmin(app);
+      // 3. ONLY run admin setup after the connection is successful
+      setupAdmin(app);
+
+      // 4. Start your server listener
+      app.listen(process.env.PORT || 5000, () => {
+          console.log("Server is running");
+      });
+  })
+  .catch(err => console.error("Database connection failed", err));
 
 // Make sure your server can display the uploaded photos
 app.use('/uploads', express.static('public/uploads'));
