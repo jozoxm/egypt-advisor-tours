@@ -26,7 +26,6 @@ const { VALID_CMS_PROVIDERS } = require('./cms-config');
 require('dotenv').config();
 
 const app = express();
-const express = require('express');
 const setupAdmin = require('./adminSetup'); // 1. Import the file we just made
 
 const app = express();
