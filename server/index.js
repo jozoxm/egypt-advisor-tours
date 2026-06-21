@@ -36,22 +36,25 @@ require('dotenv').config();
 
 const app = express();
 
-// 2. Connect to Database first
+// 2. Connect to the Database
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
-      console.log("Database connected");
+    console.log("Connected to MongoDB successfully");
 
-      // 3. ONLY run admin setup after the connection is successful
-      setupAdmin(app);
+    // 3. Initialize AdminJS only AFTER successful DB connection
+    setupAdmin(app);
 
-      // 4. Start your server listener
-      app.listen(process.env.PORT || 5000, () => {
-          console.log("Server is running");
-      });
+    // 4. Start the server
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
   })
-  .catch(err => console.error("Database connection failed", err));
+  .catch((err) => {
+    console.error("Database connection failed:", err);
+  });
 
-// Make sure your server can display the uploaded photos
+// 5. Static uploads (place this after app is defined)
 app.use('/uploads', express.static('public/uploads'));
 
 // ... the rest of your routes and server listening code ...
