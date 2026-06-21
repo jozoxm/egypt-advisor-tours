@@ -8,13 +8,12 @@ const uploadFeature = require('@adminjs/upload');
 AdminJS.registerAdapter(AdminJSMongoose);
 
 // Import your database models (Adjust this path if your model is in a different folder)
-const Tour = require('.\data\tours'); // Example path based on your file tree
-
-const setupAdmin = (app) => {
+const tours = require('./data/tours.json');
+function setupAdmin(app) {
   const adminOptions = {
     resources: [
       {
-        resource: Tour,
+        resource: tours,
         options: {
           properties: {
             description: { type: 'richtext' }, // Creates a text editor
@@ -41,12 +40,12 @@ const setupAdmin = (app) => {
   };
 
   const admin = new AdminJS(adminOptions);
-  
+
   // Build the admin route
   const adminRouter = AdminJSExpress.buildRouter(admin);
-  
+
   // Attach it to your main Express app
   app.use(admin.options.rootPath, adminRouter);
-};
+}
 
 module.exports = setupAdmin;
