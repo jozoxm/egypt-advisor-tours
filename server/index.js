@@ -28,8 +28,6 @@ require('dotenv').config();
 const app = express();
 const setupAdmin = require('./adminSetup'); // 1. Import the file we just made
 
-const app = express();
-
 // 2. Run the admin setup
 setupAdmin(app);
 
