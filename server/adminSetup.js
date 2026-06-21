@@ -8,18 +8,18 @@ const uploadFeature = require('@adminjs/upload');
 AdminJS.registerAdapter(AdminJSMongoose);
 
 const tours = require('./data/tours.json');
-const tours = require('./data/blogs.json');
-const tours = require('./data/bookings.json');
-const tours = require('./data/contact.json');
-const tours = require('./data/destinations.json');
-const tours = require('./data/gallery.json');
-const tours = require('./data/promotions.json');
-const tours = require('./data/settings.json');
-const tours = require('./data/slideshow.json');
+const blogs = require('./data/blogs.json');
+const bookings = require('./data/bookings.json');
+const contact = require('./data/contact.json');
+const destinations = require('./data/destinations.json');
+const gallery = require('./data/gallery.json');
+const promotions = require('./data/promotions.json');
+const settings = require('./data/settings.json');
+const slideshow = require('./data/slideshow.json');
 function setupAdmin(app) {
   const adminOptions = {
     resources: [
-      { resource: tour, options: { parent: { name: 'Tours' } } },
+      { resource: tours, options: { parent: { name: 'Tours' } } },
       { resource: blogs, options: { parent: { name: 'Blogs' } } },
       { resource: bookings, options: { parent: { name: 'Bookings' } } },
       { resource: contact, options: { parent: { name: 'Contact' } } },
