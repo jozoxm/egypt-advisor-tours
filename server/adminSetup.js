@@ -71,4 +71,4 @@ const setupAdmin = (app) => {
   app.use(admin.options.rootPath, adminRouter);
 };
 
-module.exports = setupAdmin; // This exports the function
+module.exports = setupAdmin;
