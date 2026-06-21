@@ -8,7 +8,7 @@ const uploadFeature = require('@adminjs/upload');
 AdminJS.registerAdapter(AdminJSMongoose);
 
 // Import your database models (Adjust this path if your model is in a different folder)
-const Tour = require('.\data\tours.json'); // Example path based on your file tree
+const Tour = require('.\data\tours'); // Example path based on your file tree
 
 const setupAdmin = (app) => {
   const adminOptions = {
