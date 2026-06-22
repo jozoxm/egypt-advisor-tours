@@ -1,0 +1,915 @@
+/**
+ * Integration tests for server/index.js
+ *
+ * These tests spin up the real Express application (with real middleware)
+ * against a temporary DATA_PATH directory so no actual data files are read or written.
+ * The tests cover a representative subset of public and admin-protected API endpoints;
+ * not every endpoint is exercised.
+ */
+
+const request = require('supertest');
+const path    = require('path');
+const os      = require('os');
+const fs      = require('fs');
+
+// Use a temp dir for data so tests don't touch real data files.
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eat-test-'));
+process.env.DATA_PATH       = tmpDir;
+process.env.NODE_ENV        = 'test';
+process.env.ADMIN_SECRET    = 'test-jwt-secret';
+process.env.ADMIN_PASSWORD  = 'test-password';
+process.env.ADMIN_USERNAME  = 'testadmin';
+process.env.CMS_PROVIDER = 'storyblok';
+process.env.STORYBLOK_EDITOR_URL = 'https://app.storyblok.com/#/me/spaces/123/content/';
+process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
+
+// Load the app AFTER setting env vars.
+const app = require('../index.js');
+const jwt = require('jsonwebtoken');
+
+// Helper: obtain a valid admin session + CSRF token.
+async function adminSession() {
+    const res = await request(app)
+        .post('/api/admin/login')
+        .send({ username: 'testadmin', password: 'test-password' });
+    const cookies = res.headers['set-cookie'] || [];
+    const csrfCookie = cookies.find((cookie) => cookie.startsWith('adminCsrfToken='));
+    const csrfToken = csrfCookie ? csrfCookie.split(';')[0].split('=')[1] : '';
+    return { cookies, csrfToken };
+}
+
+// ─────────────────────────────────────────────────
+// Core / Health
+// ─────────────────────────────────────────────────
+describe('GET /health', () => {
+    it('returns 200 with OK status', async () => {
+        const res = await request(app).get('/health');
+        expect(res.status).toBe(200);
+        expect(res.body.status).toBe('OK');
+    });
+});
+
+describe('SEO discovery endpoints', () => {
+    const configuredBaseUrl = process.env.PUBLIC_SITE_URL || 'https://egyptadvisortours.com';
+    const expectedBaseUrl = new URL(configuredBaseUrl).origin;
+
+    it('serves robots.txt with sitemap location', async () => {
+        const res = await request(app).get('/robots.txt');
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('User-agent: *');
+        expect(res.text).toContain(`Sitemap: ${expectedBaseUrl}/sitemap.xml`);
+    });
+
+    it('serves sitemap.xml including static and tour-detail routes', async () => {
+        const res = await request(app).get('/sitemap.xml');
+        expect(res.status).toBe(200);
+        expect(res.headers['content-type']).toMatch(/xml/);
+        expect(res.text).toContain(`<loc>${expectedBaseUrl}/tours</loc>`);
+        expect(res.text).toContain(`<loc>${expectedBaseUrl}/faq</loc>`);
+        expect(res.text).toContain(`<loc>${expectedBaseUrl}/tours/1</loc>`);
+    });
+});
+
+describe('GET /api/admin/health', () => {
+    it('returns 503 with degraded status when Storyblok is not configured', async () => {
+        const res = await request(app).get('/api/admin/health');
+        expect(res.status).toBe(503);
+        expect(res.body.status).toBe('degraded');
+        expect(res.body.cms).toBe('down');
+    });
+
+    it('includes diagnostic details in non-production mode', async () => {
+        const res = await request(app).get('/api/admin/health');
+        // NODE_ENV is 'test' so diagnostics should be included
+        expect(res.body).toHaveProperty('errorCode', 'STORYBLOK_NOT_CONFIGURED');
+        expect(res.body).toHaveProperty('hint');
+    });
+
+    it('returns 200 when CMS_PROVIDER=filesystem', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        process.env.CMS_PROVIDER = 'filesystem';
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(200);
+            expect(res.body.status).toBe('ok');
+            expect(res.body.cms).toBe('up');
+            expect(res.body.provider).toBe('filesystem');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+        }
+    });
+
+    it('includes wordpress provider diagnostics when wordpress is not configured', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'not-a-url';
+
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(503);
+            expect(res.body.errorCode).toBe('WORDPRESS_NOT_CONFIGURED');
+            expect(res.body.provider).toBe('wordpress');
+            expect(res.body.wordpressBaseUrl).toBe('not-a-url');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+        }
+    });
+
+    it('includes wordpress base URL diagnostics when wordpress health is up', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(200);
+            expect(res.body.provider).toBe('wordpress');
+            expect(res.body.wordpressBaseUrl).toBe('https://cms.example.com');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+
+    it('includes wordpress base URL diagnostics when wordpress health probe fails', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({ ok: false, status: 503 });
+
+        try {
+            const res = await request(app).get('/api/admin/health');
+            expect(res.status).toBe(503);
+            expect(res.body.provider).toBe('wordpress');
+            expect(res.body.wordpressBaseUrl).toBe('https://cms.example.com');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /admin', () => {
+    it('redirects unauthenticated users to /admin/login', async () => {
+        const res = await request(app).get('/admin');
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe('/admin/login');
+    });
+
+    it('serves the Storyblok launcher admin shell for authenticated users', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(200);
+        expect(res.headers['content-security-policy']).toMatch(/frame-src https:\/\/app\.storyblok\.com/);
+        expect(res.text).not.toContain('<iframe');
+        expect(res.text).toContain(process.env.STORYBLOK_EDITOR_URL);
+        expect(res.text).toContain('Open Storyblok editor');
+        expect(res.text).toContain('id="switch-account"');
+        expect(res.text).toContain('/api/admin/logout');
+        expect(res.text).toContain('/admin/login?force=1');
+    });
+
+    it('includes the configured editor origin in admin CSP frame-src', async () => {
+        const originalEditorUrl = process.env.STORYBLOK_EDITOR_URL;
+        process.env.STORYBLOK_EDITOR_URL = 'https://custom-editor.example.com/editor';
+        const session = await adminSession();
+
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(200);
+            expect(res.headers['content-security-policy']).toMatch(/frame-src[^;]*https:\/\/custom-editor\.example\.com/);
+        } finally {
+            process.env.STORYBLOK_EDITOR_URL = originalEditorUrl;
+        }
+    });
+
+    it('redirects to WordPress admin when CMS_PROVIDER=wordpress', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+
+        const session = await adminSession();
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('https://cms.example.com/wp-admin/');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+        }
+    });
+
+    it('prefers WordPress in auto mode when an explicit WordPress URL is configured', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const hadWordpressBaseUrl = Object.prototype.hasOwnProperty.call(process.env, 'WORDPRESS_BASE_URL');
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalStoryblokToken = process.env.STORYBLOK_PREVIEW_TOKEN;
+        process.env.CMS_PROVIDER = 'auto';
+        delete process.env.WORDPRESS_BASE_URL;
+        process.env.WORDPRESS_URL = 'https://cms.example.com';
+        process.env.STORYBLOK_PREVIEW_TOKEN = 'legacy-token-still-set';
+
+        const session = await adminSession();
+        try {
+            const res = await request(app)
+                .get('/admin')
+                .set('Cookie', session.cookies);
+
+            expect(res.status).toBe(302);
+            expect(res.headers.location).toBe('https://cms.example.com/wp-admin/');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (hadWordpressBaseUrl) {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            } else {
+                delete process.env.WORDPRESS_BASE_URL;
+            }
+            process.env.STORYBLOK_PREVIEW_TOKEN = originalStoryblokToken;
+            delete process.env.WORDPRESS_URL;
+        }
+    });
+});
+
+describe('GET /admin/login', () => {
+    it('renders a login form', async () => {
+        const res = await request(app).get('/admin/login');
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('Admin login');
+        expect(res.text).toContain('Sign in');
+    });
+
+    it('redirects authenticated users to /admin', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin/login')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe('/admin');
+    });
+
+    it('renders login page when force=1 even if authenticated', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/admin/login?force=1')
+            .set('Cookie', session.cookies);
+
+        expect(res.status).toBe(200);
+        expect(res.text).toContain('Admin login');
+    });
+});
+
+describe('Storyblok preview routes', () => {
+    it('sets the preview cookie and redirects when the secret is valid', async () => {
+        const res = await request(app)
+            .get('/api/admin/preview/storyblok-secret');
+
+        expect(res.status).toBe(302);
+        expect(res.headers.location).toBe('/');
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
+    });
+
+    it('returns not found for invalid preview secrets', async () => {
+        const res = await request(app)
+            .get('/api/admin/preview/wrong-secret');
+
+        expect(res.status).toBe(404);
+    });
+
+    it('requires a configured preview secret in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        const originalPreviewSecret = process.env.STORYBLOK_PREVIEW_SECRET;
+        process.env.NODE_ENV = 'production';
+        delete process.env.STORYBLOK_PREVIEW_SECRET;
+
+        try {
+            const res = await request(app).get('/api/admin/preview/any-secret');
+            expect(res.status).toBe(404);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+            process.env.STORYBLOK_PREVIEW_SECRET = originalPreviewSecret;
+        }
+    });
+
+    it('uses SameSite=None for preview cookie in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        try {
+            const res = await request(app).get('/api/admin/preview/storyblok-secret');
+            const setCookie = (res.headers['set-cookie'] || []).join(';');
+            expect(setCookie).toMatch(/storyblokPreview=draft/);
+            expect(setCookie).toMatch(/SameSite=None/i);
+            expect(setCookie).toMatch(/Secure/i);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+        }
+    });
+
+    it('clears the preview cookie', async () => {
+        const res = await request(app).post('/api/admin/preview/exit');
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=/);
+    });
+
+    it('returns preview status for authenticated admin', async () => {
+        const session = await adminSession();
+        const enableRes = await request(app)
+            .post('/api/admin/preview/enable')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+
+        const statusCookies = [...session.cookies, ...(enableRes.headers['set-cookie'] || [])];
+        const res = await request(app)
+            .get('/api/admin/preview/status')
+            .set('Cookie', statusCookies);
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ active: true, mode: 'draft' });
+    });
+
+    it('enables preview mode for authenticated admin', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .post('/api/admin/preview/enable')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/storyblokPreview=draft/);
+    });
+
+    it('rejects unauthenticated preview enable requests', async () => {
+        const res = await request(app).post('/api/admin/preview/enable');
+        expect(res.status).toBe(401);
+    });
+});
+
+describe('GET /api', () => {
+    it('returns 200 with welcome message', async () => {
+        const res = await request(app).get('/api');
+        expect(res.status).toBe(200);
+        expect(res.body.message).toMatch(/Egypt Advisor Tours/i);
+    });
+});
+
+// ─────────────────────────────────────────────────
+// Admin Auth
+// ─────────────────────────────────────────────────
+describe('POST /api/admin/login', () => {
+    it('returns 200 and sets a cookie on valid credentials', async () => {
+        const res = await request(app)
+            .post('/api/admin/login')
+            .send({ username: 'testadmin', password: 'test-password' });
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.headers['set-cookie']).toBeDefined();
+        expect(res.headers['set-cookie'][0]).toMatch(/adminToken=/);
+        expect(res.headers['set-cookie'][0]).toMatch(/HttpOnly/i);
+        expect((res.headers['set-cookie'] || []).join(';')).toMatch(/adminCsrfToken=/);
+    });
+
+    it('returns 401 on wrong password', async () => {
+        const res = await request(app)
+            .post('/api/admin/login')
+            .send({ username: 'testadmin', password: 'wrong-password' });
+        expect(res.status).toBe(401);
+        expect(res.body.error).toBeDefined();
+    });
+
+    it('returns 401 on wrong username', async () => {
+        const res = await request(app)
+            .post('/api/admin/login')
+            .send({ username: 'hacker', password: 'test-password' });
+        expect(res.status).toBe(401);
+    });
+});
+
+describe('GET /api/admin/verify', () => {
+    it('returns 401 when no cookie is sent', async () => {
+        const res = await request(app).get('/api/admin/verify');
+        expect(res.status).toBe(401);
+        expect(res.body.authenticated).toBe(false);
+    });
+
+    it('returns 200 when a valid cookie is sent', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/api/admin/verify')
+            .set('Cookie', session.cookies);
+        expect(res.status).toBe(200);
+        expect(res.body.authenticated).toBe(true);
+    });
+
+    it('returns 401 for a tampered/expired cookie', async () => {
+        const badToken = jwt.sign({ admin: true }, 'wrong-secret', { expiresIn: '1s' });
+        const res = await request(app)
+            .get('/api/admin/verify')
+            .set('Cookie', [`adminToken=${badToken}`]);
+        expect(res.status).toBe(401);
+    });
+});
+
+describe('POST /api/admin/logout', () => {
+    it('returns 200 and clears the cookie', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .post('/api/admin/logout')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken);
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        // The Set-Cookie header should clear the adminToken cookie
+        const setCookie = (res.headers['set-cookie'] || []).join(';');
+        expect(setCookie).toMatch(/adminToken=/);
+    });
+
+    it('clears cookies with the same secure attributes in production', async () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+
+        try {
+            const session = await adminSession();
+            const res = await request(app)
+                .post('/api/admin/logout')
+                .set('Cookie', session.cookies)
+                .set('x-csrf-token', session.csrfToken);
+
+            const setCookie = (res.headers['set-cookie'] || []).join(';');
+            expect(setCookie).toMatch(/adminToken=/);
+            expect(setCookie).toMatch(/adminCsrfToken=/);
+            expect(setCookie).toMatch(/Secure/i);
+            expect(setCookie).toMatch(/SameSite=Strict/i);
+        } finally {
+            process.env.NODE_ENV = originalNodeEnv;
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────
+// Public endpoints
+// ─────────────────────────────────────────────────
+describe('GET /api/tours', () => {
+    it('returns 200 with tours array', async () => {
+        const res = await request(app).get('/api/tours');
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty('tours');
+        expect(Array.isArray(res.body.tours)).toBe(true);
+    });
+
+    it('fetches fresh data on each request when CMS_PROVIDER=wordpress', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest
+            .fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ tours: [{ id: 1 }] }) })
+            .mockResolvedValueOnce({ ok: true, json: async () => ({ tours: [{ id: 2 }] }) });
+
+        try {
+            const first = await request(app).get('/api/tours');
+            const second = await request(app).get('/api/tours');
+
+            expect(first.status).toBe(200);
+            expect(second.status).toBe(200);
+            expect(first.body.tours[0].id).toBe(1);
+            expect(second.body.tours[0].id).toBe(2);
+            expect(global.fetch).toHaveBeenCalledTimes(2);
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+
+    it('does not fall back to local tours when WordPress fetch fails in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+
+        try {
+            const res = await request(app).get('/api/tours');
+            expect(res.status).toBe(500);
+            expect(res.body.error).toContain('WordPress');
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/contact', () => {
+    it('returns 200 with contact info', async () => {
+        const res = await request(app).get('/api/contact');
+        expect(res.status).toBe(200);
+        expect(res.body).toBeDefined();
+    });
+});
+
+describe('GET /api/navigation', () => {
+    it('returns 200 with WordPress navigation content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ logoText: 'Egypt Advisor Tours' }),
+        });
+
+        try {
+            const res = await request(app).get('/api/navigation');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ logoText: 'Egypt Advisor Tours' });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/faq', () => {
+    it('returns 200 with WordPress faq content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                pageTitle: 'Frequently Asked Questions',
+                categories: [{ title: 'Booking', items: [] }],
+            }),
+        });
+
+        try {
+            const res = await request(app).get('/api/faq');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({
+                pageTitle: 'Frequently Asked Questions',
+                pageIntro: '',
+                categories: [{ title: 'Booking', items: [] }],
+                contactCta: null,
+            });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/tailor-trip', () => {
+    it('returns 200 with WordPress tailor trip content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ hero: { title: 'Tailor Your Egypt Journey' } }),
+        });
+
+        try {
+            const res = await request(app).get('/api/tailor-trip');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ hero: { title: 'Tailor Your Egypt Journey' } });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/homepage', () => {
+    it('returns 200 with WordPress homepage content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ hero: { title: 'Welcome' } }),
+        });
+
+        try {
+            const res = await request(app).get('/api/homepage');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ hero: { title: 'Welcome' } });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/about', () => {
+    it('returns 200 with WordPress about content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ title: 'About Egypt Advisor Tours' }),
+        });
+
+        try {
+            const res = await request(app).get('/api/about');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ title: 'About Egypt Advisor Tours' });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/footer', () => {
+    it('returns 200 with WordPress footer content in wordpress mode', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ copyright: '© Egypt Advisor Tours' }),
+        });
+
+        try {
+            const res = await request(app).get('/api/footer');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ copyright: '© Egypt Advisor Tours' });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+
+    it('returns 200 for /api/footer when wp namespace endpoints fail but page slug fallback succeeds', async () => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn()
+            .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+            .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ([{ acf: { payload: JSON.stringify({ copyright: '© Egypt Advisor Tours' }) } }]),
+            });
+
+        try {
+            const res = await request(app).get('/api/footer');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ copyright: '© Egypt Advisor Tours' });
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('WordPress read failures for new CMS endpoints', () => {
+    it.each([
+        ['/api/navigation', 'navigation'],
+        ['/api/faq', 'FAQ'],
+        ['/api/tailor-trip', 'tailor trip'],
+        ['/api/homepage', 'homepage'],
+        ['/api/about', 'about'],
+        ['/api/footer', 'footer'],
+    ])('returns 500 for %s when WordPress read fails', async (route, label) => {
+        const originalProvider = process.env.CMS_PROVIDER;
+        const originalWordpressBaseUrl = process.env.WORDPRESS_BASE_URL;
+        const originalFetch = global.fetch;
+
+        process.env.CMS_PROVIDER = 'wordpress';
+        process.env.WORDPRESS_BASE_URL = 'https://cms.example.com';
+        global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+
+        try {
+            const res = await request(app).get(route);
+            expect(res.status).toBe(500);
+            expect(res.body.error).toContain(`Failed to read ${label} data from WordPress`);
+        } finally {
+            process.env.CMS_PROVIDER = originalProvider;
+            if (originalWordpressBaseUrl === undefined) {
+                delete process.env.WORDPRESS_BASE_URL;
+            } else {
+                process.env.WORDPRESS_BASE_URL = originalWordpressBaseUrl;
+            }
+            global.fetch = originalFetch;
+        }
+    });
+});
+
+describe('GET /api/blogs', () => {
+    it('returns 200 with blogs array', async () => {
+        const res = await request(app).get('/api/blogs');
+        expect(res.status).toBe(200);
+        expect(res.body).toHaveProperty('blogs');
+        expect(Array.isArray(res.body.blogs)).toBe(true);
+    });
+});
+
+describe('GET /api/settings', () => {
+    it('returns 200 with site settings', async () => {
+        const res = await request(app).get('/api/settings');
+        expect(res.status).toBe(200);
+        expect(res.body).toBeDefined();
+    });
+});
+
+describe('GET /api/gallery', () => {
+    it('returns 200 with gallery array', async () => {
+        const res = await request(app).get('/api/gallery');
+        expect(res.status).toBe(200);
+    });
+});
+
+describe('GET /api/slideshow', () => {
+    it('returns 200 with slides', async () => {
+        const res = await request(app).get('/api/slideshow');
+        expect(res.status).toBe(200);
+    });
+});
+
+// ─────────────────────────────────────────────────
+// Admin-protected endpoints
+// ─────────────────────────────────────────────────
+describe('GET /api/bookings (admin protected)', () => {
+    it('returns 401 without auth', async () => {
+        const res = await request(app).get('/api/bookings');
+        expect(res.status).toBe(401);
+    });
+
+    it('returns 200 with admin cookie', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .get('/api/bookings')
+            .set('Cookie', session.cookies);
+        expect(res.status).toBe(200);
+    });
+});
+
+describe('POST /api/tours (admin protected)', () => {
+    it('returns 401 without auth', async () => {
+        const res = await request(app)
+            .post('/api/tours')
+            .send({ tours: [], testimonials: [] });
+        expect(res.status).toBe(401);
+    });
+
+    it('accepts a valid tours payload with admin cookie', async () => {
+        const session = await adminSession();
+        const res = await request(app)
+            .post('/api/tours')
+            .set('Cookie', session.cookies)
+            .set('x-csrf-token', session.csrfToken)
+            .send({ tours: [], testimonials: [] });
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────
+// Public customer booking endpoint
+// ─────────────────────────────────────────────────
+describe('POST /api/bookings/customer', () => {
+    it('returns 201 and bookingId for a valid booking', async () => {
+        const res = await request(app)
+            .post('/api/bookings/customer')
+            .send({
+                tourId: 1,
+                tourName: 'Pyramids Tour',
+                customerName: 'Jane Doe',
+                customerEmail: 'jane@example.com',
+                customerPhone: '+1-555-1234',
+                numberOfPeople: 2,
+                bookingDate: '2025-10-01',
+            });
+        expect(res.status).toBe(201);
+        expect(res.body.success).toBe(true);
+        expect(res.body.bookingId).toBeDefined();
+    });
+
+    it('returns 400 when required fields are missing', async () => {
+        const res = await request(app)
+            .post('/api/bookings/customer')
+            .send({ tourName: 'Test' }); // missing customerName, customerEmail, tourId
+        expect(res.status).toBe(400);
+    });
+
+    it('does NOT require admin auth', async () => {
+        const res = await request(app)
+            .post('/api/bookings/customer')
+            .send({
+                tourId: 2,
+                customerName: 'John Smith',
+                customerEmail: 'john@example.com',
+            });
+        expect(res.status).toBe(201);
+    });
+});
+
+// Cleanup temp dir after all tests.
+afterAll(() => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+});

@@ -1,29 +1,27 @@
-import React, { lazy, Suspense } from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 import App from './App';
+import { DataProvider } from './context/DataContext';
 
-// AdminRoute is loaded lazily so it is excluded from the main bundle.
-// It is registered here (outside App) so /admin never mounts the public-site
-// layout (navbar, footer, TripTailor modal).
-const AdminRoute = lazy(() => import('./pages/AdminRoute'));
+// /admin is handled by the Express server, which redirects editors to the
+// configured Storyblok space. Any direct navigation bypasses the React router.
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
+        {/* All public-site routes are handled by the App layout */}
         <Route
-          path="/admin"
+          path="/*"
           element={
-            <Suspense fallback={<div className="admin-loading">Loading admin panel…</div>}>
-              <AdminRoute />
-            </Suspense>
+            <DataProvider>
+              <App />
+            </DataProvider>
           }
         />
-        {/* All other routes are handled by the public-site App layout */}
-        <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

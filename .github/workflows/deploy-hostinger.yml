@@ -1,117 +1,713 @@
-# ============================================================
-# Auto-deploy to Hostinger on every push to main
-# ============================================================
-#
-# SETUP CHECKLIST (one-time, done by the repo owner):
-#
-#  1. In Hostinger hPanel, set up a Node.js application:
-#       hPanel → Websites → egyptadvisortours.com → Node.js
-#       • Node.js version : 18 (LTS) or higher
-#       • Application root : the folder where this repo is deployed, e.g.
-#                            /home/u123456789/egyptadvisortours.com
-#       • Startup file     : index.js
-#       • Click "Create" / "Save"
-#
-#  2. Enable SSH access for your Hostinger account:
-#       hPanel → Advanced → SSH Access → Enable
-#       Note your SSH hostname (e.g. server123.web-hosting.com), username,
-#       and port (usually 65002 on Hostinger shared/business plans).
-#
-#  3. Generate a dedicated SSH key-pair on your local machine:
-#       ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/hostinger_deploy
-#     Add the PUBLIC key (~/.ssh/hostinger_deploy.pub) to Hostinger:
-#       hPanel → Advanced → SSH Access → Manage SSH Keys → Add SSH Key
-#     Copy the PRIVATE key (~/.ssh/hostinger_deploy) content for step 4.
-#
-#  4. Add the following GitHub Secrets to this repository:
-#       GitHub → Settings → Secrets and variables → Actions → New repository secret
-#
-#       Secret name                    Example value
-#       ──────────────────────────────────────────────────────────────────────
-#       HOSTINGER_SSH_HOST             server123.web-hosting.com
-#       HOSTINGER_SSH_PORT             65002          (check hPanel SSH page)
-#       HOSTINGER_SSH_USER             u123456789     (your Hostinger username)
-#       HOSTINGER_SSH_KEY              -----BEGIN OPENSSH PRIVATE KEY----- ...
-#       HOSTINGER_APP_DIR              /home/u123456789/egyptadvisortours.com
-#       HOSTINGER_SSH_KNOWN_HOSTS      output of: ssh-keyscan -p <PORT> <HOST>
-#                                      Run once locally and paste the output as
-#                                      the secret value to pin the server key.
-#       ADMIN_SECRET                   a-long-random-string (protects /api writes)
-#       REACT_APP_ADMIN_SECRET         same-long-random-string (must match above)
-#
-#       Optional — only needed if you use EmailJS:
-#       REACT_APP_EMAILJS_SERVICE_ID
-#       REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID
-#       REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID
-#       REACT_APP_EMAILJS_PUBLIC_KEY
-#
-#  5. On the first deploy, Hostinger must already have the repo cloned:
-#       SSH into your server and run once:
-#         git clone https://github.com/jozoxm/egypt-advisor-tours.git \
-#                   /home/u123456789/egyptadvisortours.com
-#       (replace the path with your HOSTINGER_APP_DIR value)
-#
-# After completing steps 1–5, every push to `main` will automatically
-# deploy the latest code to https://egyptadvisortours.com.
-# ============================================================
-
 name: Deploy to Hostinger
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:   # also allows manual trigger from GitHub Actions UI
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install server dependencies
+        run: npm install --prefix server
+
+      - name: Run server tests
+        run: npm run test:server -- --watchAll=false --forceExit
+
+      - name: Install client dependencies
+        run: npm install --prefix client
+
+      - name: Run client tests
+        run: npm run test:client -- --watchAll=false --passWithNoTests
+
   deploy:
     name: SSH deploy → Hostinger
     runs-on: ubuntu-latest
+    needs: test
+    environment:
+      name: production
+      url: https://egyptadvisortours.com
 
     steps:
-      # ── 1. Check out code (needed only to verify the workflow itself) ──
+      - name: Validate required secrets
+        env:
+          _HOST: ${{ secrets.HOSTINGER_SSH_HOST }}
+          _USER: ${{ secrets.HOSTINGER_SSH_USER }}
+          _PORT: ${{ secrets.HOSTINGER_SSH_PORT }}
+          _KEY_B64: ${{ secrets.HOSTINGER_SSH_KEY_B64 }}
+          _DIR: ${{ secrets.HOSTINGER_APP_DIR }}
+          _KNOWN_HOSTS: ${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}
+          _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          _CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+          _WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
+          _WORDPRESS_API_NAMESPACE: ${{ secrets.WORDPRESS_API_NAMESPACE }}
+          _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
+          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
+          _PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          _CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          _REACT_APP_SITE_URL: ${{ secrets.REACT_APP_SITE_URL }}
+        run: |
+          missing=()
+          [ -z "$_HOST" ] && missing+=("HOSTINGER_SSH_HOST")
+          [ -z "$_USER" ] && missing+=("HOSTINGER_SSH_USER")
+          [ -z "$_PORT" ] && missing+=("HOSTINGER_SSH_PORT")
+          [ -z "$_KEY_B64" ] && missing+=("HOSTINGER_SSH_KEY_B64")
+          [ -z "$_DIR" ] && missing+=("HOSTINGER_APP_DIR")
+          [ -z "$_KNOWN_HOSTS" ] && missing+=("HOSTINGER_SSH_KNOWN_HOSTS")
+          [ -z "$_ADMIN_SECRET" ] && missing+=("ADMIN_SECRET")
+          [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
+          [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
+          CMS_PROVIDER="${_CMS_PROVIDER:-wordpress}"
+          [ "$CMS_PROVIDER" = "wp" ] && CMS_PROVIDER="wordpress"
+          case "$CMS_PROVIDER" in
+            storyblok|wordpress|filesystem) ;;
+            *)
+              echo "::error::CMS_PROVIDER must be one of: storyblok, wordpress, filesystem"
+              exit 1
+              ;;
+          esac
+          if [ "$CMS_PROVIDER" = "storyblok" ] && [ -z "$_STORYBLOK_PREVIEW_TOKEN" ]; then
+            missing+=("STORYBLOK_PREVIEW_TOKEN")
+          fi
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$_WORDPRESS_BASE_URL" ]; then
+            missing+=("WORDPRESS_BASE_URL")
+          fi
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required GitHub Secrets: ${missing[*]}"
+            exit 1
+          fi
+          case "$_HOSTINGER_DATA_PATH" in
+            /*) ;;
+            *)
+              echo "::error::HOSTINGER_DATA_PATH must be an absolute path starting with /"
+              exit 1
+              ;;
+          esac
+          case "$_HOSTINGER_DATA_PATH" in
+            *$'\n'*|*$'\r'*|*[[:space:]]*)
+              echo "::error::HOSTINGER_DATA_PATH must not contain whitespace or newlines"
+              exit 1
+              ;;
+          esac
+
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: false
 
-      # ── 2. Add pinned Hostinger SSH host key to known_hosts ───────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
       - name: Add Hostinger to known_hosts
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
-      # ── 3. Write the private key ──────────────────────────────────────
       - name: Install SSH private key
         run: |
-          echo "${{ secrets.HOSTINGER_SSH_KEY }}" > ~/.ssh/hostinger_deploy
+          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/hostinger_deploy
+          [ -s ~/.ssh/hostinger_deploy ] || { echo "::error::Decoded SSH key file is empty."; exit 1; }
+          grep -q '^-----BEGIN .*PRIVATE KEY-----$' ~/.ssh/hostinger_deploy || {
+            echo "::error::Decoded SSH key does not start with a valid PRIVATE KEY header."
+            exit 1
+          }
           chmod 600 ~/.ssh/hostinger_deploy
 
-      # ── 4. Deploy: pull latest code and restart the app ──────────────
-      #    The postinstall hook (scripts/build-client.js) auto-builds the
-      #    React frontend only when the git hash has changed, so this is
-      #    safe to run on every push.
+      - name: Inspect SSH private key file (safe)
+        run: |
+          echo "Path: $HOME/.ssh/hostinger_deploy"
+          ls -l "$HOME/.ssh/hostinger_deploy"
+          wc -c "$HOME/.ssh/hostinger_deploy"
+          line_count=$(wc -l < "$HOME/.ssh/hostinger_deploy" | tr -d '[:space:]')
+          first_line=$(sed -n '1p' "$HOME/.ssh/hostinger_deploy")
+          last_line=$(sed -n '$p' "$HOME/.ssh/hostinger_deploy")
+          mask_line() {
+            case "$1" in
+              "-----BEGIN "*|"-----END "*) printf '%s\n' "$1" ;;
+              *) echo "[redacted-non-marker]" ;;
+            esac
+          }
+          echo "Line count: $line_count"
+          echo "First line: $(mask_line "$first_line")"
+          echo "Last line: $(mask_line "$last_line")"
+
+      - name: Validate SSH private key format
+        run: |
+          if ssh-keygen -l -f ~/.ssh/hostinger_deploy >/dev/null; then
+            echo "SSH private key format is valid."
+          else
+            echo "::error::Invalid SSH private key format."
+            exit 1
+          fi
+
+      - name: Verify SSH connectivity
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          echo "Checking SSH connection to ${DEPLOY_HOST}:${DEPLOY_PORT} as ${DEPLOY_USER}"
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "echo SSH preflight OK"
+
+      - name: Write environment files to server
+        env:
+          _ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+          _ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          _ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          _CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
+          _WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
+          _WORDPRESS_API_NAMESPACE: ${{ secrets.WORDPRESS_API_NAMESPACE }}
+          _WORDPRESS_TOURS_SLUG: ${{ secrets.WORDPRESS_TOURS_SLUG }}
+          _WORDPRESS_CONTACT_SLUG: ${{ secrets.WORDPRESS_CONTACT_SLUG }}
+          _WORDPRESS_BLOGS_SLUG: ${{ secrets.WORDPRESS_BLOGS_SLUG }}
+          _WORDPRESS_GALLERY_SLUG: ${{ secrets.WORDPRESS_GALLERY_SLUG }}
+          _WORDPRESS_SLIDESHOW_SLUG: ${{ secrets.WORDPRESS_SLIDESHOW_SLUG }}
+          _WORDPRESS_SETTINGS_SLUG: ${{ secrets.WORDPRESS_SETTINGS_SLUG }}
+          _WORDPRESS_PROMOTIONS_SLUG: ${{ secrets.WORDPRESS_PROMOTIONS_SLUG }}
+          _WORDPRESS_DESTINATIONS_SLUG: ${{ secrets.WORDPRESS_DESTINATIONS_SLUG }}
+          _WORDPRESS_NAVIGATION_SLUG: ${{ secrets.WORDPRESS_NAVIGATION_SLUG }}
+          _WORDPRESS_FAQ_SLUG: ${{ secrets.WORDPRESS_FAQ_SLUG }}
+          _WORDPRESS_TAILOR_TRIP_SLUG: ${{ secrets.WORDPRESS_TAILOR_TRIP_SLUG }}
+          _WORDPRESS_HOMEPAGE_SLUG: ${{ secrets.WORDPRESS_HOMEPAGE_SLUG }}
+          _WORDPRESS_ABOUT_SLUG: ${{ secrets.WORDPRESS_ABOUT_SLUG }}
+          _WORDPRESS_FOOTER_SLUG: ${{ secrets.WORDPRESS_FOOTER_SLUG }}
+          _WORDPRESS_TIMEOUT_MS: ${{ secrets.WORDPRESS_TIMEOUT_MS }}
+          _WORDPRESS_HEALTH_TIMEOUT_MS: ${{ secrets.WORDPRESS_HEALTH_TIMEOUT_MS }}
+          _STORYBLOK_PREVIEW_TOKEN: ${{ secrets.STORYBLOK_PREVIEW_TOKEN }}
+          _STORYBLOK_SPACE_ID: ${{ secrets.STORYBLOK_SPACE_ID }}
+          _STORYBLOK_EDITOR_URL: ${{ secrets.STORYBLOK_EDITOR_URL }}
+          _STORYBLOK_MANAGEMENT_TOKEN: ${{ secrets.STORYBLOK_MANAGEMENT_TOKEN }}
+          _STORYBLOK_PREVIEW_SECRET: ${{ secrets.STORYBLOK_PREVIEW_SECRET }}
+          _STORYBLOK_REGION: ${{ secrets.STORYBLOK_REGION }}
+          _PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          _CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          _REACT_APP_SITE_URL: ${{ secrets.REACT_APP_SITE_URL }}
+          _REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          _REACT_APP_EMAILJS_SERVICE_ID: ${{ secrets.REACT_APP_EMAILJS_SERVICE_ID }}
+          _REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID }}
+          _REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID: ${{ secrets.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID }}
+          _REACT_APP_EMAILJS_PUBLIC_KEY: ${{ secrets.REACT_APP_EMAILJS_PUBLIC_KEY }}
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          CMS_PROVIDER="${_CMS_PROVIDER:-wordpress}"
+          [ "$CMS_PROVIDER" = "wp" ] && CMS_PROVIDER="wordpress"
+          PUBLIC_SITE_URL="${_PUBLIC_SITE_URL:-https://egyptadvisortours.com}"
+          CORS_ORIGIN="${_CORS_ORIGIN:-$PUBLIC_SITE_URL}"
+          REACT_APP_SITE_URL="${_REACT_APP_SITE_URL:-$PUBLIC_SITE_URL}"
+          WORDPRESS_API_NAMESPACE="${_WORDPRESS_API_NAMESPACE}"
+          if [ "$CMS_PROVIDER" = "wordpress" ] && [ -z "$WORDPRESS_API_NAMESPACE" ]; then
+            WORDPRESS_API_NAMESPACE="ramacf/v1"
+          fi
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
+            mkdir -p '${DEPLOY_DIR}'
+            if [ ! -d '${DEPLOY_DIR}/.git' ]; then
+              cd '${DEPLOY_DIR}'
+              git init
+              git remote add origin https://github.com/${{ github.repository }}.git
+            fi
+            mkdir -p '${DEPLOY_DIR}/client'"
+
+          client_env_file=$(mktemp)
+          printf '%s\n%s\n%s\n%s\n%s\n' \
+            "REACT_APP_SITE_URL=${REACT_APP_SITE_URL}" \
+            "REACT_APP_EMAILJS_SERVICE_ID=${_REACT_APP_EMAILJS_SERVICE_ID}" \
+            "REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID=${_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID}" \
+            "REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID=${_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID}" \
+            "REACT_APP_EMAILJS_PUBLIC_KEY=${_REACT_APP_EMAILJS_PUBLIC_KEY}" \
+            > "$client_env_file"
+          [ -n "${_REACT_APP_API_URL}" ] && printf 'REACT_APP_API_URL=%s\n' "${_REACT_APP_API_URL}" >> "$client_env_file"
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+            "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'" < "$client_env_file"
+          rm -f "$client_env_file"
+
+          server_env_file=$(mktemp)
+          [ -n "${_STORYBLOK_PREVIEW_TOKEN}" ] && printf 'STORYBLOK_PREVIEW_TOKEN=%s\n' "${_STORYBLOK_PREVIEW_TOKEN}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_BASE_URL}" ] && printf 'WORDPRESS_BASE_URL=%s\n' "${_WORDPRESS_BASE_URL}" >> "$server_env_file"
+          [ -n "${WORDPRESS_API_NAMESPACE}" ] && printf 'WORDPRESS_API_NAMESPACE=%s\n' "${WORDPRESS_API_NAMESPACE}" >> "$server_env_file"
+          printf 'CMS_PROVIDER=%s\n' "${CMS_PROVIDER}" >> "$server_env_file"
+          printf 'PUBLIC_SITE_URL=%s\n' "${PUBLIC_SITE_URL}" >> "$server_env_file"
+          printf 'CORS_ORIGIN=%s\n' "${CORS_ORIGIN}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_TOURS_SLUG}" ] && printf 'WORDPRESS_TOURS_SLUG=%s\n' "${_WORDPRESS_TOURS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_CONTACT_SLUG}" ] && printf 'WORDPRESS_CONTACT_SLUG=%s\n' "${_WORDPRESS_CONTACT_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_BLOGS_SLUG}" ] && printf 'WORDPRESS_BLOGS_SLUG=%s\n' "${_WORDPRESS_BLOGS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_GALLERY_SLUG}" ] && printf 'WORDPRESS_GALLERY_SLUG=%s\n' "${_WORDPRESS_GALLERY_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_SLIDESHOW_SLUG}" ] && printf 'WORDPRESS_SLIDESHOW_SLUG=%s\n' "${_WORDPRESS_SLIDESHOW_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_SETTINGS_SLUG}" ] && printf 'WORDPRESS_SETTINGS_SLUG=%s\n' "${_WORDPRESS_SETTINGS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_PROMOTIONS_SLUG}" ] && printf 'WORDPRESS_PROMOTIONS_SLUG=%s\n' "${_WORDPRESS_PROMOTIONS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_DESTINATIONS_SLUG}" ] && printf 'WORDPRESS_DESTINATIONS_SLUG=%s\n' "${_WORDPRESS_DESTINATIONS_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_NAVIGATION_SLUG}" ] && printf 'WORDPRESS_NAVIGATION_SLUG=%s\n' "${_WORDPRESS_NAVIGATION_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_FAQ_SLUG}" ] && printf 'WORDPRESS_FAQ_SLUG=%s\n' "${_WORDPRESS_FAQ_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_TAILOR_TRIP_SLUG}" ] && printf 'WORDPRESS_TAILOR_TRIP_SLUG=%s\n' "${_WORDPRESS_TAILOR_TRIP_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_HOMEPAGE_SLUG}" ] && printf 'WORDPRESS_HOMEPAGE_SLUG=%s\n' "${_WORDPRESS_HOMEPAGE_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_ABOUT_SLUG}" ] && printf 'WORDPRESS_ABOUT_SLUG=%s\n' "${_WORDPRESS_ABOUT_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_FOOTER_SLUG}" ] && printf 'WORDPRESS_FOOTER_SLUG=%s\n' "${_WORDPRESS_FOOTER_SLUG}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_TIMEOUT_MS}" ] && printf 'WORDPRESS_TIMEOUT_MS=%s\n' "${_WORDPRESS_TIMEOUT_MS}" >> "$server_env_file"
+          [ -n "${_WORDPRESS_HEALTH_TIMEOUT_MS}" ] && printf 'WORDPRESS_HEALTH_TIMEOUT_MS=%s\n' "${_WORDPRESS_HEALTH_TIMEOUT_MS}" >> "$server_env_file"
+          [ -n "${_ADMIN_USERNAME}" ] && printf 'ADMIN_USERNAME=%s\n' "${_ADMIN_USERNAME}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_SPACE_ID}" ] && printf 'STORYBLOK_SPACE_ID=%s\n' "${_STORYBLOK_SPACE_ID}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_EDITOR_URL}" ] && printf 'STORYBLOK_EDITOR_URL=%s\n' "${_STORYBLOK_EDITOR_URL}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_MANAGEMENT_TOKEN}" ] && printf 'STORYBLOK_MANAGEMENT_TOKEN=%s\n' "${_STORYBLOK_MANAGEMENT_TOKEN}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_PREVIEW_SECRET}" ] && printf 'STORYBLOK_PREVIEW_SECRET=%s\n' "${_STORYBLOK_PREVIEW_SECRET}" >> "$server_env_file"
+          [ -n "${_STORYBLOK_REGION}" ] && printf 'STORYBLOK_REGION=%s\n' "${_STORYBLOK_REGION}" >> "$server_env_file"
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+            "umask 077; cat > '${DEPLOY_DIR}/.env'" < "$server_env_file"
+          rm -f "$server_env_file"
+
+      - name: Verify env files on server
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "
+            check_env_file() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              if [ -f \"\$path\" ]; then
+                perms_size=\$(ls -l \"\$path\" | awk '{print \"permissions=\" \$1 \" size=\" \$5 \"B\"}')
+                echo \"\$label: present (\$perms_size)\"
+              else
+                echo \"::warning::\$label not found at \$path — env file may not have been written correctly\"
+              fi
+            }
+            check_env_key() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              local key=\"\$3\"
+              local required=\"\$4\"
+              if grep -q \"^\${key}=\" \"\$path\"; then
+                echo \"\$label: \${key} present\"
+              elif [ \"\$required\" = \"required\" ]; then
+                echo \"::error::\$label missing required key \${key}\"
+                return 1
+              else
+                echo \"::warning::\$label missing optional key \${key}\"
+              fi
+            }
+            fail=0
+            server_env='${DEPLOY_DIR}/.env'
+            client_env='${DEPLOY_DIR}/client/.env.production.local'
+            check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
+            check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
+            check_env_key 'Server .env' \"\$server_env\" 'CMS_PROVIDER' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' required || fail=1
+            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' required || fail=1
+            cms_provider=\$(sed -n 's/^CMS_PROVIDER=//p' \"\$server_env\" | tail -n 1)
+            [ \"\$cms_provider\" = 'wp' ] && cms_provider='wordpress'
+            if [ \"\$cms_provider\" = 'wordpress' ]; then
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_BASE_URL' required || fail=1
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_API_NAMESPACE' required || fail=1
+            fi
+            if [ \"\$fail\" -ne 0 ]; then
+              exit 1
+            fi
+          "
+
       - name: Pull & restart on Hostinger
         run: |
-          ssh -i ~/.ssh/hostinger_deploy \
-              -p "${{ secrets.HOSTINGER_SSH_PORT }}" \
-              "${{ secrets.HOSTINGER_SSH_USER }}@${{ secrets.HOSTINGER_SSH_HOST }}" \
-              "set -e
-               cd '${{ secrets.HOSTINGER_APP_DIR }}'
-               echo '--- pulling latest code ---'
-               git pull origin main
-               echo '--- installing dependencies (triggers client build if needed) ---'
-               npm install --production=false
-               echo '--- restarting Node.js app ---'
-               # Ensure the restart marker directory exists before touching the file.
-               mkdir -p tmp
-               # The touch trick causes Passenger/PM2 to reload the app.
-               touch tmp/restart.txt
-               # If the host uses PM2 directly:
-               # pm2 restart egypt-advisor-tours 2>/dev/null || true
-               echo '--- deploy complete ---'"
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
 
-      # ── 5. Print deployment summary ───────────────────────────────────
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
+            export NVM_DIR=\"\$HOME/.nvm\"
+            [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+            command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
+            npm --version
+            cd '${DEPLOY_DIR}'
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+            npm install --production=false
+            mkdir -p tmp
+            touch tmp/restart.txt"
+
+      - name: Verify env files after restart
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "
+            check_env_file() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              if [ -f \"\$path\" ]; then
+                perms_size=\$(ls -l \"\$path\" | awk '{print \"permissions=\" \$1 \" size=\" \$5 \"B\"}')
+                echo \"\$label: present (\$perms_size)\"
+              else
+                echo \"::warning::\$label not found at \$path after restart — app may start without required env vars\"
+              fi
+            }
+            check_env_key() {
+              local label=\"\$1\"
+              local path=\"\$2\"
+              local key=\"\$3\"
+              local required=\"\$4\"
+              if grep -q \"^\${key}=\" \"\$path\"; then
+                echo \"\$label: \${key} present after restart\"
+              elif [ \"\$required\" = \"required\" ]; then
+                echo \"::error::\$label missing required key \${key} after restart\"
+                return 1
+              else
+                echo \"::warning::\$label missing optional key \${key} after restart\"
+              fi
+            }
+            fail=0
+            server_env='${DEPLOY_DIR}/.env'
+            client_env='${DEPLOY_DIR}/client/.env.production.local'
+            check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
+            check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
+            check_env_key 'Server .env' \"\$server_env\" 'CMS_PROVIDER' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' required || fail=1
+            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' required || fail=1
+            cms_provider=\$(sed -n 's/^CMS_PROVIDER=//p' \"\$server_env\" | tail -n 1)
+            [ \"\$cms_provider\" = 'wp' ] && cms_provider='wordpress'
+            if [ \"\$cms_provider\" = 'wordpress' ]; then
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_BASE_URL' required || fail=1
+              check_env_key 'Server .env' \"\$server_env\" 'WORDPRESS_API_NAMESPACE' required || fail=1
+            fi
+            if [ \"\$fail\" -ne 0 ]; then
+              exit 1
+            fi
+          "
+
+      - name: Health check
+        env:
+          CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+        run: |
+          sleep 20
+          provider=$(printf '%s' "${CMS_PROVIDER:-wordpress}" | tr '[:upper:]' '[:lower:]')
+          [ "$provider" = "wp" ] && provider="wordpress"
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          node_count=$(ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "ps -eo cmd | grep -E '[n]ode .*start\\.js|[n]ode .*server/index\\.js' | wc -l | tr -d '[:space:]'")
+          echo "Detected Node app process count after restart: ${node_count:-0}"
+          if [ "${node_count:-0}" -gt 1 ]; then
+            echo "::error::Multiple Node app processes detected after restart."
+            exit 1
+          fi
+          run_check() {
+            local url="$1"
+            local mode="$2"
+            local status
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo "000")
+            case "$mode:$status" in
+              strict:2[0-9][0-9]|redirect-ok:2[0-9][0-9]|redirect-ok:3[0-9][0-9]) return 0 ;;
+            esac
+            echo "::error::Health check failed for $url (HTTP $status)"
+            exit 1
+          }
+          run_check_info() {
+            local url="$1"
+            local label="$2"
+            local status
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$url" || echo "000")
+            case "$status" in
+              2[0-9][0-9])
+                echo "${label}: OK (HTTP ${status})"
+                ;;
+              *)
+                echo "::warning::${label} returned HTTP ${status} — CMS may be degraded but app is still up. URL: ${url}"
+                echo "${label}: DEGRADED (HTTP ${status})"
+                ;;
+            esac
+          }
+          run_check "https://egyptadvisortours.com/health" "strict"
+          echo "App liveness: OK"
+          run_check_info "https://egyptadvisortours.com/api/admin/health" "CMS health"
+          run_check "https://egyptadvisortours.com/admin" "redirect-ok"
+          if [ "$provider" = "wordpress" ]; then
+            run_check "https://egyptadvisortours.com/api/navigation" "strict"
+            run_check "https://egyptadvisortours.com/api/homepage" "strict"
+            echo "WordPress content endpoints: OK"
+          fi
+          echo "Admin route: OK"
+
+      - name: One-shot post-deploy debug snapshot
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
+          BASE_URL="https://egyptadvisortours.com"
+
+          echo "=== Public endpoint checks ==="
+          check_public() {
+            local path="$1"
+            local url="${BASE_URL}${path}"
+            local body_file
+            body_file=$(mktemp)
+            local status
+            status=$(curl -sS -L --max-time 25 -o "$body_file" -w "%{http_code}" "$url" || echo "000")
+            snippet=$(head -c 180 "$body_file" | tr '\n' ' ')
+            rm -f "$body_file"
+            echo "PUBLIC ${path} -> HTTP ${status} :: ${snippet}"
+          }
+          check_public "/health"
+          check_public "/api/admin/health"
+          check_public "/api/tours"
+          check_public "/api/navigation"
+          check_public "/api/homepage"
+          check_public "/api/about"
+          check_public "/api/footer"
+
+          echo "=== Hostinger process/env/local checks ==="
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "bash -s -- '$DEPLOY_DIR' '$BASE_URL'" <<'EOF'
+          set -eu
+          DEPLOY_DIR="$1"
+          BASE_URL="$2"
+          ENV_FILE="${DEPLOY_DIR}/.env"
+
+          get_env() {
+            local key="$1"
+            if [ -f "$ENV_FILE" ]; then
+              sed -n "s/^${key}=//p" "$ENV_FILE" | tail -n 1
+            fi
+          }
+
+          check_local() {
+            local path="$1"
+            local body_file
+            body_file=$(mktemp)
+            local status
+            status=$(curl -sS --max-time 20 -o "$body_file" -w "%{http_code}" "http://127.0.0.1:${PORT}${path}" || echo "000")
+            local snippet
+            snippet=$(head -c 180 "$body_file" | tr '\n' ' ')
+            rm -f "$body_file"
+            echo "LOCAL  ${path} -> HTTP ${status} :: ${snippet}"
+          }
+          get_status() {
+            local url="$1"
+            curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000"
+          }
+          slug_or_default() {
+            local key="$1"
+            local fallback="$2"
+            local value
+            value=$(get_env "$key")
+            printf '%s' "${value:-$fallback}"
+          }
+
+          echo "--- Process snapshot ---"
+          ps -eo pid,ppid,cmd | grep -E '[n]ode|[p]m2|[p]assenger' || true
+          NODE_COUNT=$(ps -eo cmd | grep -E '[n]ode .*start\.js|[n]ode .*server/index\.js' | wc -l | tr -d '[:space:]')
+          echo "Detected Node app process count: ${NODE_COUNT:-0}"
+          if [ "${NODE_COUNT:-0}" -gt 1 ]; then
+            echo "::warning::Multiple Node app processes detected; verify process manager has a single app instance during debugging."
+          fi
+
+          echo "--- Effective CMS env snapshot (.env presence only) ---"
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "::warning::.env missing at ${ENV_FILE}"
+          fi
+          CMS_PROVIDER=$(get_env CMS_PROVIDER)
+          CMS_PROVIDER=${CMS_PROVIDER:-wordpress}
+          echo "CMS_PROVIDER=${CMS_PROVIDER}"
+          if [ "$CMS_PROVIDER" = "auto" ]; then
+            echo "::warning::CMS_PROVIDER is auto; set an explicit provider (wordpress/storyblok/filesystem) during debug runs."
+          fi
+
+          WORDPRESS_BASE_URL=$(get_env WORDPRESS_BASE_URL)
+          WORDPRESS_API_NAMESPACE=$(get_env WORDPRESS_API_NAMESPACE)
+          WORDPRESS_API_NAMESPACE=${WORDPRESS_API_NAMESPACE:-ramacf/v1}
+          EFFECTIVE_WORDPRESS_BASE_URL=${WORDPRESS_BASE_URL:-https://cms.egyptadvisortours.com}
+          STORYBLOK_PREVIEW_TOKEN=$(get_env STORYBLOK_PREVIEW_TOKEN)
+          STORYBLOK_SPACE_ID=$(get_env STORYBLOK_SPACE_ID)
+          STORYBLOK_REGION=$(get_env STORYBLOK_REGION)
+          STORYBLOK_REGION=${STORYBLOK_REGION:-eu}
+          PORT=$(get_env PORT)
+          PORT=${PORT:-5000}
+
+          if [ "$CMS_PROVIDER" = "wordpress" ]; then
+            if [ -n "$WORDPRESS_BASE_URL" ]; then
+              echo "WORDPRESS_BASE_URL is explicitly set"
+            else
+              echo "::notice::WORDPRESS_BASE_URL is unset; using default ${EFFECTIVE_WORDPRESS_BASE_URL}"
+            fi
+            echo "EFFECTIVE_WORDPRESS_BASE_URL=${EFFECTIVE_WORDPRESS_BASE_URL}"
+          fi
+          if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
+            [ -n "$STORYBLOK_PREVIEW_TOKEN" ] || echo "::warning::STORYBLOK_PREVIEW_TOKEN is empty for storyblok/auto mode."
+          fi
+          [ -n "$WORDPRESS_API_NAMESPACE" ] || echo "::warning::WORDPRESS_API_NAMESPACE is empty."
+
+          for key in WORDPRESS_TOURS_SLUG WORDPRESS_NAVIGATION_SLUG WORDPRESS_HOMEPAGE_SLUG WORDPRESS_ABOUT_SLUG WORDPRESS_FOOTER_SLUG; do
+            value=$(get_env "$key")
+            if [ -z "$value" ]; then
+              echo "::warning::${key} not set in .env (default slug behavior will be used)."
+            fi
+          done
+
+          echo "--- Local endpoint checks (Hostinger localhost) ---"
+          check_local "/health"
+          check_local "/api/admin/health"
+          check_local "/api/tours"
+          check_local "/api/navigation"
+          check_local "/api/homepage"
+          check_local "/api/about"
+          check_local "/api/footer"
+          PUBLIC_HOMEPAGE_STATUS=$(get_status "${BASE_URL}/api/homepage")
+          LOCAL_HOMEPAGE_STATUS=$(get_status "http://127.0.0.1:${PORT}/api/homepage")
+          if [ "$PUBLIC_HOMEPAGE_STATUS" = "200" ] && [ "$LOCAL_HOMEPAGE_STATUS" = "200" ]; then
+            echo "Homepage parity: public and localhost are both healthy."
+          elif [ "$PUBLIC_HOMEPAGE_STATUS" != "200" ] && [ "$LOCAL_HOMEPAGE_STATUS" = "200" ]; then
+            echo "::warning::Public /api/homepage is failing while localhost succeeds — check proxy/routing/CDN configuration."
+          elif [ "$PUBLIC_HOMEPAGE_STATUS" = "200" ] && [ "$LOCAL_HOMEPAGE_STATUS" != "200" ]; then
+            echo "::warning::Local /api/homepage is failing while public succeeds — check process state and on-host networking."
+          else
+            echo "::warning::Public and localhost /api/homepage are both failing — check CMS connectivity and runtime env."
+          fi
+
+          echo "--- Filesystem CMS snapshot ---"
+          for dir in \
+            "$DEPLOY_DIR/server" \
+            "$DEPLOY_DIR/server/data" \
+            "$DEPLOY_DIR/client" \
+            "$DEPLOY_DIR/client/src" \
+            "$DEPLOY_DIR/client/src/data"
+          do
+            if [ -d "$dir" ]; then
+              echo "DIR OK  $dir"
+            else
+              echo "::warning::Missing directory: $dir"
+            fi
+          done
+
+          for file in \
+            "$DEPLOY_DIR/server/data/tours.json" \
+            "$DEPLOY_DIR/server/data/contact.json" \
+            "$DEPLOY_DIR/server/data/blogs.json" \
+            "$DEPLOY_DIR/server/data/gallery.json" \
+            "$DEPLOY_DIR/server/data/bookings.json" \
+            "$DEPLOY_DIR/server/data/slideshow.json" \
+            "$DEPLOY_DIR/server/data/settings.json" \
+            "$DEPLOY_DIR/server/data/promotions.json" \
+            "$DEPLOY_DIR/server/data/destinations.json" \
+            "$DEPLOY_DIR/client/src/data/tours-data.js" \
+            "$DEPLOY_DIR/client/src/data/contact-info.js" \
+            "$DEPLOY_DIR/client/src/data/blogs-data.js" \
+            "$DEPLOY_DIR/client/src/data/gallery-data.js" \
+            "$DEPLOY_DIR/client/src/data/bookings-data.js" \
+            "$DEPLOY_DIR/client/src/data/slideshow-data.js" \
+            "$DEPLOY_DIR/client/src/data/site-settings.js" \
+            "$DEPLOY_DIR/client/src/data/promotions-data.js" \
+            "$DEPLOY_DIR/client/src/data/destinations-data.js" \
+            "$DEPLOY_DIR/client/src/data/cms-fallbacks.js"
+          do
+            if [ -f "$file" ]; then
+              echo "FILE OK $file"
+            else
+              echo "::warning::Missing file: $file"
+            fi
+          done
+
+          if [ "$CMS_PROVIDER" = "wordpress" ]; then
+            echo "--- WordPress upstream reachability ---"
+            for url in \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/tours" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/navigation" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/homepage" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/about" \
+              "${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/${WORDPRESS_API_NAMESPACE}/footer"
+            do
+              status=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000")
+              echo "WORDPRESS ${url} -> HTTP ${status}"
+            done
+            echo "--- WordPress wp/v2 slug fallback reachability ---"
+            check_wordpress_slug() {
+              local resource="$1"
+              local slug="$2"
+              for type in pages posts; do
+                url="${EFFECTIVE_WORDPRESS_BASE_URL%/}/wp-json/wp/v2/${type}?slug=${slug}&_fields=acf,content"
+                status=$(curl -sS --max-time 20 -o /dev/null -w "%{http_code}" "$url" || echo "000")
+                echo "WORDPRESS ${resource} ${type} slug=${slug} -> HTTP ${status}"
+              done
+            }
+            check_wordpress_slug "navigation" "$(slug_or_default WORDPRESS_NAVIGATION_SLUG cms-navigation)"
+            check_wordpress_slug "homepage" "$(slug_or_default WORDPRESS_HOMEPAGE_SLUG cms-homepage)"
+            check_wordpress_slug "about" "$(slug_or_default WORDPRESS_ABOUT_SLUG cms-about)"
+            check_wordpress_slug "footer" "$(slug_or_default WORDPRESS_FOOTER_SLUG cms-footer)"
+          fi
+
+          if [ "$CMS_PROVIDER" = "storyblok" ] || [ "$CMS_PROVIDER" = "auto" ]; then
+            echo "--- Storyblok config presence ---"
+            [ -n "$STORYBLOK_SPACE_ID" ] && echo "STORYBLOK_SPACE_ID is set" || echo "::warning::STORYBLOK_SPACE_ID missing."
+            [ -n "$STORYBLOK_PREVIEW_TOKEN" ] && echo "STORYBLOK_PREVIEW_TOKEN is set" || echo "::warning::STORYBLOK_PREVIEW_TOKEN missing."
+            echo "STORYBLOK_REGION=${STORYBLOK_REGION}"
+          fi
+          EOF
+
       - name: Deployment summary
+        env:
+          CMS_PROVIDER: ${{ secrets.CMS_PROVIDER }}
+          WORDPRESS_BASE_URL: ${{ secrets.WORDPRESS_BASE_URL }}
+          PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL }}
+          REACT_APP_SITE_URL: ${{ secrets.REACT_APP_SITE_URL }}
         run: |
           echo "✅ Deployed to https://egyptadvisortours.com"
-          echo "   Remote deployment completed successfully."
+          provider=$(printf '%s' "${CMS_PROVIDER:-wordpress}" | tr '[:upper:]' '[:lower:]')
+          [ "$provider" = "wp" ] && provider="wordpress"
+          echo "CMS provider deployed: ${provider}"
+          if [ -n "${WORDPRESS_BASE_URL}" ]; then
+            echo "WordPress base URL configured: yes"
+          else
+            echo "WordPress base URL configured: no"
+          fi
+          if [ -n "${PUBLIC_SITE_URL}" ]; then
+            echo "Public site URL configured from secret: yes"
+          else
+            echo "Public site URL configured from workflow default: yes"
+          fi
+          if [ -n "${REACT_APP_SITE_URL}" ]; then
+            echo "Client site URL configured from secret: yes"
+          else
+            echo "Client site URL configured from workflow default: yes"
+          fi

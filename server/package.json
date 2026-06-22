@@ -6,16 +6,27 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "echo 'Error: no test specified' && exit 1"
+    "test": "jest"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "@adminjs/express": "^5.1.0",
+    "@adminjs/mongoose": "^3.0.3",
+    "@adminjs/upload": "^3.0.1",
+    "@storyblok/js": "^5.1.4",
+    "adminjs": "^6.8.7",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express-rate-limit": "^8.2.1"
+    "express": "^4.18.2",
+    "express-formidable": "^1.2.0",
+    "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "jest": "^30.3.0",
+    "nodemon": "^3.0.1",
+    "supertest": "^7.2.2"
   },
   "author": "jozoxm",
   "license": "ISC",
@@ -23,8 +34,12 @@
     "type": "git",
     "url": "https://github.com/jozoxm/egypt-advisor-tours.git"
   },
-  "keywords": ["nodejs", "express", "tours"],
+  "keywords": [
+    "nodejs",
+    "express",
+    "tours"
+  ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.14.0"
   }
 }
