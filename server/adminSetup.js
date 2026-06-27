@@ -23,11 +23,6 @@ function setupAdmin(app) {
   // 4. Unified AdminJS Configuration Options
   const adminOptions = {
     resources: [
-      // Content Management (Mongoose Models)
-      { 
-        resource: Tour, 
-        options: { parent: { name: 'Content Management' } } 
-      },
       // Data Views (Static JSON Records)
       { resource: toursData, options: { parent: { name: 'Tours' } } },
       { resource: blogsData, options: { parent: { name: 'Blogs' } } },
