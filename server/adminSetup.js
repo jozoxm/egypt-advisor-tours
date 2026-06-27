@@ -1,74 +1,59 @@
-// server/adminSetup.js
 const AdminJS = require('adminjs');
 const AdminJSExpress = require('@adminjs/express');
 const AdminJSMongoose = require('@adminjs/mongoose');
 const uploadFeature = require('@adminjs/upload');
 
-// MUST register the adapter before creating the AdminJS instance
+// 1. Database Model Imports
+
+// 2. Static Content Data Imports
+const toursData = require('./data/tours.json');
+const blogsData = require('./data/blogs.json');
+const bookingsData = require('./data/bookings.json');
+const contactData = require('./data/contact.json');
+const destinationsData = require('./data/destinations.json');
+const galleryData = require('./data/gallery.json');
+const promotionsData = require('./data/promotions.json');
+const settingsData = require('./data/settings.json');
+const slideshowData = require('./data/slideshow.json');
+
+// 3. Register the adapter BEFORE creating the AdminJS instance
 AdminJS.registerAdapter(AdminJSMongoose);
 
-const tours = require('./data/tours.json');
-const blogs = require('./data/blogs.json');
-const bookings = require('./data/bookings.json');
-const contact = require('./data/contact.json');
-const destinations = require('./data/destinations.json');
-const gallery = require('./data/gallery.json');
-const promotions = require('./data/promotions.json');
-const settings = require('./data/settings.json');
-const slideshow = require('./data/slideshow.json');
 function setupAdmin(app) {
+  // 4. Unified AdminJS Configuration Options
   const adminOptions = {
     resources: [
-      { resource: tours, options: { parent: { name: 'Tours' } } },
-      { resource: blogs, options: { parent: { name: 'Blogs' } } },
-      { resource: bookings, options: { parent: { name: 'Bookings' } } },
-      { resource: contact, options: { parent: { name: 'Contact' } } },
-      { resource: destinations, options: { parent: { name: 'Destinations' } } },
-      { resource: gallery, options: { parent: { name: 'Gallery' } } },
-      { resource: promotions, options: { parent: { name: 'Promotions' } } },
-      { resource: settings, options: { parent: { name: 'Settings' } } },
-      { resource: slideshow, options: { parent: { name: 'Homepage' } } }
+      // Content Management (Mongoose Models)
+      { 
+        resource: Tour, 
+        options: { parent: { name: 'Content Management' } } 
+      },
+      // Data Views (Static JSON Records)
+      { resource: toursData, options: { parent: { name: 'Tours' } } },
+      { resource: blogsData, options: { parent: { name: 'Blogs' } } },
+      { resource: bookingsData, options: { parent: { name: 'Bookings' } } },
+      { resource: contactData, options: { parent: { name: 'Contact' } } },
+      { resource: destinationsData, options: { parent: { name: 'Destinations' } } },
+      { resource: galleryData, options: { parent: { name: 'Gallery' } } },
+      { resource: promotionsData, options: { parent: { name: 'Promotions' } } },
+      { resource: settingsData, options: { parent: { name: 'Settings' } } },
+      { resource: slideshowData, options: { parent: { name: 'Homepage' } } }
     ],
     rootPath: '/admin',
+    loginPath: '/admin/login',
     branding: {
       companyName: 'Egypt Advisor Tours',
       softwareBrothers: false,
     },
   };
-} // <-- This closing brace closes the setupAdmin function
 
- const admin = new AdminJS({
-  // ... resources
-  // Add this inside the new AdminJS({ ... }) block
-  loginPath: '/admin/login',
-  // Simple auth check
-  allowLocalAuthentication: true,
-  // Or add a simple password check
-  // (In production, use a proper session/cookie strategy)
-});
+  // 5. Initialize AdminJS Instance
+  const admin = new AdminJS(adminOptions);
 
-  // Build the admin route
-const AdminJSMongoose = require('@adminjs/mongoose');
-const AdminJSExpress = require('@adminjs/express');
-
-// MUST register the adapter before creating the AdminJS instance
-AdminJS.registerAdapter(AdminJSMongoose); 
-
-const Tour = require('./models/Tour'); // Ensure this path is correct!
-
-const setupAdmin = (app) => {
-  const admin = new AdminJS({
-    resources: [
-      {
-        resource: Tour, // The actual Mongoose model
-        options: { parent: { name: 'Content Management' } }
-      }
-    ],
-    rootPath: '/admin',
-  });
-
+  // 6. Build Router and Attach to Express app
   const adminRouter = AdminJSExpress.buildRouter(admin);
   app.use(admin.options.rootPath, adminRouter);
-};
+}
 
+// 7. Single Module Export
 module.exports = setupAdmin;
