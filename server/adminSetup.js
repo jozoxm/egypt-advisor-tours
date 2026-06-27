@@ -35,6 +35,7 @@ function setupAdmin(app) {
       softwareBrothers: false,
     },
   };
+} // <-- This closing brace closes the setupAdmin function
 
  const admin = new AdminJS({
   // ... resources
