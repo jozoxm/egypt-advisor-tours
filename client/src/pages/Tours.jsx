@@ -6,7 +6,7 @@ const Tours = ({ tours }) => {
     const [filter, setFilter] = useState('');
 
     useEffect(() => {
-        let updatedTours = tours;
+        let updatedTours = [...tours];
 
         // Filtering
         if (filter) {

@@ -1,166 +1,217 @@
 # Egypt Advisor Tours
 
-## 🟢 Ready to Go Live?
+Full-stack tour website built with React and Express, supporting **WordPress (headless)** or **Storyblok** for editor-managed content.
 
-**Live site:** [https://egyptadvisortours.com](https://egyptadvisortours.com)
+## Local development
 
-**Auto-deploy to Hostinger** is configured via GitHub Actions (`.github/workflows/deploy-hostinger.yml`).
-Every push to `main` automatically pulls the latest code to the Hostinger server, rebuilds the React client if needed, and restarts the Node.js app.
+Prerequisites: Node.js 18+
 
-> **One-time setup required:** See the comment block at the top of `.github/workflows/deploy-hostinger.yml` for the full checklist — SSH key creation, GitHub Secrets to add, and hPanel Node.js app setup.
-
-👉 **[HOSTINGER-DEPLOYMENT.md](docs/HOSTINGER-DEPLOYMENT.md)** — Full step-by-step guide for Hostinger Shared Hosting and VPS, including manual upload instructions.
-
----
-
-## 🚨 WINDOWS BUILD ERROR?
-
-**Getting "'CI' is not recognized" error?** See **[BUILD-WINDOWS-FIX.md](BUILD-WINDOWS-FIX.md)**
-
-**Quick Fix:**
 ```bash
-git pull origin copilot/remove-video-from-hero
-cd client && npm install && cd ..
-npm run build
-```
-
----
-
-## 🚨 CAN'T SEE THE ADMIN BUTTON?
-
-**Follow these steps RIGHT NOW:** [REFRESH-ADMIN-BUTTON.md](REFRESH-ADMIN-BUTTON.md)
-
-**Quick Fix:**
-```bash
-# 1. Pull latest changes
-git pull
-
-# 2. Hard refresh browser (do this 3 times!)
-Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
-
-# 3. Check console (F12) - should show: Version 1.0.2
-```
-
----
-
-## 🚨 SCRIPT NOT FOUND?
-
-**Getting "'resolve-css-conflict.bat' is not recognized" error?**
-
-See **[MISSING-SCRIPTS-FIX.md](MISSING-SCRIPTS-FIX.md)** for complete fix!
-
-**Quick Fix:**
-```bash
-# Switch to the correct branch
-git checkout copilot/remove-video-from-hero
-git pull origin copilot/remove-video-from-hero
-
-# Or resolve manually without scripts
-git checkout --theirs client/src/App.css
-git add client/src/App.css
-git commit -m "Resolve CSS conflict"
-```
-
-**Manual Resolution:** See [CSS-CONFLICT-MANUAL.md](CSS-CONFLICT-MANUAL.md)
-
----
-
-## 🚀 Quick Start - Commands in Order
-
-**Need the exact commands to follow?** See **[COMMANDS-IN-ORDER.md](COMMANDS-IN-ORDER.md)** for a step-by-step guide!
-
-**TL;DR:**
-```bash
-# Terminal 1:
-npm run start:server
-
-# Terminal 2:
-npm run start:client
-
-# Then open: http://localhost:3000
-```
-
----
-
-## 🎨 Full Control Admin Panel - NEW!
-
-**Want to edit without ANY coding?** We now have a **Full Control Admin Panel with automatic saving**!
-
-- 🖱️ **[Full Control Admin Guide](NO-CODE-ADMIN-GUIDE.md)** - Edit with automatic saving (EASIEST!)
-- 📖 **[Quick Edit Guide](QUICK-EDIT-GUIDE.md)** - Edit data files directly
-- 📚 **[Beginner's Guide](BEGINNER-GUIDE.md)** - Complete guide with step-by-step instructions
-
-**How to use the Full Control Panel:**
-1. Start backend server: `npm run start:server`
-2. Start website: `npm run start:client`  
-3. Click "🎨 Admin" in navigation
-4. Edit and save - changes persist automatically!
-
-**No copy/paste, no manual file editing - just click and save!** ✨
-
----
-
-## 🎓 For Beginners: How to Edit This Website
-
-**New to coding?** We've made it easy for you!
-
-All the data is organized in easy-to-edit files - no complex coding required!
-
----
-
-## Project Overview
-Egypt Advisor Tours is a travel agency website designed to help travelers plan their visits to Egypt with ease. It provides useful information about various tours, attractions, accommodations, and travel tips to create unforgettable experiences.
-
-## Installation Instructions
-
-### Quick Start (Recommended)
-1. Clone the repository:  
-   ```bash
-   git clone https://github.com/jozoxm/egypt-advisor-tours.git
-   ```
-2. Navigate to the project directory:  
-   ```bash
-   cd egypt-advisor-tours
-   ```
-3. Install all dependencies (client and server):  
-   ```bash
-   npm run install:all
-   ```
-4. Start the development server:  
-   ```bash
-   npm start
-   ```
-
-### Alternative: Install Client Only
-If you only want to run the frontend:
-```bash
+git clone https://github.com/jozoxm/egypt-advisor-tours.git
 cd egypt-advisor-tours
-npm run install:client
+cp .env.example .env
+npm run setup
+```
+
+Fill in at least:
+
+- `CMS_PROVIDER` (`wordpress` or `storyblok`)
+- `STORYBLOK_SPACE_ID`
+- `WORDPRESS_BASE_URL` (when `CMS_PROVIDER=wordpress`)
+- `ADMIN_SECRET`
+- `ADMIN_PASSWORD`
+
+Run the app:
+
+```bash
 npm start
 ```
 
-### Alternative: Manual Installation
-If you prefer to install dependencies manually:
-1. Install client dependencies:  
-   ```bash
-   cd client
-   npm install
-   ```
-2. Install server dependencies:  
-   ```bash
-   cd ../server
-   npm install
-   ```
-3. Start the client:  
-   ```bash
-   cd ../client
-   npm start
-   ```
+- Site/API: `http://localhost:5000`
+- React dev server: `npm run dev:client`
+- Express dev server: `npm run dev:server`
+- CMS admin entry point: `http://localhost:5000/admin` (WordPress mode redirects to `/wp-admin`, Storyblok mode opens Storyblok launcher)
 
-## Features
-- Comprehensive tour listings with detailed descriptions
-- User-friendly interface with easy navigation
-- Booking system for tours and accommodations
-- Customer reviews and ratings for each tour
-- Blog section for travel tips and advice
-- Multi-language support
+## WordPress setup (headless mode)
+
+Set:
+
+```env
+CMS_PROVIDER=wordpress
+WORDPRESS_BASE_URL=https://cms.egyptadvisortours.com
+WORDPRESS_API_NAMESPACE=ramacf/v1
+```
+
+When `CMS_PROVIDER=wordpress`, public API content is read directly from WordPress on every request (no filesystem fallback for tours), so site content stays synced with the CMS.
+`WORDPRESS_URL` and `CMS_URL` are also accepted as aliases for `WORDPRESS_BASE_URL`.
+When `CMS_PROVIDER=auto`, an explicitly configured WordPress URL is preferred over Storyblok token auto-detection.
+
+Server read order in WordPress mode:
+
+1. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/<resource>`
+2. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/content/<resource>`
+3. `GET /wp-json/wp/v2/pages?slug=cms-<resource>`
+4. `GET /wp-json/wp/v2/posts?slug=cms-<resource>`
+
+Supported resources: `tours`, `contact`, `blogs`, `gallery`, `slideshow`, `settings`, `promotions`, `destinations`.
+
+## Storyblok setup (exact UI + env steps)
+
+The site keeps its existing API shapes (`/api/tours`, `/api/blogs`, `/api/settings`, etc.) and maps them to Storyblok stories.
+
+1. Create or open your Storyblok space.
+2. Go to **Settings → Access Tokens** and copy:
+   - **Preview token** → `STORYBLOK_PREVIEW_TOKEN`
+   - (Optional) **Management token** → `STORYBLOK_MANAGEMENT_TOKEN` (required for `npm run sync:storyblok`)
+3. Copy your **Space ID** from Storyblok space settings → `STORYBLOK_SPACE_ID`.
+4. In Storyblok, go to **Components** and create:
+   - Component name: `json_document`
+   - Field name: `json`
+   - Field type: **Long text**
+5. In Storyblok, create these stories (or override with env vars):
+
+| API resource | Default Storyblok slug |
+|---|---|
+| Tours + testimonials | `cms-tours` |
+| Contact info | `cms-contact` |
+| Blogs | `cms-blogs` |
+| Gallery | `cms-gallery` |
+| Slideshow | `cms-slideshow` |
+| Site settings | `cms-settings` |
+| Promotions | `cms-promotions` |
+| Destinations | `cms-destinations` |
+
+6. Configure local env values in `.env`:
+
+```env
+STORYBLOK_PREVIEW_TOKEN=<preview_token>
+STORYBLOK_SPACE_ID=<space_id>
+STORYBLOK_MANAGEMENT_TOKEN=<management_token>
+STORYBLOK_REGION=eu
+STORYBLOK_PREVIEW_SECRET=<long-random-secret>
+ADMIN_SECRET=<long-random-secret>
+ADMIN_PASSWORD=<secure-password>
+```
+
+- Set `STORYBLOK_REGION=us` only if your Storyblok space is in the US region.
+
+7. Install dependencies and bootstrap Storyblok content:
+
+```bash
+npm install
+npm install --prefix server
+npm run sync:storyblok
+```
+
+8. In Storyblok, set preview URL to:
+
+```text
+https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
+```
+
+Local alternative:
+
+```text
+http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
+```
+
+9. Start and verify:
+
+```bash
+npm start
+```
+
+- `/admin` serves an authenticated admin shell that launches Storyblok in a new tab (with preview controls kept in-app)
+- `/api/tours` and other APIs serve Storyblok-backed content
+- `/api/admin/preview/<secret>` enables draft preview mode
+- `/api/admin/preview/exit` clears preview mode
+
+Each story stores the same JSON shape the existing API already returns. Examples:
+
+- `cms-tours`: `{ "tours": [...], "testimonials": [...] }`
+- `cms-blogs`: `{ "blogs": [...] }`
+- `cms-settings`: `{ "hero": { ... }, ... }`
+
+### Bootstrap Storyblok from the current repository data
+
+If you have a management token, the repository can seed/update those stories for you:
+
+```bash
+npm run sync:storyblok
+```
+
+Required env vars for the sync script:
+
+- `STORYBLOK_SPACE_ID`
+- `STORYBLOK_MANAGEMENT_TOKEN`
+
+## Preview / draft mode
+
+Set Storyblok's preview URL to:
+
+```text
+https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
+```
+
+- `STORYBLOK_PREVIEW_SECRET` is optional but recommended
+- The route sets a short-lived preview cookie so the API reads Storyblok draft content
+- `/api/admin/preview/exit` clears the preview cookie
+- `/admin` provides a protected admin shell that opens the Storyblok editor in a new tab
+- `/api/admin/preview/status` reports preview state for authenticated admins
+- `/api/admin/preview/enable` lets the admin shell enable preview mode without exposing `STORYBLOK_PREVIEW_SECRET` in browser links
+
+## Security note
+
+If any Storyblok token was exposed in screenshots, chats, or public logs, rotate/regenerate it immediately in Storyblok and update your `.env`.
+
+## SEO & discoverability
+
+- Route-level SEO metadata is now set dynamically in the React app for:
+  - `/`, `/tours`, `/tours/:id`, `/blogs`, `/destinations`, `/special-offers`, `/about`
+- Canonical, Open Graph, Twitter, and JSON-LD tags are injected per page.
+- The server now serves:
+  - `GET /robots.txt`
+  - `GET /sitemap.xml` (includes static routes and dynamic tour detail URLs)
+- Optional prerender support for crawlers:
+  - Set `PRERENDER_TOKEN` (and optionally `PRERENDER_SERVICE_URL`) to enable crawler snapshots via Prerender.io-compatible services.
+  - `PRERENDER_TIMEOUT_MS` controls the prerender fetch timeout before falling back to normal SPA handling.
+- Recommended URL config:
+  - `PUBLIC_SITE_URL` (server-side canonical/sitemap base URL)
+  - `REACT_APP_SITE_URL` (client-side canonical/meta base URL)
+
+## What changed in this migration
+
+- Removed the local Payload CMS app and its build/start scripts
+- Replaced CMS reads with Storyblok-backed server helpers
+- Added Storyblok preview support and editor redirect handling
+- Added a Storyblok sync script for bootstrapping stories from the existing local data
+
+## Validation
+
+```bash
+npm run test:server -- --watchAll=false --forceExit
+npm run test:client -- --watchAll=false --passWithNoTests
+npm run build
+```
+
+## Hostinger one-shot debug snapshot
+
+The Hostinger deploy workflow now runs a post-deploy debug snapshot that logs:
+
+- Node/process count on Hostinger (to catch accidental double app instances)
+- Effective CMS env presence checks (`CMS_PROVIDER`, provider-specific keys, slug vars)
+- Public endpoint status + short body snippets for:
+  - `/health`
+  - `/api/admin/health`
+  - `/api/tours`
+  - `/api/navigation`
+  - `/api/homepage`
+  - `/api/about`
+  - `/api/footer`
+- Same endpoint checks from Hostinger localhost (`127.0.0.1:$PORT`, falling back to `5000`)
+- WordPress upstream reachability checks when `CMS_PROVIDER=wordpress`
+
+Use this snapshot after each redeploy to quickly separate:
+
+- app/config or CMS connectivity issues (both public + localhost failing),
+- vs. proxy/domain routing issues (public failing but localhost healthy).

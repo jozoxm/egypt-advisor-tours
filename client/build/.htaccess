@@ -1,0 +1,16 @@
+Options -MultiViews
+RewriteEngine On
+
+# Admin panel, CMS assets, media uploads, and API routes must reach the
+# Node.js / Phusion Passenger layer — do NOT rewrite them to index.html.
+# Without these rules, Apache serves index.html for /admin and React Router
+# then redirects to / because there is no /admin route in the React app.
+RewriteRule ^admin(/.*)?$ - [L]
+RewriteRule ^_next(/.*)?$ - [L]
+RewriteRule ^api(/.*)?$ - [L]
+RewriteRule ^media(/.*)?$ - [L]
+
+# SPA fallback: serve index.html for every other path that is not a real file
+# so that React Router can handle client-side navigation.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.html [QSA,L]

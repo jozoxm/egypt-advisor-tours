@@ -1,0 +1,17 @@
+{
+  "env": {
+    "node": true,
+    "es2020": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020
+  },
+  "rules": {
+    "no-console": "off",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "eqeqeq": ["error", "always"],
+    "curly": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error"
+  }
+}

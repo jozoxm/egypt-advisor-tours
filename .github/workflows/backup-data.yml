@@ -1,0 +1,97 @@
+# ============================================================
+# Nightly backup of admin-edited JSON data files
+# ============================================================
+# This workflow SSHes into the Hostinger server once a day, copies any
+# admin-edited JSON data files (from DATA_PATH or server/data/) and commits
+# them to a dedicated `data-backup` branch in this repository.
+#
+# WHY: The JSON files are gitignored (not part of the main branch) and live
+# outside the repo on Hostinger.  A crash, bad deploy, or accidental edit
+# cannot be undone without a backup.  This workflow creates a versioned
+# nightly snapshot so data can always be restored.
+#
+# SETUP:
+#  • Uses the same HOSTINGER_SSH_* secrets as deploy-hostinger.yml.
+#  • Set HOSTINGER_DATA_PATH secret (absolute path on server, e.g.
+#    /home/u123456789/admin_data) to back up files from a custom data dir.
+#    Leave it empty to fall back to <HOSTINGER_APP_DIR>/server/data.
+#  • The workflow pushes to the `data-backup` branch.  Create it once:
+#      git checkout --orphan data-backup && git commit --allow-empty -m "init" && git push
+# ============================================================
+
+name: Nightly data backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC every day
+  workflow_dispatch:        # allow manual trigger
+
+permissions:
+  contents: write   # needed to push to data-backup branch
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  backup:
+    name: Backup JSON data files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout data-backup branch
+        uses: actions/checkout@v4
+        with:
+          ref: data-backup
+          fetch-depth: 1
+          submodules: false
+
+      - name: Add Hostinger to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.HOSTINGER_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install SSH private key
+        run: |
+          printf '%s' "${{ secrets.HOSTINGER_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/hostinger_deploy
+          [ -s ~/.ssh/hostinger_deploy ] || { echo "::error::Decoded SSH key file is empty."; exit 1; }
+          grep -q '^-----BEGIN .*PRIVATE KEY-----$' ~/.ssh/hostinger_deploy || {
+            echo "::error::Decoded SSH key does not start with a valid PRIVATE KEY header."
+            exit 1
+          }
+          chmod 600 ~/.ssh/hostinger_deploy
+
+      - name: Download data files from server
+        env:
+          _HOSTINGER_DATA_PATH: ${{ secrets.HOSTINGER_DATA_PATH }}
+        run: |
+          DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
+          DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
+          DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          DATA_PATH=$(printf '%s' "${_HOSTINGER_DATA_PATH}" | tr -d '\n\r')
+          REMOTE_DATA="${DATA_PATH:-${DEPLOY_DIR}/server/data}"
+
+          SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -p $DEPLOY_PORT"
+          SCP_OPTS="-i $HOME/.ssh/hostinger_deploy -4 -o ConnectTimeout=10 -o BatchMode=yes -P $DEPLOY_PORT"
+
+          mkdir -p data-backup
+
+          # Download all JSON files from the data directory.
+          # rsync would be cleaner but scp -r works on all Hostinger plans.
+          scp $SCP_OPTS -r \
+            "$DEPLOY_USER@$DEPLOY_HOST:${REMOTE_DATA}/*.json" \
+            data-backup/ || echo "No JSON files found or scp failed (non-fatal)"
+
+      - name: Commit backup
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data-backup/
+          if git diff --cached --quiet; then
+            echo "No data changes since last backup — nothing to commit."
+          else
+            git commit -m "data backup $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin data-backup
+            echo "✅ Backup committed and pushed to data-backup branch."
+          fi
