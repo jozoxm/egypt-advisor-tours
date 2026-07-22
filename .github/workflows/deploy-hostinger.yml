@@ -322,6 +322,7 @@ jobs:
             git checkout main
             git reset --hard origin/main
             npm install --production=false
+            npm install --prefix server --production=false
             mkdir -p tmp logs
             touch tmp/restart.txt
 
