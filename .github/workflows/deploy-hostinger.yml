@@ -310,6 +310,7 @@ jobs:
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
           DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          APP_DIR="${DEPLOY_DIR}/nodejs"
           SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
 
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "set -e
@@ -317,7 +318,7 @@ jobs:
             [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
             command -v npm >/dev/null 2>&1 || export PATH=\"/usr/local/bin:/usr/bin:\$PATH\"
             npm --version
-            cd '${DEPLOY_DIR}'
+            cd '${APP_DIR}'
             git fetch origin main
             git checkout main
             git reset --hard origin/main
@@ -326,14 +327,14 @@ jobs:
             mkdir -p tmp logs
             touch tmp/restart.txt
 
-            if [ -d 'public_html' ] && [ -d 'build' ]; then
+            if [ -d '../public_html' ] && [ -d 'build' ]; then
               echo "Syncing built client into public_html..."
-              rm -rf public_html/*
-              cp -R build/* public_html/
-              cp -f build/.* public_html/ 2>/dev/null || true
+              rm -rf ../public_html/*
+              cp -R build/* ../public_html/
+              cp -f build/.* ../public_html/ 2>/dev/null || true
             fi
 
-            cat > public_html/.htaccess <<'HTACCESS'
+            cat > ../public_html/.htaccess <<'HTACCESS'
 Options -MultiViews
 RewriteEngine On
 
@@ -354,7 +355,7 @@ HTACCESS
             fi
 
             sleep 5
-            ps -eo cmd | grep -E '[n]ode .*start\\.js|[n]ode .*server/index\\.js' || true
+            ps -eo cmd | grep -E '[n]ode .*start\\.js' || true
             tail -n 200 logs/app.log 2>/dev/null || true"
 
       - name: Verify env files after restart
@@ -392,8 +393,10 @@ HTACCESS
             }
             fail=0
             server_env='${DEPLOY_DIR}/.env'
+            nodejs_server_env='${APP_DIR}/.env'
             client_env='${DEPLOY_DIR}/client/.env.production.local'
             check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
+            check_env_file 'Node.js app .env' '${APP_DIR}/.env' || true
             check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
             check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' optional || true
             check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' optional || true
@@ -409,8 +412,10 @@ HTACCESS
           DEPLOY_HOST=$(printf '%s' "${{ secrets.HOSTINGER_SSH_HOST }}" | tr -d '[:space:]')
           DEPLOY_USER=$(printf '%s' "${{ secrets.HOSTINGER_SSH_USER }}" | tr -d '[:space:]')
           DEPLOY_PORT=$(printf '%s' "${{ secrets.HOSTINGER_SSH_PORT }}" | tr -d '[:space:]')
+          DEPLOY_DIR=$(printf '%s' "${{ secrets.HOSTINGER_APP_DIR }}" | tr -d '[:space:]')
+          APP_DIR="${DEPLOY_DIR}/nodejs"
           SSH_OPTS="-i $HOME/.ssh/hostinger_deploy -o ConnectTimeout=20 -o ConnectionAttempts=3 -o BatchMode=yes -o StrictHostKeyChecking=yes -p $DEPLOY_PORT"
-          node_count=$(ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "ps -eo cmd | grep -E '[n]ode .*start\\.js|[n]ode .*server/index\\.js' | wc -l | tr -d '[:space:]'")
+          node_count=$(ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "ps -eo cmd | grep -E '[n]ode .*start\\.js' | wc -l | tr -d '[:space:]'")
           echo "Detected Node app process count after restart: ${node_count:-0}"
           if [ "${node_count:-0}" -gt 1 ]; then
             echo "::error::Multiple Node app processes detected after restart."
