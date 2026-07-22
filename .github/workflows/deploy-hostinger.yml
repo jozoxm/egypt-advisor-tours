@@ -322,8 +322,21 @@ jobs:
             git checkout main
             git reset --hard origin/main
             npm install --production=false
-            mkdir -p tmp
-            touch tmp/restart.txt"
+            mkdir -p tmp logs
+            touch tmp/restart.txt
+
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 delete egypt-advisor || true
+              pm2 start start.js --name egypt-advisor
+              pm2 save
+            else
+              pkill -f 'node .*start\\.js' || true
+              nohup node start.js > logs/app.log 2>&1 &
+            fi
+
+            sleep 5
+            ps -eo cmd | grep -E '[n]ode .*start\\.js|[n]ode .*server/index\\.js' || true
+            tail -n 200 logs/app.log 2>/dev/null || true"
 
       - name: Verify env files after restart
         run: |
