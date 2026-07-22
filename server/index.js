@@ -2,7 +2,7 @@
 const dns = require('node:dns');
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
-require('dotenv').config(); 
+require('dotenv').config();
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -16,7 +16,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 
 // Admin Panel Connection
-const setupAdmin = require('./adminSetup'); 
+const setupAdmin = require('./adminSetup');
 
 // Constants & Configurations
 const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
@@ -52,7 +52,7 @@ app.use(helmet({
             imgSrc: ["'self'", "data:", "https:", "blob:"],
             connectSrc: ["'self'", "https://api.emailjs.com"],
             frameSrc: ["'none'"],
-            frameAncestors: ["'self'"], // Strict framing protection
+            frameAncestors: ["'self'"],
             objectSrc: ["'none'"],
         },
     },
@@ -63,7 +63,7 @@ app.use(helmet({
 const corsOrigin = process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? 'https://egyptadvisortours.com' : undefined);
 const corsOptions = corsOrigin
     ? { origin: corsOrigin, optionsSuccessStatus: 200, credentials: true }
-    : { credentials: true }; 
+    : { credentials: true };
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
@@ -118,7 +118,7 @@ app.use((req, res, next) => {
     return next();
 });
 
-// CSRF Validation 
+// CSRF Validation
 app.use((req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
         return next();
@@ -158,13 +158,13 @@ app.use(async (req, res, next) => {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), PRERENDER_TIMEOUT_MS);
-        
+
         const response = await fetch(prerenderTarget, {
             headers: { 'X-Prerender-Token': PRERENDER_TOKEN },
             signal: controller.signal
         });
         clearTimeout(timeoutId);
-        
+
         const text = await response.text();
         return res.send(text);
     } catch (_err) {
@@ -173,21 +173,101 @@ app.use(async (req, res, next) => {
 });
 
 // ============================================
+// ROUTES
+// ============================================
+
+// Admin auth, admin pages, and bookings
+setupAdmin(app);
+
+const bookingsRouter = require('./routes/bookings');
+
+app.use('/api/bookings', bookingsRouter);
+
+// API welcome
+app.get('/api', (req, res) => {
+    res.status(200).json({ message: 'Egypt Advisor Tours API' });
+});
+
+// Liveness probe (independent of DB / CMS)
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'OK' });
+});
+
+// SEO discovery endpoints
+app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(
+        `User-agent: *\nAllow: /\nSitemap: ${PUBLIC_SITE_URL}/sitemap.xml\n`
+    );
+});
+
+app.get('/sitemap.xml', (req, res) => {
+    const urls = [
+        '/', '/tours', '/tours/1', '/blogs', '/destinations',
+        '/special-offers', '/about', '/faq', '/contact', '/tailor-trip',
+    ];
+    const body = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        ...urls.map((u) => `  <url><loc>${PUBLIC_SITE_URL}${u}</loc></url>`),
+        '</urlset>',
+    ].join('\n');
+    res.type('application/xml').send(body);
+});
+
+// ============================================
+// RATE LIMITS
+// ============================================
+const publicLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use('/api', publicLimiter);
+app.use('/api/admin', adminLimiter);
+
+// ============================================
+// PUBLIC CMS API (local data only)
+// ============================================
+const cmsRouter = require('./routes/cms');
+app.use('/api', cmsRouter);
+
+// ============================================
+// STATIC CLIENT BUILD + SPA FALLBACK
+// ============================================
+const buildDir = path.join(__dirname, '..', 'client', 'build');
+if (fs.existsSync(buildDir)) {
+    app.use(express.static(buildDir));
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(buildDir, 'index.html'));
+    });
+}
+
+// ============================================
 // DATABASE & SERVER LIFECYCLE INITIALIZATION
 // ============================================
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log("Connected to MongoDB successfully");
+// Decide whether we can run (so tests can require this module without a DB).
+const isRunnable = require.main === module;
+const shouldConnectDb = Boolean(process.env.MONGODB_URI);
 
-    // Initialize AdminJS dashboard module securely
-    setupAdmin(app);
+if (shouldConnectDb) {
+    mongoose.connect(process.env.MONGODB_URI)
+        .then(() => console.log('Connected to MongoDB successfully'))
+        .catch((err) => console.error('Database connection failed:', err.message));
+}
 
-    // Boot Up Server
+if (isRunnable) {
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+        console.log(`Server is running on port ${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("Database connection failed:", err);
-  });
+}
+
+module.exports = app;

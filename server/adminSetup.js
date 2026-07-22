@@ -5,14 +5,15 @@
  * - JWT-based authentication with secure cookies
  * - Admin login/logout/verify endpoints
  * - CSRF protection
- * - Health check endpoints with CMS diagnostics
- * - Admin shell serving for Storyblok/WordPress
+ * - Health check endpoints
+ * - Admin shell serving
  * - Change persistence to MongoDB
  */
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { AuditLog } = require('./db/models');
+const bookingsRouter = require('./routes/bookings');
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'dev-secret-change-in-production';
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
@@ -192,69 +193,12 @@ function logoutHandler(req, res) {
 // ============================================================
 
 async function healthHandler(req, res) {
-  const cmsProvider = (process.env.CMS_PROVIDER || 'auto').toLowerCase();
-  const isDev = process.env.NODE_ENV !== 'production';
-
-  let health = {
+  const health = {
     status: 'ok',
-    cms: 'up',
-    provider: cmsProvider,
     timestamp: new Date().toISOString(),
   };
 
-  try {
-    // Health check logic based on CMS provider
-    if (cmsProvider === 'filesystem') {
-      // Filesystem CMS is always "up" (no external dependency)
-      health.status = 'ok';
-      health.cms = 'up';
-    } else if (cmsProvider === 'storyblok' || cmsProvider === 'auto') {
-      const token = process.env.STORYBLOK_PREVIEW_TOKEN;
-      if (!token) {
-        health.status = 'degraded';
-        health.cms = 'down';
-        health.errorCode = 'STORYBLOK_NOT_CONFIGURED';
-        if (isDev) {
-          health.hint = 'Set STORYBLOK_PREVIEW_TOKEN in .env to enable Storyblok CMS';
-        }
-        return res.status(503).json(health);
-      }
-      // Could add actual health probe here
-      health.status = 'ok';
-      health.cms = 'up';
-    } else if (cmsProvider === 'wordpress') {
-      const wpBaseUrl = process.env.WORDPRESS_BASE_URL || process.env.WORDPRESS_URL;
-      if (!wpBaseUrl) {
-        health.status = 'degraded';
-        health.cms = 'down';
-        health.errorCode = 'WORDPRESS_NOT_CONFIGURED';
-        health.provider = 'wordpress';
-        if (isDev) {
-          health.hint = 'Set WORDPRESS_BASE_URL in .env to enable WordPress CMS';
-        }
-        return res.status(503).json(health);
-      }
-      health.wordpressBaseUrl = wpBaseUrl;
-      // Could add actual WordPress health probe here
-      health.status = 'ok';
-      health.cms = 'up';
-    } else {
-      health.status = 'degraded';
-      health.cms = 'down';
-      health.errorCode = 'UNKNOWN_PROVIDER';
-      if (isDev) {
-        health.hint = `CMS_PROVIDER should be one of: filesystem, storyblok, wordpress. Got: ${cmsProvider}`;
-      }
-      return res.status(503).json(health);
-    }
-
-    return res.status(200).json(health);
-  } catch (err) {
-    health.status = 'degraded';
-    health.cms = 'down';
-    health.error = isDev ? err.message : 'Health check failed';
-    return res.status(503).json(health);
-  }
+  return res.status(200).json(health);
 }
 
 // ============================================================
@@ -334,30 +278,6 @@ function adminPanelHandler(req, res) {
     return res.redirect('/admin/login');
   }
 
-  const cmsProvider = (process.env.CMS_PROVIDER || 'auto').toLowerCase();
-  const wordpressBaseUrl = process.env.WORDPRESS_BASE_URL || process.env.WORDPRESS_URL;
-  const storyblokEditorUrl = process.env.STORYBLOK_EDITOR_URL || 'https://app.storyblok.com';
-
-  // Redirect to WordPress admin if needed
-  if (cmsProvider === 'wordpress' || (cmsProvider === 'auto' && wordpressBaseUrl)) {
-    const wpUrl = (wordpressBaseUrl || 'https://cms.example.com').replace(/\/$/, '');
-    return res.redirect(`${wpUrl}/wp-admin/`);
-  }
-
-  // Extract origin from editor URL for CSP
-  let editorOrigin = 'https://app.storyblok.com';
-  try {
-    editorOrigin = new URL(storyblokEditorUrl).origin;
-  } catch (_) {
-    // Use default
-  }
-
-  // Set CSP header to allow Storyblok iframe
-  res.setHeader(
-    'Content-Security-Policy',
-    `default-src 'self'; frame-src ${editorOrigin}; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';`
-  );
-
   const html = `
     <!DOCTYPE html>
     <html>
@@ -386,7 +306,7 @@ function adminPanelHandler(req, res) {
     </head>
     <body>
       <div class="navbar">
-        <h1>🎨 Egypt Advisor Tours Admin</h1>
+        <h1>Egypt Advisor Tours Admin</h1>
         <div class="navbar-actions">
           <a id="switch-account" href="/admin/login?force=1">Switch account</a>
           <button onclick="logout()">Logout</button>
@@ -396,17 +316,12 @@ function adminPanelHandler(req, res) {
         <div class="card">
           <h2>Welcome to the Admin Panel</h2>
           <p>Manage your Egypt Advisor Tours content through our integrated CMS.</p>
-          <button class="cta-button" onclick="openEditor()">Open Storyblok editor</button>
           <div class="switch-account">
-            <p><strong>Editor URL:</strong></p>
-            <code>${storyblokEditorUrl}</code>
+            <p>Builtin admin is active. External CMS integrations have been removed.</p>
           </div>
         </div>
       </div>
       <script>
-        function openEditor() {
-          window.open('${storyblokEditorUrl}', '_blank');
-        }
         function logout() {
           fetch('/api/admin/logout', { method: 'POST', credentials: 'include' })
             .then(() => window.location.href = '/admin/login')
@@ -435,7 +350,10 @@ function setupAdmin(app) {
 
   // Admin pages
   app.get('/admin/login', loginPageHandler);
-  app.get('/admin', verifyAdmin, adminPanelHandler);
+  app.get('/admin', adminPanelHandler);
+
+  // Bookings (admin list + public customer submission)
+  app.use('/api/bookings', bookingsRouter);
 
   // Export middleware for use in routes
   app.locals.verifyAdmin = verifyAdmin;
