@@ -24,8 +24,11 @@ async function start() {
   });
 }
 
-if (require.main === module) {
-  start().catch((err) => {
+start()
+  .then(() => {
+    console.log('[startup] Server started successfully');
+  })
+  .catch((err) => {
     console.error('[startup] Fatal error:', err.stack || err);
     process.exit(1);
   });
