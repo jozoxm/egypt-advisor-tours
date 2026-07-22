@@ -325,6 +325,13 @@ jobs:
             mkdir -p tmp logs
             touch tmp/restart.txt
 
+            if [ -d 'public_html' ] && [ -d 'build' ]; then
+              echo "Syncing built client into public_html..."
+              rm -rf public_html/*
+              cp -R build/* public_html/
+              cp -f build/.* public_html/ 2>/dev/null || true
+            fi
+
             if command -v pm2 >/dev/null 2>&1; then
               pm2 delete egypt-advisor || true
               pm2 start start.js --name egypt-advisor
