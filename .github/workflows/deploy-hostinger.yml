@@ -83,16 +83,20 @@ jobs:
           [ -z "$_ADMIN_SECRET" ] && missing+=("ADMIN_SECRET")
           [ -z "$_ADMIN_PASSWORD" ] && missing+=("ADMIN_PASSWORD")
           [ -z "$_HOSTINGER_DATA_PATH" ] && missing+=("HOSTINGER_DATA_PATH")
-          [ -z "$_PUBLIC_SITE_URL" ] && missing+=("PUBLIC_SITE_URL")
-          [ -z "$_CORS_ORIGIN" ] && missing+=("CORS_ORIGIN")
-          [ -z "$_REACT_APP_SITE_URL" ] && missing+=("REACT_APP_SITE_URL")
-          [ -z "$_REACT_APP_EMAILJS_SERVICE_ID" ] && missing+=("REACT_APP_EMAILJS_SERVICE_ID")
-          [ -z "$_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID" ] && missing+=("REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID")
-          [ -z "$_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID" ] && missing+=("REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID")
-          [ -z "$_REACT_APP_EMAILJS_PUBLIC_KEY" ] && missing+=("REACT_APP_EMAILJS_PUBLIC_KEY")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required GitHub Secrets: ${missing[*]}"
             exit 1
+          fi
+          warnings=()
+          [ -z "$_PUBLIC_SITE_URL" ] && warnings+=("PUBLIC_SITE_URL")
+          [ -z "$_CORS_ORIGIN" ] && warnings+=("CORS_ORIGIN")
+          [ -z "$_REACT_APP_SITE_URL" ] && warnings+=("REACT_APP_SITE_URL")
+          [ -z "$_REACT_APP_EMAILJS_SERVICE_ID" ] && warnings+=("REACT_APP_EMAILJS_SERVICE_ID")
+          [ -z "$_REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID" ] && warnings+=("REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID")
+          [ -z "$_REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID" ] && warnings+=("REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID")
+          [ -z "$_REACT_APP_EMAILJS_PUBLIC_KEY" ] && warnings+=("REACT_APP_EMAILJS_PUBLIC_KEY")
+          if [ ${#warnings[@]} -gt 0 ]; then
+            echo "::warning::Optional GitHub Secrets missing; will preserve existing Hostinger .env values: ${warnings[*]}"
           fi
           case "$_HOSTINGER_DATA_PATH" in
             /*) ;;
@@ -213,6 +217,19 @@ jobs:
             "REACT_APP_EMAILJS_PUBLIC_KEY=${_REACT_APP_EMAILJS_PUBLIC_KEY}" \
             > "$client_env_file"
           [ -n "${_REACT_APP_API_URL}" ] && printf 'REACT_APP_API_URL=%s\n' "${_REACT_APP_API_URL}" >> "$client_env_file"
+
+          if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "[ -f '${DEPLOY_DIR}/client/.env.production.local' ]"; then
+            ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "cat '${DEPLOY_DIR}/client/.env.production.local'" > /tmp/hostinger_client_env_prev.txt
+            while IFS='=' read -r key value; do
+              [ -z "$key" ] && continue
+              case "$key" in
+                REACT_APP_SITE_URL|REACT_APP_API_URL|REACT_APP_EMAILJS_SERVICE_ID|REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID|REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID|REACT_APP_EMAILJS_PUBLIC_KEY) ;;
+                *) printf '%s=%s\n' "$key" "$value" >> "$client_env_file" ;;
+              esac
+            done < /tmp/hostinger_client_env_prev.txt
+            rm -f /tmp/hostinger_client_env_prev.txt
+          fi
+
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
             "umask 077; cat > '${DEPLOY_DIR}/client/.env.production.local'" < "$client_env_file"
           rm -f "$client_env_file"
@@ -224,6 +241,19 @@ jobs:
           [ -n "${_ADMIN_SECRET}" ] && printf 'ADMIN_SECRET=%s\n' "${_ADMIN_SECRET}" >> "$server_env_file"
           [ -n "${_ADMIN_PASSWORD}" ] && printf 'ADMIN_PASSWORD=%s\n' "${_ADMIN_PASSWORD}" >> "$server_env_file"
           [ -n "${_HOSTINGER_DATA_PATH}" ] && printf 'HOSTINGER_DATA_PATH=%s\n' "${_HOSTINGER_DATA_PATH}" >> "$server_env_file"
+
+          if ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "[ -f '${DEPLOY_DIR}/.env' ]"; then
+            ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "cat '${DEPLOY_DIR}/.env'" > /tmp/hostinger_server_env_prev.txt
+            while IFS='=' read -r key value; do
+              [ -z "$key" ] && continue
+              case "$key" in
+                PUBLIC_SITE_URL|CORS_ORIGIN|ADMIN_USERNAME|ADMIN_SECRET|ADMIN_PASSWORD|HOSTINGER_DATA_PATH) ;;
+                *) printf '%s=%s\n' "$key" "$value" >> "$server_env_file" ;;
+              esac
+            done < /tmp/hostinger_server_env_prev.txt
+            rm -f /tmp/hostinger_server_env_prev.txt
+          fi
+
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
             "umask 077; cat > '${DEPLOY_DIR}/.env'" < "$server_env_file"
           rm -f "$server_env_file"
@@ -266,9 +296,9 @@ jobs:
             client_env='${DEPLOY_DIR}/client/.env.production.local'
             check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
             check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
-            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' required || fail=1
-            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' required || fail=1
-            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' optional || true
+            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' optional || true
+            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' optional || true
             if [ \"\$fail\" -ne 0 ]; then
               exit 1
             fi
@@ -333,9 +363,9 @@ jobs:
             client_env='${DEPLOY_DIR}/client/.env.production.local'
             check_env_file 'Server .env' '${DEPLOY_DIR}/.env'
             check_env_file 'Client .env.production.local' '${DEPLOY_DIR}/client/.env.production.local'
-            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' required || fail=1
-            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' required || fail=1
-            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' required || fail=1
+            check_env_key 'Server .env' \"\$server_env\" 'PUBLIC_SITE_URL' optional || true
+            check_env_key 'Server .env' \"\$server_env\" 'CORS_ORIGIN' optional || true
+            check_env_key 'Client .env.production.local' \"\$client_env\" 'REACT_APP_SITE_URL' optional || true
             if [ \"\$fail\" -ne 0 ]; then
               exit 1
             fi
