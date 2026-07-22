@@ -22,7 +22,6 @@ start()
     console.error('[startup] Fatal error:', err.stack || err);
     process.exit(1);
   });
-}
 
 module.exports = {
   start,
