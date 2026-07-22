@@ -253,8 +253,6 @@ if (fs.existsSync(buildDir)) {
 // ============================================
 // DATABASE & SERVER LIFECYCLE INITIALIZATION
 // ============================================
-// Decide whether we can run (so tests can require this module without a DB).
-const isRunnable = require.main === module;
 const shouldConnectDb = Boolean(process.env.MONGODB_URI);
 
 if (shouldConnectDb) {
@@ -264,3 +262,13 @@ if (shouldConnectDb) {
 }
 
 module.exports = app;
+
+// Hostinger Node.js hosting expects the entry file to call listen() at the
+// top level. Guard it behind test mode instead of `require.main` so both
+// direct execution and test suites remain compatible.
+if (process.env.NODE_ENV !== 'test') {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+    });
+}

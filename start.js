@@ -11,17 +11,7 @@ function loadEnvironment() {
 
 async function start() {
   loadEnvironment();
-  const app = require('./server/index.js');
-
-  const PORT = process.env.PORT || 5000;
-  const server = app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
-
-  server.on('error', (err) => {
-    console.error('[startup] Server error:', err);
-    process.exit(1);
-  });
+  require('./server/index.js');
 }
 
 start()
