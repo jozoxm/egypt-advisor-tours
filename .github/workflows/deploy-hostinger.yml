@@ -334,6 +334,13 @@ jobs:
               cp -f build/.* ../public_html/ 2>/dev/null || true
             fi
 
+            if [ -d 'build' ]; then
+              echo "Syncing built client into nodejs/build..."
+              rm -rf build/*
+              cp -R ../build/* build/
+              cp -f ../build/.* build/ 2>/dev/null || true
+            fi
+
             cat > ../public_html/.htaccess <<'HTACCESS'
 Options -MultiViews
 RewriteEngine On

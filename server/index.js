@@ -242,8 +242,14 @@ app.use('/api', cmsRouter);
 // ============================================
 // STATIC CLIENT BUILD + SPA FALLBACK
 // ============================================
-const buildDir = path.join(__dirname, '..', 'client', 'build');
-if (fs.existsSync(buildDir)) {
+const possibleBuildDirs = [
+    path.join(__dirname, '..', 'client', 'build'),
+    path.join(__dirname, '..', 'build'),
+];
+
+const buildDir = possibleBuildDirs.find((dir) => fs.existsSync(dir));
+
+if (buildDir) {
     app.use(express.static(buildDir));
     app.get('*', (req, res) => {
         res.sendFile(path.join(buildDir, 'index.html'));
