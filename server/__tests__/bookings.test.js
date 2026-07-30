@@ -1,20 +1,32 @@
 const express = require('express');
 const request = require('supertest');
 
+let mockBookings = [];
+
+jest.mock('../data-store', () => ({
+  getBookings: jest.fn(() => []),
+  saveBookings: jest.fn(),
+  getAuditLogs: jest.fn(() => []),
+  saveAuditLogs: jest.fn(),
+}));
+
+const dataStore = require('../data-store');
+
 describe('Bookings API routes', () => {
   let app;
 
   beforeEach(() => {
-    // Re-require the router before each test so the in-memory bookings array is
-    // reset to empty. We achieve this by clearing the module cache.
-    jest.resetModules();
+    mockBookings = [];
+    jest.clearAllMocks();
+    dataStore.getBookings.mockImplementation(() => [...mockBookings]);
+    dataStore.saveBookings.mockImplementation((bookings) => { mockBookings = bookings; });
+
     const freshRouter = require('../routes/bookings');
     app = express();
     app.use(express.json());
     app.use('/bookings', freshRouter);
   });
 
-  // ─── POST /bookings ────────────────────────────────────────────────────────
   describe('POST /bookings', () => {
     it('creates a new booking and returns 201 with booking data', async () => {
       const booking = {
@@ -27,6 +39,7 @@ describe('Bookings API routes', () => {
       expect(res.status).toBe(201);
       expect(res.body.message).toBe('Booking created');
       expect(res.body.booking).toMatchObject(booking);
+      expect(dataStore.saveBookings).toHaveBeenCalled();
     });
 
     it('stores the booking so it appears in GET', async () => {
@@ -44,7 +57,6 @@ describe('Bookings API routes', () => {
     });
   });
 
-  // ─── GET /bookings ─────────────────────────────────────────────────────────
   describe('GET /bookings', () => {
     it('returns 200 with an empty array when there are no bookings', async () => {
       const res = await request(app).get('/bookings');
@@ -68,7 +80,6 @@ describe('Bookings API routes', () => {
     });
   });
 
-  // ─── DELETE /bookings/:id ──────────────────────────────────────────────────
   describe('DELETE /bookings/:id', () => {
     it('returns 204 when deleting a booking', async () => {
       await request(app).post('/bookings').send({ id: 'del-1' });
@@ -77,8 +88,8 @@ describe('Bookings API routes', () => {
     });
 
     it('removes the specified booking from the list', async () => {
-      await request(app).post('/bookings').send({ id: 'keep-1' });
-      await request(app).post('/bookings').send({ id: 'remove-1' });
+      await request(app).post('/bookings').send({ id: 'keep-1', tourId: 'tour-1' });
+      await request(app).post('/bookings').send({ id: 'remove-1', tourId: 'tour-2' });
       await request(app).delete('/bookings/remove-1');
       const res = await request(app).get('/bookings');
       expect(res.body).toHaveLength(1);

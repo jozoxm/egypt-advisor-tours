@@ -1,15 +1,10 @@
 // 1. Core Environmental Initializations
-const dns = require('node:dns');
-dns.setServers(['8.8.8.8', '8.8.4.4']);
-
 require('dotenv').config();
 
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const jwt = require('jsonwebtoken');
@@ -20,15 +15,7 @@ const setupAdmin = require('./adminSetup');
 
 // Constants & Configurations
 const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
-const DEFAULT_PRERENDER_TIMEOUT_MS = 3000;
 const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || DEFAULT_PUBLIC_SITE_URL;
-const PRERENDER_TOKEN = process.env.PRERENDER_TOKEN || '';
-const PRERENDER_SERVICE_URL = process.env.PRERENDER_SERVICE_URL || 'https://service.prerender.io';
-
-const PRERENDER_TIMEOUT_MS = (() => {
-    const parsed = parseInt(process.env.PRERENDER_TIMEOUT_MS || String(DEFAULT_PRERENDER_TIMEOUT_MS), 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PRERENDER_TIMEOUT_MS;
-})();
 
 const ADMIN_COOKIE_NAME = 'admin_session';
 const CSRF_COOKIE_NAME = 'csrf_token';
@@ -46,11 +33,11 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdn.emailjs.com"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            imgSrc: ["'self'", "data:", "https:", "blob:"],
-            connectSrc: ["'self'", "https://api.emailjs.com"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            fontSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "blob:"],
+            connectSrc: ["'self'"],
             frameSrc: ["'none'"],
             frameAncestors: ["'self'"],
             objectSrc: ["'none'"],
@@ -83,7 +70,6 @@ const allowedOrigins = new Set(
     ].filter(Boolean)
 );
 
-const BOT_USER_AGENTS = /bot|crawler|spider|google|bing|yandex/i;
 const STATIC_FILE_EXTENSIONS = /\.(?:js|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?)$/i;
 
 // ============================================
@@ -134,42 +120,6 @@ app.use((req, res, next) => {
     }
 
     return next();
-});
-
-// SEO Prerender Middleware
-app.use(async (req, res, next) => {
-    if (!PRERENDER_TOKEN || (req.method !== 'GET' && req.method !== 'HEAD')) {
-        return next();
-    }
-    if (req.path.startsWith('/api') || req.path.startsWith('/admin') || req.path === '/health') {
-        return next();
-    }
-    if (STATIC_FILE_EXTENSIONS.test(req.path)) {
-        return next();
-    }
-
-    const userAgent = req.get('user-agent') || '';
-    const isCrawler = BOT_USER_AGENTS.test(userAgent) || Object.hasOwn(req.query, '_escaped_fragment_');
-    if (!isCrawler) return next();
-
-    const fullUrl = `${PUBLIC_SITE_URL}${req.originalUrl || req.url}`;
-    const prerenderTarget = `${PRERENDER_SERVICE_URL.replace(/\/+$/, '')}/${encodeURIComponent(fullUrl)}`;
-
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), PRERENDER_TIMEOUT_MS);
-
-        const response = await fetch(prerenderTarget, {
-            headers: { 'X-Prerender-Token': PRERENDER_TOKEN },
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        const text = await response.text();
-        return res.send(text);
-    } catch (_err) {
-        return next();
-    }
 });
 
 // ============================================
@@ -257,15 +207,8 @@ if (buildDir) {
 }
 
 // ============================================
-// DATABASE & SERVER LIFECYCLE INITIALIZATION
+// SERVER LIFECYCLE INITIALIZATION
 // ============================================
-const shouldConnectDb = Boolean(process.env.MONGODB_URI);
-
-if (shouldConnectDb) {
-    mongoose.connect(process.env.MONGODB_URI)
-        .then(() => console.log('Connected to MongoDB successfully'))
-        .catch((err) => console.error('Database connection failed:', err.message));
-}
 
 module.exports = app;
 

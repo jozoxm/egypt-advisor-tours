@@ -1,20 +1,9 @@
 import React, { useState } from 'react';
-import emailjs from '@emailjs/browser';
 import { contactInfo } from '../data/contact-info';
 import './BookingModal.css';
 
-// ============================================================
-// EmailJS Configuration
-// Sign up at https://www.emailjs.com (free up to 200 emails/month)
-// Then set these environment variables in your hosting panel.
-// ============================================================
-const EMAILJS_SERVICE_ID  = process.env.REACT_APP_EMAILJS_SERVICE_ID  || '';
-const EMAILJS_TEMPLATE_ID = process.env.REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID || '';
-const EMAILJS_PUBLIC_KEY  = process.env.REACT_APP_EMAILJS_PUBLIC_KEY  || '';
-
 const API_URL = process.env.REACT_APP_API_URL || '';
 
-// Persist a booking record to the server (best-effort, non-blocking).
 async function persistBookingToServer(bookingData) {
   try {
     await fetch(`${API_URL}/api/bookings/customer`, {
@@ -23,7 +12,7 @@ async function persistBookingToServer(bookingData) {
       body: JSON.stringify(bookingData),
     });
   } catch {
-    // Server persistence is best-effort; email confirmation is still sent.
+    // Server persistence is best-effort
   }
 }
 
@@ -42,7 +31,6 @@ const BookingModal = ({ tour, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
 
-  // Get price string for the selected category (supports both old and new format)
   const getSelectedPrice = () => {
     if (tour.prices) return tour.prices[priceCategory] || tour.prices.individual || '';
     return tour.price || '';
@@ -64,7 +52,7 @@ const BookingModal = ({ tour, onClose }) => {
     setSubmitting(true);
 
     if (Number.isNaN(priceNum)) {
-      setSubmitMessage('❌ Error calculating price. Please contact us directly to complete your booking.');
+      setSubmitMessage('Error calculating price. Please contact us directly to complete your booking.');
       setSubmitting(false);
       return;
     }
@@ -77,10 +65,6 @@ const BookingModal = ({ tour, onClose }) => {
     const templateParams = {
       tour_name: tour.name,
       customer_name: formData.customerName,
-      // EmailJS uses `reply_to` to send auto-replies.
-      // In your EmailJS template, set the "Reply To" field to {{customer_email}}
-      // and enable "Auto-Reply" to send a confirmation copy to the customer.
-      reply_to: formData.customerEmail,
       customer_email: formData.customerEmail,
       customer_phone: formData.customerPhone,
       number_of_people: formData.numberOfPeople,
@@ -91,7 +75,6 @@ const BookingModal = ({ tour, onClose }) => {
       total_price: totalPrice,
     };
 
-    // Always persist the booking to the server (best-effort, non-blocking).
     persistBookingToServer({
       tourId:          tour.id,
       tourName:        tour.name,
@@ -106,31 +89,14 @@ const BookingModal = ({ tour, onClose }) => {
       totalPrice,
     });
 
-    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-      // EmailJS not yet configured — direct the user to contact us by other means
-      console.warn('EmailJS is not configured. Set REACT_APP_EMAILJS_SERVICE_ID, REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID, and REACT_APP_EMAILJS_PUBLIC_KEY.');
-      console.info('Booking details:', templateParams);
-      setSubmitMessage(`❌ Online booking is temporarily unavailable. Please contact us directly at ${contactInfo.emailPrimary} or call ${contactInfo.phone} to complete your booking.`);
-      setSubmitting(false);
-      return;
-    }
-
-    try {
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_PUBLIC_KEY);
-      setSubmitMessage('✓ Booking submitted successfully! We will contact you shortly.');
-      setTimeout(() => onClose(), 3000);
-    } catch (error) {
-      console.error('Error sending booking email:', error);
-      setSubmitMessage('❌ Failed to submit booking. Please try again or contact us directly.');
-    }
-
+    setSubmitMessage(`Booking request received! We will contact you shortly at ${formData.customerEmail}. For immediate assistance, email us at ${contactInfo.emailPrimary} or call ${contactInfo.phone}.`);
     setSubmitting(false);
   };
 
   return (
     <div className="booking-modal-overlay" onClick={onClose}>
       <div className="booking-modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-button" onClick={onClose}>✕</button>
+        <button className="modal-close-button" onClick={onClose}>X</button>
         
         <div className="booking-modal-header">
           <span className="tour-icon-large">{tour.image}</span>
@@ -141,7 +107,7 @@ const BookingModal = ({ tour, onClose }) => {
         </div>
 
         {submitMessage ? (
-          <div className={`submit-message ${submitMessage.includes('✓') ? 'success' : 'error'}`} role="alert">
+          <div className={`submit-message success`} role="alert">
             {submitMessage}
           </div>
         ) : (
@@ -202,9 +168,9 @@ const BookingModal = ({ tour, onClose }) => {
                     onChange={(e) => setPriceCategory(e.target.value)}
                     required
                   >
-                    <option value="individual">👤 Individual — {tour.prices.individual} per person</option>
-                    <option value="group">👥 Group — {tour.prices.group} per person</option>
-                    <option value="sharing">🚌 Sharing — {tour.prices.sharing} per person</option>
+                    <option value="individual">Individual - {tour.prices.individual} per person</option>
+                    <option value="group">Group - {tour.prices.group} per person</option>
+                    <option value="sharing">Sharing - {tour.prices.sharing} per person</option>
                   </select>
                 </div>
               )}
@@ -275,7 +241,7 @@ const BookingModal = ({ tour, onClose }) => {
             <div className="booking-summary">
               <div className="summary-row">
                 <span>Tour Price:</span>
-                <span>{selectedPrice} × {formData.numberOfPeople}</span>
+                <span>{selectedPrice} x {formData.numberOfPeople}</span>
               </div>
               <div className="summary-row total">
                 <span>Total Price:</span>
@@ -291,7 +257,7 @@ const BookingModal = ({ tour, onClose }) => {
                 className="btn-submit-booking"
                 disabled={submitting}
               >
-                {submitting ? 'Submitting...' : '✓ Confirm Booking'}
+                {submitting ? 'Submitting...' : 'Confirm Booking'}
               </button>
               <button 
                 type="button" 

@@ -1,12 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import emailjs from '@emailjs/browser';
 import { getTailorTrip } from '../api/cms';
 import { fallbackTailorTrip } from '../data/cms-fallbacks';
 
-// EmailJS configuration — set in .env.production / hosting panel.
-const EMAILJS_SERVICE_ID         = process.env.REACT_APP_EMAILJS_SERVICE_ID          || '';
-const EMAILJS_TRIPTAILOR_TEMPLATE = process.env.REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID || '';
-const EMAILJS_PUBLIC_KEY         = process.env.REACT_APP_EMAILJS_PUBLIC_KEY           || '';
+const API_URL = process.env.REACT_APP_API_URL || '';
 
 const normalizeOptions = (options, fallbackOptions) => {
   if (!Array.isArray(options) || options.length === 0) {
@@ -124,18 +120,16 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
       notes:         fd.get('notes'),
     };
 
-    if (!EMAILJS_SERVICE_ID || !EMAILJS_TRIPTAILOR_TEMPLATE || !EMAILJS_PUBLIC_KEY) {
-      console.warn('EmailJS is not configured for TailorTrip. Set REACT_APP_EMAILJS_* env vars.');
-      console.info('Trip Tailor enquiry:', templateParams);
+    try {
+      await fetch(`${API_URL}/api/tailor-trip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(templateParams),
+      });
+      setMessage('success');
+    } catch (err) {
+      console.error('Submit error:', err);
       setMessage('error');
-    } else {
-      try {
-        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TRIPTAILOR_TEMPLATE, templateParams, EMAILJS_PUBLIC_KEY);
-        setMessage('success');
-      } catch (err) {
-        console.error('EmailJS error:', err);
-        setMessage('error');
-      }
     }
     setSubmitting(false);
   };
@@ -149,7 +143,7 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
       onClick={onClose}
     >
       <div className="trip-tailor-modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="close-button" onClick={onClose} aria-label="Close trip tailor form">✕</button>
+        <button className="close-button" onClick={onClose} aria-label="Close trip tailor form">X</button>
         <div className="trip-tailor-grid">
           <div className="trip-tailor-copy">
             <h2>{tailorTripContent?.hero?.title || fallbackTailorTrip.hero.title}</h2>
@@ -322,7 +316,7 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
             )}
             {message === 'error' && (
               <div className="trip-tailor-error" role="alert">
-                ❌ Something went wrong. Please email us directly at {contactInfo.emailPrimary}.
+                Something went wrong. Please email us directly at {contactInfo.emailPrimary}.
               </div>
             )}
             <button
@@ -331,9 +325,9 @@ const TailorTripModal = ({ isOpen, onClose, contactInfo }) => {
               disabled={submitting || message === 'success'}
             >
               {submitting
-                ? 'Sending…'
+                ? 'Sending...'
                 : message === 'success'
-                  ? 'Sent ✓'
+                  ? 'Sent'
                   : (tailorTripContent?.form?.submitLabel || fallbackTailorTrip.form.submitLabel)}
             </button>
           </form>

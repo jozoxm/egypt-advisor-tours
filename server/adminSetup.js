@@ -7,12 +7,12 @@
  * - CSRF protection
  * - Health check endpoints
  * - Admin shell serving
- * - Change persistence to MongoDB
+ * - Change persistence to local JSON files
  */
 
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { AuditLog } = require('./db/models');
+const dataStore = require('./data-store');
 const bookingsRouter = require('./routes/bookings');
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'dev-secret-change-in-production';
@@ -24,9 +24,9 @@ const ADMIN_COOKIE_NAME = 'adminToken';
 const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
-// ============================================================
+// ============================================
 // HELPER: Get secure cookie options
-// ============================================================
+// ============================================
 
 function getCookieOptions(isProduction = false) {
   const baseOptions = {
@@ -45,17 +45,17 @@ function getCookieOptions(isProduction = false) {
   return baseOptions;
 }
 
-// ============================================================
+// ============================================
 // HELPER: Create CSRF token
-// ============================================================
+// ============================================
 
 function createCsrfToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// ============================================================
+// ============================================
 // HELPER: Log admin action to audit trail
-// ============================================================
+// ============================================
 
 async function logAdminAction(req, action, resourceType, resourceId, changes) {
   try {
@@ -70,7 +70,8 @@ async function logAdminAction(req, action, resourceType, resourceId, changes) {
       }
     }
 
-    await AuditLog.create({
+    const logs = dataStore.getAuditLogs();
+    logs.push({
       adminUsername: username,
       action,
       resourceType,
@@ -78,15 +79,17 @@ async function logAdminAction(req, action, resourceType, resourceId, changes) {
       changes,
       ip: req.ip,
       userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString(),
     });
+    dataStore.saveAuditLogs(logs);
   } catch (err) {
     console.error('[AuditLog] Failed to log admin action:', err.message);
   }
 }
 
-// ============================================================
+// ============================================
 // HELPER: Verify admin authentication
-// ============================================================
+// ============================================
 
 function verifyAdmin(req, res, next) {
   const token = req.cookies?.[ADMIN_COOKIE_NAME];
@@ -104,9 +107,9 @@ function verifyAdmin(req, res, next) {
   }
 }
 
-// ============================================================
+// ============================================
 // HELPER: Verify CSRF token
-// ============================================================
+// ============================================
 
 function verifyCsrf(req, res, next) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
@@ -123,9 +126,9 @@ function verifyCsrf(req, res, next) {
   return next();
 }
 
-// ============================================================
+// ============================================
 // ROUTE: POST /api/admin/login
-// ============================================================
+// ============================================
 
 function loginHandler(req, res) {
   const { username, password } = req.body;
@@ -153,9 +156,9 @@ function loginHandler(req, res) {
   return res.status(200).json({ success: true, message: 'Logged in successfully' });
 }
 
-// ============================================================
+// ============================================
 // ROUTE: GET /api/admin/verify
-// ============================================================
+// ============================================
 
 function verifyHandler(req, res) {
   const token = req.cookies?.[ADMIN_COOKIE_NAME];
@@ -172,9 +175,9 @@ function verifyHandler(req, res) {
   }
 }
 
-// ============================================================
+// ============================================
 // ROUTE: POST /api/admin/logout
-// ============================================================
+// ============================================
 
 function logoutHandler(req, res) {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -188,9 +191,9 @@ function logoutHandler(req, res) {
   return res.status(200).json({ success: true, message: 'Logged out successfully' });
 }
 
-// ============================================================
+// ============================================
 // ROUTE: GET /api/admin/health
-// ============================================================
+// ============================================
 
 async function healthHandler(req, res) {
   const health = {
@@ -201,9 +204,9 @@ async function healthHandler(req, res) {
   return res.status(200).json(health);
 }
 
-// ============================================================
+// ============================================
 // ROUTE: GET /admin/login
-// ============================================================
+// ============================================
 
 function loginPageHandler(req, res) {
   const force = req.query.force === '1';
@@ -261,9 +264,9 @@ function loginPageHandler(req, res) {
   return res.status(200).send(html);
 }
 
-// ============================================================
+// ============================================
 // ROUTE: GET /admin
-// ============================================================
+// ============================================
 
 function adminPanelHandler(req, res) {
   const token = req.cookies?.[ADMIN_COOKIE_NAME];
@@ -317,7 +320,7 @@ function adminPanelHandler(req, res) {
           <h2>Welcome to the Admin Panel</h2>
           <p>Manage your Egypt Advisor Tours content through our integrated CMS.</p>
           <div class="switch-account">
-            <p>Builtin admin is active. External CMS integrations have been removed.</p>
+            <p>Builtin admin is active. All data is stored locally in JSON files.</p>
           </div>
         </div>
       </div>
@@ -335,9 +338,9 @@ function adminPanelHandler(req, res) {
   return res.status(200).send(html);
 }
 
-// ============================================================
+// ============================================
 // SETUP: Register all routes
-// ============================================================
+// ============================================
 
 function setupAdmin(app) {
   // Login/logout endpoints (no auth required)
@@ -361,9 +364,9 @@ function setupAdmin(app) {
   app.locals.logAdminAction = logAdminAction;
 }
 
-// ============================================================
+// ============================================
 // EXPORTS
-// ============================================================
+// ============================================
 
 module.exports = setupAdmin;
 module.exports.verifyAdmin = verifyAdmin;

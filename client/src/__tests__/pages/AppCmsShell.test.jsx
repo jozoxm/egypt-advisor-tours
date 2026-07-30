@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import App from '../../App';
 import { getAbout, getFaq, getFooter, getHomepage, getNavigation, getTailorTrip } from '../../api/cms';
 
-jest.mock('../../hooks/useStoryblokPreview', () => jest.fn());
 jest.mock('../../api/cms', () => ({
   getNavigation: jest.fn(),
   getFooter: jest.fn(),

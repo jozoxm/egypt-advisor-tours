@@ -3,9 +3,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import TourDetail from '../../pages/TourDetail';
 
-// Mock @emailjs/browser (used by BookingModal imported by TourDetail)
-jest.mock('@emailjs/browser', () => ({ send: jest.fn() }));
-
 // Silence fetch errors from test environment
 const originalFetch = global.fetch;
 global.fetch = jest.fn(() => Promise.resolve({ ok: false }));
@@ -140,7 +137,7 @@ describe('TourDetail', () => {
       expect(screen.getByRole('button', { name: /book this tour/i })).toBeInTheDocument()
     );
     fireEvent.click(screen.getByRole('button', { name: /book this tour/i }));
-    fireEvent.click(screen.getByRole('button', { name: '✕' }));
+    fireEvent.click(screen.getByRole('button', { name: 'X' }));
     expect(screen.queryByText(/book: valley of the kings/i)).not.toBeInTheDocument();
   });
 

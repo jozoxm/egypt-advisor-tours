@@ -11,7 +11,6 @@ import PromotionsPage from './pages/PromotionsPage';
 import DestinationsPage from './pages/DestinationsPage';
 import TailorTripModal from './components/TailorTripModal';
 import ErrorBoundary from './components/ErrorBoundary';
-import useStoryblokPreview from './hooks/useStoryblokPreview';
 import { useData } from './context/DataContext';
 import { getFooter, getNavigation } from './api/cms';
 import { fallbackFooter, fallbackNavigation } from './data/cms-fallbacks';
@@ -34,7 +33,6 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const scrollTimeoutsRef = useRef([]);
-  useStoryblokPreview();
 
   const clearScrollTimeouts = () => {
     scrollTimeoutsRef.current.forEach((id) => clearTimeout(id));

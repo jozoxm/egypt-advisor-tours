@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
-
-let bookings = [];
-let nextId = 1;
+const dataStore = require('../data-store');
 
 const REQUIRED_CUSTOMER_FIELDS = ['tourId', 'customerName', 'customerEmail'];
 
@@ -13,21 +11,24 @@ function maybeVerifyAdmin(req, res, next) {
 }
 
 router.get('/', maybeVerifyAdmin, (req, res) => {
-    res.status(200).json(bookings);
+    res.status(200).json(dataStore.getBookings());
 });
 
 router.post('/', maybeVerifyAdmin, (req, res) => {
     const booking = req.body || {};
     if (!booking.id) {
-        booking.id = nextId++;
+        booking.id = Date.now().toString();
     }
+    const bookings = dataStore.getBookings();
     bookings.push(booking);
+    dataStore.saveBookings(bookings);
     res.status(201).json({ message: 'Booking created', booking });
 });
 
 router.delete('/:id', maybeVerifyAdmin, (req, res) => {
     const bookingId = req.params.id;
-    bookings = bookings.filter(b => b.id !== bookingId);
+    const bookings = dataStore.getBookings().filter(b => b.id !== bookingId);
+    dataStore.saveBookings(bookings);
     res.status(204).send();
 });
 
@@ -39,11 +40,13 @@ router.post('/customer', (req, res) => {
     }
 
     const record = {
-        id: nextId++,
+        id: Date.now().toString(),
         ...booking,
         createdAt: new Date().toISOString(),
     };
+    const bookings = dataStore.getBookings();
     bookings.push(record);
+    dataStore.saveBookings(bookings);
 
     res.status(201).json({ success: true, bookingId: record.id });
 });

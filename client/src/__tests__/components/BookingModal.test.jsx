@@ -2,13 +2,6 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import BookingModal from '../../components/BookingModal';
 
-// Mock @emailjs/browser
-jest.mock('@emailjs/browser', () => ({
-  send: jest.fn(),
-}));
-
-import emailjs from '@emailjs/browser';
-
 const mockTourWithPrices = {
   id: 1,
   name: 'Pyramids & Sphinx Tour',
@@ -49,12 +42,12 @@ describe('BookingModal', () => {
 
   it('renders a close button', () => {
     renderModal();
-    expect(screen.getByRole('button', { name: '✕' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'X' })).toBeInTheDocument();
   });
 
   it('calls onClose when close button is clicked', () => {
     renderModal();
-    fireEvent.click(screen.getByRole('button', { name: '✕' }));
+    fireEvent.click(screen.getByRole('button', { name: 'X' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -111,19 +104,16 @@ describe('BookingModal', () => {
 
   it('shows the total price calculation in the summary', () => {
     renderModal(mockTourWithPrices);
-    // Default is individual at $150 × 1 person
     expect(screen.getByText('$150')).toBeInTheDocument();
   });
 
   it('shows the total price for a tour with a simple price', () => {
     renderModal(mockTourWithSimplePrice);
-    // Multiple elements may contain "$200"; verify at least one exists
     expect(screen.getAllByText(/\$200/).length).toBeGreaterThan(0);
   });
 
-  it('shows an error message when EmailJS is not configured', async () => {
-    // In the test environment REACT_APP_EMAILJS_* env vars are unset,
-    // so the component falls into the "unavailable" branch on submit.
+  it('submits booking and shows confirmation message', async () => {
+    global.fetch = jest.fn(() => Promise.resolve({ ok: true }));
     renderModal();
 
     fireEvent.change(screen.getByLabelText(/full name/i), {
@@ -144,35 +134,6 @@ describe('BookingModal', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
-    expect(screen.getByRole('alert').textContent).toMatch(/contact/i);
-  });
-
-  it('shows an unavailable message (EmailJS not configured) rather than calling emailjs.send', async () => {
-    // Because env vars are module-level constants, emailjs.send is never
-    // invoked when the service ID is empty.
-    renderModal();
-
-    fireEvent.change(screen.getByLabelText(/full name/i), {
-      target: { name: 'customerName', value: 'Test User' },
-    });
-    fireEvent.change(screen.getByLabelText(/email address/i), {
-      target: { name: 'customerEmail', value: 'test@example.com' },
-    });
-    fireEvent.change(screen.getByLabelText(/phone number/i), {
-      target: { name: 'customerPhone', value: '+1-555-0000' },
-    });
-    fireEvent.change(screen.getByLabelText(/preferred date/i), {
-      target: { name: 'bookingDate', value: '2025-07-01' },
-    });
-
-    fireEvent.submit(
-      screen.getByRole('button', { name: /confirm booking/i }).closest('form')
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-    });
-    // emailjs.send should NOT have been called because the keys are empty
-    expect(emailjs.send).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toMatch(/booking request received/i);
   });
 });

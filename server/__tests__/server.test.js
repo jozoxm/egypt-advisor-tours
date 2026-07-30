@@ -19,9 +19,6 @@ process.env.NODE_ENV        = 'test';
 process.env.ADMIN_SECRET    = 'test-jwt-secret';
 process.env.ADMIN_PASSWORD  = 'test-password';
 process.env.ADMIN_USERNAME  = 'testadmin';
-process.env.CMS_PROVIDER = 'storyblok';
-process.env.STORYBLOK_EDITOR_URL = 'https://app.storyblok.com/#/me/spaces/123/content/';
-process.env.STORYBLOK_PREVIEW_SECRET = 'storyblok-secret';
 
 // Load the app AFTER setting env vars.
 const app = require('../index.js');
