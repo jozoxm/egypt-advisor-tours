@@ -39,6 +39,7 @@ try {
     execSync('npm run build --prefix client', {
         stdio: 'inherit',
         cwd: ROOT,
+        env: { ...process.env, CI: 'false' }
     });
     
     // Verify client build output exists
