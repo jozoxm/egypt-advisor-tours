@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const fs = require('fs');
 
 const ROOT_DIR = __dirname;
-const DOMAIN_ROOT = ROOT_DIR;
+const DOMAIN_ROOT = ROOT_DIR;  // start.js lives at domain root
 
 function loadEnvironment() {
   const candidates = [
