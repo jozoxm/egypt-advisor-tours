@@ -2,8 +2,10 @@
 
 const path = require('path');
 const dotenv = require('dotenv');
+const fs = require('fs');
 
 const ROOT_DIR = __dirname;
+const DOMAIN_ROOT = path.join(ROOT_DIR, '..', '..', '..', '..');
 
 function loadEnvironment() {
   const candidates = [
@@ -29,8 +31,22 @@ function loadEnvironment() {
   console.warn('[startup] No .env file found in expected locations; using defaults and process env');
 }
 
+function setupNodePath() {
+  const rootNodeModules = path.join(DOMAIN_ROOT, 'node_modules');
+  if (!fs.existsSync(rootNodeModules)) {
+    console.warn('[startup] root/node_modules not found at', rootNodeModules);
+    console.warn('[startup] Dependencies may be missing. Ensure npm ci runs in CI/CD.');
+  } else {
+    console.log('[startup] root/node_modules found at', rootNodeModules);
+  }
+  process.env.NODE_PATH = rootNodeModules;
+  require('module').Module._initPaths();
+  console.log('[startup] NODE_PATH set to:', process.env.NODE_PATH);
+}
+
 async function start() {
   loadEnvironment();
+  setupNodePath();
   require('./server/index.js');
 }
 
@@ -46,4 +62,5 @@ start()
 module.exports = {
   start,
   loadEnvironment,
+  setupNodePath,
 };

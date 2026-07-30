@@ -303,10 +303,9 @@ module.exports = app;
 let __serverInstance = null;
 
 if (process.env.NODE_ENV !== 'test') {
-    const PORT = process.env.PORT;
-    if (!PORT) {
-        console.error('[startup] FATAL: process.env.PORT is not set. The app cannot start without a port assignment.');
-        process.exit(1);
+    const PORT = process.env.PORT || 3000;
+    if (!process.env.PORT) {
+        console.warn('[startup] WARNING: process.env.PORT is not set. Falling back to port 3000.');
     }
     __serverInstance = app.listen(PORT, '0.0.0.0', () => {
         const address = __serverInstance.address();

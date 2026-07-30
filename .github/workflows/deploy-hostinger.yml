@@ -307,8 +307,8 @@ jobs:
             git fetch origin main
             git checkout main
             git reset --hard origin/main
-            npm install --production=false
-            npm install --prefix server --production=false
+            npm ci --production=false
+            npm ci --prefix server --production=false
             mkdir -p tmp logs nodejs/tmp nodejs/logs
             touch tmp/restart.txt
 
@@ -334,25 +334,18 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.html [QSA,L]
 HTACCESS
 
-            if command -v pm2 >/dev/null 2>&1; then
+                        if command -v pm2 >/dev/null 2>&1; then
               pm2 delete egypt-advisor || true
-              pm2 start bash -- nodejs/start.sh --name egypt-advisor
+              pm2 start start.js --name egypt-advisor
               pm2 save
             else
-              pkill -f 'bash .*start\.sh' 2>/dev/null || true
-              nohup bash nodejs/start.sh > nodejs/logs/app.log 2>&1 &
+              pkill -f 'node .*start\.js' 2>/dev/null || true
+              nohup node start.js > nodejs/logs/app.log 2>&1 &
             fi
 
             sleep 5
-            ps -eo cmd | grep -E '[b]ash .*start\.sh' || true
+            ps -eo cmd | grep -E '[n]ode .*start\.js' || true
             tail -n 200 nodejs/logs/app.log 2>/dev/null || true
-
-            VERSION_DIR=$(ls -td .builds/versions/* 2>/dev/null | head -1)
-            if [ -n "$VERSION_DIR" ] && [ -d "$VERSION_DIR/nodejs" ]; then
-              echo "Detected Hostinger versioned build: $VERSION_DIR"
-              cp -f .env "$VERSION_DIR/nodejs/.env" 2>/dev/null || true
-              npm install --prefix "$VERSION_DIR/nodejs/server" --production=false 2>/dev/null || true
-            fi"
 
       - name: Verify env files after restart
         run: |
