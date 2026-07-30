@@ -345,7 +345,14 @@ HTACCESS
 
             sleep 5
             ps -eo cmd | grep -E '[n]ode .*start\.js' || true
-            tail -n 200 nodejs/logs/app.log 2>/dev/null || true"
+            tail -n 200 nodejs/logs/app.log 2>/dev/null || true
+
+            VERSION_DIR=$(ls -td .builds/versions/* 2>/dev/null | head -1)
+            if [ -n "$VERSION_DIR" ] && [ -d "$VERSION_DIR/nodejs" ]; then
+              echo "Detected Hostinger versioned build: $VERSION_DIR"
+              cp -f .env "$VERSION_DIR/nodejs/.env" 2>/dev/null || true
+              npm install --prefix "$VERSION_DIR/nodejs/server" --production=false 2>/dev/null || true
+            fi"
 
       - name: Verify env files after restart
         run: |

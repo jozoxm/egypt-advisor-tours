@@ -10,6 +10,8 @@ function loadEnvironment() {
     path.join(ROOT_DIR, '.env'),
     path.join(ROOT_DIR, '..', '.env'),
     path.join(ROOT_DIR, '..', '..', '.env'),
+    path.join(ROOT_DIR, '..', '..', '..', '.env'),
+    path.join(ROOT_DIR, '..', '..', '..', '..', '.env'),
   ];
 
   for (const envPath of candidates) {
