@@ -86,7 +86,7 @@ function verifyCsrf(req, res, next) {
 
 function loginHandler(req, res) {
   const { username, password } = req.body;
-  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+  if (username.toLowerCase() !== ADMIN_USERNAME.toLowerCase() || password !== ADMIN_PASSWORD) {
     logAdminAction(req, 'LOGIN_FAILED', 'auth', 'login', { username, reason: 'invalid-credentials' });
     return res.status(401).json({ error: 'Invalid credentials' });
   }

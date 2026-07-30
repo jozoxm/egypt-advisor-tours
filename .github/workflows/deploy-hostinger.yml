@@ -226,6 +226,7 @@ jobs:
               [ -z "$key" ] && continue
               case "$key" in
                 PUBLIC_SITE_URL|CORS_ORIGIN|ADMIN_USERNAME|ADMIN_SECRET|ADMIN_PASSWORD|HOSTINGER_DATA_PATH) ;;
+                MONGODB_URI|REACT_APP_EMAILJS_SERVICE_ID|REACT_APP_EMAILJS_BOOKING_TEMPLATE_ID|REACT_APP_EMAILJS_TRIPTAILOR_TEMPLATE_ID|REACT_APP_EMAILJS_PUBLIC_KEY) ;;
                 *) printf '%s=%s\n' "$key" "$value" >> "$server_env_file" ;;
               esac
             done < /tmp/hostinger_server_env_prev.txt
@@ -329,7 +330,7 @@ jobs:
 Options -MultiViews
 RewriteEngine On
 
-RewriteCond %{REQUEST_URI} ^/(api|admin|health|robots\.txt|sitemap\.xml|uploads|favicon\.ico|manifest\.json|asset-manifest\.json)(/.*)?$ [NC]
+RewriteCond %{REQUEST_URI} ^/(api|admin|health|debug|robots\.txt|sitemap\.xml|uploads|favicon\.ico|manifest\.json|asset-manifest\.json)(/.*)?$ [NC]
 RewriteRule ^(.*)$ http://127.0.0.1:5000/$1 [P,L]
 
 RewriteCond %{REQUEST_FILENAME} !-f

@@ -194,6 +194,20 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK' });
 });
 
+app.get('/debug/env-check', (req, res) => {
+    const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1';
+    if (!isLocalhost) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    res.status(200).json({
+        adminUsernameLoaded: !!process.env.ADMIN_USERNAME,
+        adminPasswordLoaded: !!process.env.ADMIN_PASSWORD,
+        adminSecretLoaded: !!process.env.ADMIN_SECRET,
+        corsOrigin: process.env.CORS_ORIGIN || null,
+        nodeEnv: process.env.NODE_ENV || null,
+    });
+});
+
 // SEO discovery endpoints
 app.get('/robots.txt', (req, res) => {
     res.type('text/plain').send(
