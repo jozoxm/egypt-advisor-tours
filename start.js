@@ -1,4 +1,33 @@
-'use strict';
+// ============================================================================
+// HOSTINGER REVERSE-PROXY RUNTIME PATENCY HOOK
+// Place this at LINE 1 of your start.js file. Do not place any code above this.
+// ============================================================================
+const Module = require('module');
+const path = require('path');
+
+const ACCREDITED_NODE_PATH = '/home/u239421793/domains/egyptadvisortours.com';
+
+const originalResolveFilename = Module._resolveFilename;
+
+Module._resolveFilename = function (request, parent, isMain, options) {
+  try {
+    return originalResolveFilename.apply(this, arguments);
+  } catch (err) {
+    if (err.code === 'MODULE_NOT_FOUND' && !path.isAbsolute(request) && !request.startsWith('.')) {
+      try {
+        const absoluteFallbackPath = path.join(ACCREDITED_NODE_PATH, 'node_modules', request);
+        return originalResolveFilename.call(this, absoluteFallbackPath, parent, isMain, options);
+      } catch (fallbackError) {
+        throw err;
+      }
+    }
+    throw err;
+  }
+};
+// ============================================================================
+// END HOOK - STARTUP LOGIC RESUMES
+// ============================================================================
+// 'use strict';
 
 const path = require('path');
 const dotenv = require('dotenv');
