@@ -59,6 +59,8 @@ app.use(cookieParser());
 // Static Uploads Middleware
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+// app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
+
 const allowedOrigins = new Set(
     [
         corsOrigin,
@@ -97,11 +99,27 @@ app.use((req, res, next) => {
         return res.status(403).json({ error: 'Invalid request origin.' });
     }
 
-    if (!allowedOrigins.has(normalizedOrigin)) {
-        return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
+    const host = req.get('host');
+
+    const isLocalhost = normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1');
+    if (isLocalhost) {
+        return next();
     }
 
-    return next();
+    let sameOrigin = false;
+    if (host) {
+        try {
+            sameOrigin = normalizedOrigin === `http://${host}` || normalizedOrigin === `https://${host}`;
+        } catch (_) {
+            sameOrigin = false;
+        }
+    }
+
+    if (sameOrigin || allowedOrigins.has(normalizedOrigin)) {
+        return next();
+    }
+
+    return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
 });
 
 // CSRF Validation
@@ -129,9 +147,9 @@ app.use((req, res, next) => {
 // Admin auth, admin pages, and bookings
 setupAdmin(app);
 
-const bookingsRouter = require('./routes/bookings');
-
-app.use('/api/bookings', bookingsRouter);
+// Admin content management API (protected by admin auth + CSRF)
+const adminRouter = require('./routes/admin');
+app.use('/api/admin', adminRouter);
 
 // API welcome
 app.get('/api', (req, res) => {

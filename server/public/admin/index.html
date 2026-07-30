@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Egypt Advisor Tours</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    .navbar { background: white; padding: 15px 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+    .navbar h1 { font-size: 20px; color: #333; }
+    .navbar-actions { display: flex; gap: 15px; align-items: center; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; text-decoration: none; display: inline-block; }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #764ba2; }
+    .btn-danger { background: #e74c3c; color: white; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-secondary { background: #95a5a6; color: white; }
+    .btn-secondary:hover { background: #7f8c8d; }
+    .btn-success { background: #27ae60; color: white; }
+    .btn-success:hover { background: #219a52; }
+    .container { padding: 30px; max-width: 1200px; margin: 0 auto; }
+    .card { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .card h2 { margin-bottom: 20px; color: #333; font-size: 18px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+    .tabs { display: flex; gap: 5px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tab { padding: 10px 20px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .tab.active { background: #667eea; color: white; border-color: #667eea; }
+    .tab:hover:not(.active) { background: #f0f0f0; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 14px; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+    .form-group textarea { min-height: 100px; resize: vertical; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: center; }
+    .stat-card .number { font-size: 32px; font-weight: bold; color: #667eea; }
+    .stat-card .label { color: #666; font-size: 14px; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f8f9fa; font-weight: 600; color: #555; }
+    tr:hover { background: #f8f9fa; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .badge-confirmed { background: #d4edda; color: #155724; }
+    .badge-cancelled { background: #f8d7da; color: #721c24; }
+    .hidden { display: none !important; }
+    .error { color: #e74c3c; background: #fadbd8; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
+    .success { color: #155724; background: #d4edda; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
+    .login-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .login-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 400px; }
+    .login-box h1 { text-align: center; margin-bottom: 30px; color: #333; font-size: 24px; }
+    .image-preview { max-width: 200px; max-height: 200px; border-radius: 4px; margin-top: 10px; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .gallery-item { position: relative; border-radius: 4px; overflow: hidden; }
+    .gallery-item img { width: 100%; height: 150px; object-fit: cover; }
+    .gallery-item .delete-btn { position: absolute; top: 5px; right: 5px; background: rgba(231,76,60,0.9); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 12px; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal { background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h3 { font-size: 18px; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #666; }
+    .json-editor { font-family: 'Courier New', monospace; font-size: 13px; }
+    .empty-state { text-align: center; padding: 40px; color: #666; }
+    .empty-state p { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="login-view" class="login-container">
+    <div class="login-box">
+      <h1>Admin Login</h1>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:16px;">Sign In</button>
+      </form>
+      <div id="login-error" class="error hidden" style="margin-top:15px;"></div>
+    </div>
+  </div>
+
+  <div id="admin-view" class="hidden">
+    <div class="navbar">
+      <h1>Egypt Advisor Tours - Admin</h1>
+      <div class="navbar-actions">
+        <span id="admin-user" style="font-size:14px; color:#666;"></span>
+        <button class="btn btn-secondary" onclick="logout()">Logout</button>
+      </div>
+    </div>
+    <div class="container">
+      <div class="tabs" id="main-tabs"></div>
+      <div id="tab-content"></div>
+    </div>
+  </div>
+
+  <div id="editor-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Edit Content</h3>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '';
+    let csrfToken = '';
+    let currentTab = 'dashboard';
+
+    const SECTIONS = [
+      { id: 'tours', name: 'Tours' },
+      { id: 'blogs', name: 'Blogs' },
+      { id: 'gallery', name: 'Gallery' },
+      { id: 'slideshow', name: 'Slideshow' },
+      { id: 'promotions', name: 'Promotions' },
+      { id: 'destinations', name: 'Destinations' },
+      { id: 'contact', name: 'Contact' },
+      { id: 'homepage', name: 'Homepage' },
+      { id: 'about', name: 'About' },
+      { id: 'faq', name: 'FAQ' },
+      { id: 'tailor-trip', name: 'Tailor Trip' },
+      { id: 'settings', name: 'Settings' },
+      { id: 'bookings', name: 'Bookings' },
+      { id: 'uploads', name: 'Image Upload' },
+      { id: 'audit', name: 'Audit Log' },
+    ];
+
+    async function api(path, options = {}) {
+      const res = await fetch(API_BASE + path, {
+        ...options,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfToken,
+          ...(options.headers || {})
+        }
+      });
+      if (res.status === 401) { logout(); throw new Error('Unauthorized'); }
+      if (res.status === 403) { logout(); throw new Error('Forbidden'); }
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || res.statusText);
+      }
+      return res;
+    }
+
+    async function loadCsrf() {
+      try {
+        const res = await api('/api/admin/verify');
+        if (res.ok) {
+          const cookies = document.cookie.split(';').reduce((acc, c) => { const [k,v] = c.trim().split('='); acc[k] = v; return acc; }, {});
+          csrfToken = cookies['csrf_token'] || cookies['adminCsrfToken'] || '';
+        }
+      } catch (_) {
+        csrfToken = '';
+      }
+    }
+
+    function showLogin() {
+      document.getElementById('login-view').classList.remove('hidden');
+      document.getElementById('admin-view').classList.add('hidden');
+    }
+
+    function showAdmin() {
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('admin-view').classList.remove('hidden');
+      renderTabs();
+      switchTab(currentTab);
+    }
+
+    function renderTabs() {
+      const container = document.getElementById('main-tabs');
+      container.innerHTML = SECTIONS.map(s =>
+        `<button class="tab ${s.id === currentTab ? 'active' : ''}" onclick="switchTab('${s.id}')">${s.name}</button>`
+      ).join('');
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      renderTabs();
+      const content = document.getElementById('tab-content');
+      content.innerHTML = '<div class="card"><p>Loading...</p></div>';
+      const handler = tabHandlers[tab];
+      if (handler) handler(content).catch(err => {
+        content.innerHTML = `<div class="card"><div class="error">Error: ${err.message}</div></div>`;
+      });
+    }
+
+    async function login(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('login-error');
+      errorEl.classList.add('hidden');
+      try {
+        const res = await fetch(API_BASE + '/api/admin/login', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || 'Login failed');
+        }
+        await loadCsrf();
+        showAdmin();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch(API_BASE + '/api/admin/logout', { method: 'POST', credentials: 'include' });
+      } catch (_) {}
+      csrfToken = '';
+      showLogin();
+    }
+
+    function openModal(title, bodyHtml) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').innerHTML = bodyHtml;
+      document.getElementById('editor-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('editor-modal').classList.add('hidden');
+    }
+
+    async function loadSection(section) {
+      const res = await api(`/api/admin/content/${section}`);
+      return await res.json();
+    }
+
+    async function saveSection(section, data) {
+      const res = await api(`/api/admin/content/${section}`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      return res.ok;
+    }
+
+    function jsonEditor(value, onChange) {
+      const id = 'json-' + Math.random().toString(36).slice(2);
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = JSON.stringify(value, null, 2);
+        el.addEventListener('change', () => {
+          try {
+            onChange(JSON.parse(el.value));
+          } catch (err) {
+            alert('Invalid JSON: ' + err.message);
+          }
+        });
+      }, 0);
+      return `<textarea id="${id}" class="json-editor" rows="20"></textarea>`;
+    }
+
+    function arrayEditor(items, itemName, fields, onSave) {
+      const list = items || [];
+      return `
+        <div style="margin-bottom:15px;">
+          <button class="btn btn-success" onclick="addItem()">Add ${itemName}</button>
+        </div>
+        <table>
+          <thead><tr>${fields.map(f => `<th>${f.label}</th>`).join('')}<th>Actions</th></tr></thead>
+          <tbody>
+            ${list.map((item, idx) => `
+              <tr>
+                ${fields.map(f => `<td>${escapeHtml(String(item[f.key] ?? ''))}</td>`).join('')}
+                <td>
+                  <button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="editItem(${idx})">Edit</button>
+                  <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteItem(${idx})">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <script>
+          let currentData = ${JSON.stringify(list).replace(/</g, '\\u003c')};
+          function addItem() {
+            const newItem = { ${fields.slice(0,3).map(f => `${f.key}: ''`).join(', ')} };
+            currentData.push(newItem);
+            refreshEditor();
+          }
+          function editItem(idx) {
+            const item = currentData[idx];
+            const fieldsStr = ${JSON.stringify(fields).replace(/</g, '\\u003c')};
+            let html = '<div class="form-group"><label>JSON</label><textarea id="item-json" rows="15" class="json-editor">' + escapeHtml(JSON.stringify(item, null, 2)) + '</textarea></div>';
+            openModal('Edit ${itemName}', html + '<button class="btn btn-primary" onclick="saveItem(' + idx + ')">Save</button>');
+          }
+          function saveItem(idx) {
+            const el = document.getElementById('item-json');
+            try {
+              currentData[idx] = JSON.parse(el.value);
+              refreshEditor();
+              closeModal();
+            } catch (err) { alert('Invalid JSON'); }
+          }
+          function deleteItem(idx) {
+            if (confirm('Delete this ${itemName}?')) {
+              currentData.splice(idx, 1);
+              refreshEditor();
+            }
+          }
+          function refreshEditor() {
+            onSave(currentData);
+          }
+        <\/script>
+      `;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    const tabHandlers = {
+      dashboard: async (container) => {
+        const [tours, blogs, bookings, gallery] = await Promise.all([
+          loadSection('tours'), loadSection('blogs'), api('/api/admin/bookings').then(r => r.json()), loadSection('gallery')
+        ]);
+        const tourCount = tours.tours ? tours.tours.length : 0;
+        const blogCount = blogs.blogs ? blogs.blogs.length : 0;
+        const bookingCount = Array.isArray(bookings) ? bookings.length : 0;
+        const galleryCount = gallery.gallery ? gallery.gallery.length : 0;
+        container.innerHTML = `
+          <div class="card">
+            <h2>Dashboard</h2>
+            <div class="grid">
+              <div class="stat-card"><div class="number">${tourCount}</div><div class="label">Tours</div></div>
+              <div class="stat-card"><div class="number">${blogCount}</div><div class="label">Blog Posts</div></div>
+              <div class="stat-card"><div class="number">${bookingCount}</div><div class="label">Bookings</div></div>
+              <div class="stat-card"><div class="number">${galleryCount}</div><div class="label">Gallery Images</div></div>
+            </div>
+          </div>`;
+      },
+      tours: async (container) => {
+        const data = await loadSection('tours');
+        const tours = data.tours || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Tours</h2>
+            ${tours.length === 0 ? '<div class="empty-state"><p>No tours yet.</p></div>' : arrayEditor(tours, 'Tour', [
+              { key: 'title', label: 'Title' }, { key: 'duration', label: 'Duration' }, { key: 'price', label: 'Price' }
+            ], async (updated) => {
+              await saveSection('tours', { ...data, tours: updated });
+              switchTab('tours');
+            })}
+          </div>`;
+      },
+      blogs: async (container) => {
+        const data = await loadSection('blogs');
+        const blogs = data.blogs || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Blogs</h2>
+            ${blogs.length === 0 ? '<div class="empty-state"><p>No blogs yet.</p></div>' : arrayEditor(blogs, 'Blog', [
+              { key: 'title', label: 'Title' }, { key: 'date', label: 'Date' }
+            ], async (updated) => {
+              await saveSection('blogs', { ...data, blogs: updated });
+              switchTab('blogs');
+            })}
+          </div>`;
+      },
+      gallery: async (container) => {
+        const data = await loadSection('gallery');
+        const items = data.gallery || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Gallery</h2>
+            <div class="gallery-grid">
+              ${items.map((item, idx) => `
+                <div class="gallery-item">
+                  <img src="${item.src || item.url || ''}" alt="">
+                  <button class="delete-btn" onclick="deleteGalleryItem(${idx})">&times;</button>
+                </div>
+              `).join('')}
+            </div>
+            <p style="margin-top:15px; color:#666; font-size:14px;">${items.length} images</p>
+          </div>
+          <script>
+            async function deleteGalleryItem(idx) {
+              if (!confirm('Delete this image?')) return;
+              const updated = [...${JSON.stringify(items).replace(/</g, '\\u003c')}];
+              updated.splice(idx, 1);
+              await saveSection('gallery', { gallery: updated });
+              switchTab('gallery');
+            }
+          <\/script>`;
+      },
+      slideshow: async (container) => {
+        const data = await loadSection('slideshow');
+        const slides = data.slides || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Slideshow</h2>
+            ${arrayEditor(slides, 'Slide', [
+              { key: 'title', label: 'Title' }, { key: 'image', label: 'Image' }
+            ], async (updated) => {
+              await saveSection('slideshow', { ...data, slides: updated });
+              switchTab('slideshow');
+            })}
+          </div>`;
+      },
+      promotions: async (container) => {
+        const data = await loadSection('promotions');
+        const promos = data.promotions || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Promotions</h2>
+            ${arrayEditor(promos, 'Promotion', [
+              { key: 'title', label: 'Title' }, { key: 'discount', label: 'Discount' }
+            ], async (updated) => {
+              await saveSection('promotions', { ...data, promotions: updated });
+              switchTab('promotions');
+            })}
+          </div>`;
+      },
+      destinations: async (container) => {
+        const data = await loadSection('destinations');
+        const dests = data.destinations || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Destinations</h2>
+            ${arrayEditor(dests, 'Destination', [
+              { key: 'name', label: 'Name' }, { key: 'region', label: 'Region' }
+            ], async (updated) => {
+              await saveSection('destinations', { ...data, destinations: updated });
+              switchTab('destinations');
+            })}
+          </div>`;
+      },
+      contact: async (container) => {
+        const data = await loadSection('contact');
+        container.innerHTML = `
+          <div class="card">
+            <h2>Contact Info</h2>
+            <div id="contact-editor"></div>
+            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveContact()">Save Contact</button>
+          </div>
+          <script>
+            let contactData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            const container = document.getElementById('contact-editor');
+            container.innerHTML = jsonEditor(contactData, (val) => { contactData = val; });
+            async function saveContact() {
+              await saveSection('contact', contactData);
+              alert('Saved');
+            }
+          <\/script>`;
+      },
+      settings: async (container) => {
+        const data = await loadSection('settings');
+        container.innerHTML = `
+          <div class="card">
+            <h2>Settings</h2>
+            <div id="settings-editor"></div>
+            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveSettings()">Save Settings</button>
+          </div>
+          <script>
+            let settingsData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            const container = document.getElementById('settings-editor');
+            container.innerHTML = jsonEditor(settingsData, (val) => { settingsData = val; });
+            async function saveSettings() {
+              await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(settingsData) });
+              alert('Saved');
+            }
+          <\/script>`;
+      },
+      homepage: async (container) => {
+        const data = await loadSection('homepage');
+        container.innerHTML = `
+          <div class="card">
+            <h2>Homepage</h2>
+            <div id="homepage-editor"></div>
+            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveHomepage()">Save Homepage</button>
+          </div>
+          <script>
+            let homepageData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            const container = document.getElementById('homepage-editor');
+            container.innerHTML = jsonEditor(homepageData, (val) => { homepageData = val; });
+            async function saveHomepage() {
+              await saveSection('homepage', homepageData);
+              alert('Saved');
+            }
+          <\/script>`;
+      },
+      about: async (container) => {
+        const data = await loadSection('about');
+        container.innerHTML = `
+          <div class="card">
+            <h2>About</h2>
+            <div id="about-editor"></div>
+            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveAbout()">Save About</button>
+          </div>
+          <script>
+            let aboutData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            const container = document.getElementById('about-editor');
+            container.innerHTML = jsonEditor(aboutData, (val) => { aboutData = val; });
+            async function saveAbout() {
+              await saveSection('about', aboutData);
+              alert('Saved');
+            }
+          <\/script>`;
+      },
+      faq: async (container) => {
+        const data = await loadSection('faq');
+        const faqs = data.faqs || data.questions || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>FAQ</h2>
+            ${arrayEditor(faqs, 'FAQ', [
+              { key: 'question', label: 'Question' }, { key: 'answer', label: 'Answer' }
+            ], async (updated) => {
+              await saveSection('faq', { ...data, faqs: updated });
+              switchTab('faq');
+            })}
+          </div>`;
+      },
+      'tailor-trip': async (container) => {
+        const data = await loadSection('tailor-trip');
+        container.innerHTML = `
+          <div class="card">
+            <h2>Tailor Trip</h2>
+            <div id="tailor-editor"></div>
+            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveTailor()">Save Tailor Trip</button>
+          </div>
+          <script>
+            let tailorData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            const container = document.getElementById('tailor-editor');
+            container.innerHTML = jsonEditor(tailorData, (val) => { tailorData = val; });
+            async function saveTailor() {
+              await saveSection('tailor-trip', tailorData);
+              alert('Saved');
+            }
+          <\/script>`;
+      },
+      bookings: async (container) => {
+        const res = await api('/api/admin/bookings');
+        const bookings = await res.json();
+        container.innerHTML = `
+          <div class="card">
+            <h2>Bookings</h2>
+            ${bookings.length === 0 ? '<div class="empty-state"><p>No bookings yet.</p></div>' : `
+              <div style="overflow-x:auto;">
+                <table>
+                  <thead>
+                    <tr><th>ID</th><th>Name</th><th>Email</th><th>Tour</th><th>Date</th><th>Guests</th><th>Status</th><th>Actions</th></tr>
+                  </thead>
+                  <tbody>
+                    ${bookings.map(b => `
+                      <tr>
+                        <td>${escapeHtml(b.id || '')}</td>
+                        <td>${escapeHtml(b.name || '')}</td>
+                        <td>${escapeHtml(b.email || '')}</td>
+                        <td>${escapeHtml(b.tour || '')}</td>
+                        <td>${escapeHtml(b.date || '')}</td>
+                        <td>${escapeHtml(String(b.guests || ''))}</td>
+                        <td><span class="badge badge-${b.status || 'pending'}">${escapeHtml(b.status || 'pending')}</span></td>
+                        <td><button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteBooking('${b.id}')">Delete</button></td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </div>
+          <script>
+            async function deleteBooking(id) {
+              if (!confirm('Delete this booking?')) return;
+              await api('/api/admin/bookings/' + encodeURIComponent(id), { method: 'DELETE' });
+              switchTab('bookings');
+            }
+          <\/script>`;
+      },
+      uploads: async (container) => {
+        container.innerHTML = `
+          <div class="card">
+            <h2>Image Upload</h2>
+            <p style="color:#666; margin-bottom:15px;">Upload images. They will be optimized to WebP automatically.</p>
+            <form id="upload-form" enctype="multipart/form-data">
+              <div class="form-group">
+                <label>Select Image</label>
+                <input type="file" id="image-file" accept="image/jpeg,image/png,image/webp,image/gif" required>
+              </div>
+              <button type="submit" class="btn btn-primary">Upload Image</button>
+            </form>
+            <div id="upload-preview" style="margin-top:15px;"></div>
+            <div id="upload-error" class="error hidden" style="margin-top:10px;"></div>
+          </div>
+          <script>
+            document.getElementById('upload-form').addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const fileInput = document.getElementById('image-file');
+              const file = fileInput.files[0];
+              if (!file) return;
+              const formData = new FormData();
+              formData.append('image', file);
+              const errorEl = document.getElementById('upload-error');
+              errorEl.classList.add('hidden');
+              try {
+                const res = await fetch(API_BASE + '/api/admin/upload', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'X-CSRF-Token': csrfToken },
+                  body: formData
+                });
+                if (!res.ok) {
+                  const text = await res.text();
+                  throw new Error(text || 'Upload failed');
+                }
+                const result = await res.json();
+                document.getElementById('upload-preview').innerHTML = '<img src="' + (result.optimized || result.original) + '" class="image-preview"><p class="success" style="margin-top:10px;">Upload successful!</p>';
+              } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.classList.remove('hidden');
+              }
+            });
+          <\/script>`;
+      },
+      audit: async (container) => {
+        try {
+          const res = await api('/api/admin/audit');
+          const logs = await res.json();
+          container.innerHTML = `
+            <div class="card">
+              <h2>Audit Log</h2>
+              ${logs.length === 0 ? '<div class="empty-state"><p>No audit logs yet.</p></div>' : `
+                <div style="overflow-x:auto; max-height:500px; overflow-y:auto;">
+                  <table>
+                    <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Resource</th><th>IP</th></tr></thead>
+                    <tbody>
+                      ${logs.slice().reverse().map(l => `
+                        <tr>
+                          <td>${escapeHtml(l.timestamp || '')}</td>
+                          <td>${escapeHtml(l.adminUsername || '')}</td>
+                          <td>${escapeHtml(l.action || '')}</td>
+                          <td>${escapeHtml(l.resourceType || '')} / ${escapeHtml(l.resourceId || '')}</td>
+                          <td>${escapeHtml(l.ip || '')}</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              `}
+            </div>`;
+        } catch (err) {
+          container.innerHTML = `<div class="card"><div class="error">Failed to load audit log: ${err.message}</div></div>`;
+        }
+      }
+    };
+
+    document.getElementById('login-form').addEventListener('submit', login);
+
+    async function init() {
+      await loadCsrf();
+      try {
+        const res = await api('/api/admin/verify');
+        if (res.ok) {
+          showAdmin();
+        } else {
+          showLogin();
+        }
+      } catch (_) {
+        showLogin();
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
