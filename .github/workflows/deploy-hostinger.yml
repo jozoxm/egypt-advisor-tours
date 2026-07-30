@@ -308,7 +308,7 @@ jobs:
             git checkout main
             git reset --hard origin/main
             npm install --production=false
-            npm install --prefix nodejs/server --production=false
+            npm install --prefix server --production=false
             mkdir -p tmp logs nodejs/tmp nodejs/logs
             touch tmp/restart.txt
 
@@ -336,15 +336,15 @@ HTACCESS
 
             if command -v pm2 >/dev/null 2>&1; then
               pm2 delete egypt-advisor || true
-              pm2 start nodejs/start.js --name egypt-advisor
+              pm2 start bash -- nodejs/start.sh --name egypt-advisor
               pm2 save
             else
-              pkill -f 'node .*start\.js' || true
-              nohup node nodejs/start.js > nodejs/logs/app.log 2>&1 &
+              pkill -f 'bash .*start\.sh' 2>/dev/null || true
+              nohup bash nodejs/start.sh > nodejs/logs/app.log 2>&1 &
             fi
 
             sleep 5
-            ps -eo cmd | grep -E '[n]ode .*start\.js' || true
+            ps -eo cmd | grep -E '[b]ash .*start\.sh' || true
             tail -n 200 nodejs/logs/app.log 2>/dev/null || true
 
             VERSION_DIR=$(ls -td .builds/versions/* 2>/dev/null | head -1)
