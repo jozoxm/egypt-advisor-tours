@@ -78,6 +78,30 @@ const STATIC_FILE_EXTENSIONS = /\.(?:js|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?
 // CUSTOM SECURITY MIDDLEWARES
 // ============================================
 
+function parseOrigin(origin) {
+    if (!origin || typeof origin !== 'string') {
+        return null;
+    }
+    const trimmed = origin.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'null') {
+        return null;
+    }
+    try {
+        const url = new URL(trimmed);
+        return url.origin;
+    } catch {
+        return trimmed;
+    }
+}
+
+function isLocalhost(origin) {
+    if (!origin) return false;
+    const lower = origin.toLowerCase();
+    return lower.includes('localhost') || lower.includes('127.0.0.1') || lower.includes('::1');
+}
+
+const ORIGIN_LOG_REJECTED = process.env.ORIGIN_LOG_REJECTED === '1';
+
 // Origin Enforcement
 app.use((req, res, next) => {
     const isAdminPath = req.path === '/admin' || req.path.startsWith('/admin/');
@@ -89,20 +113,16 @@ app.use((req, res, next) => {
         return next();
     }
 
-    const origin = req.get('origin');
-    if (!origin) return next();
+    const rawOrigin = req.get('origin');
+    const normalizedOrigin = parseOrigin(rawOrigin);
 
-    let normalizedOrigin;
-    try {
-        normalizedOrigin = new URL(origin).origin;
-    } catch (_error) {
-        return res.status(403).json({ error: 'Invalid request origin.' });
+    if (!normalizedOrigin) {
+        return next();
     }
 
     const host = req.get('host');
 
-    const isLocalhost = normalizedOrigin.includes('localhost') || normalizedOrigin.includes('127.0.0.1');
-    if (isLocalhost) {
+    if (isLocalhost(normalizedOrigin)) {
         return next();
     }
 
@@ -110,13 +130,26 @@ app.use((req, res, next) => {
     if (host) {
         try {
             sameOrigin = normalizedOrigin === `http://${host}` || normalizedOrigin === `https://${host}`;
-        } catch (_) {
+        } catch {
             sameOrigin = false;
         }
     }
 
     if (sameOrigin || allowedOrigins.has(normalizedOrigin)) {
         return next();
+    }
+
+    if (ORIGIN_LOG_REJECTED) {
+        console.warn('[OriginBlocked]', {
+            method: req.method,
+            path: req.path,
+            origin: rawOrigin,
+            normalizedOrigin,
+            host,
+            ip: req.ip,
+            userAgent: req.get('user-agent'),
+            timestamp: new Date().toISOString(),
+        });
     }
 
     return res.status(403).json({ error: 'Cross-site requests are not allowed.' });
