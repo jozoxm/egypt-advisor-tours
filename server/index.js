@@ -200,7 +200,7 @@ app.get('/debug/listening', (req, res) => {
     if (!isLocalhost) {
         return res.status(404).json({ error: 'Not found' });
     }
-    const address = app.address ? app.address() : { address: 'unknown', port: process.env.PORT || 5000 };
+    const address = __serverInstance ? __serverInstance.address() : { address: 'unknown', port: process.env.PORT || 5000 };
     res.status(200).json({
         address: address.address,
         port: address.port,
@@ -300,10 +300,16 @@ module.exports = app;
 // Hostinger Node.js hosting expects the entry file to call listen() at the
 // top level. Guard it behind test mode instead of `require.main` so both
 // direct execution and test suites remain compatible.
+let __serverInstance = null;
+
 if (process.env.NODE_ENV !== 'test') {
-    const PORT = process.env.PORT || 5000;
-    const server = app.listen(PORT, '0.0.0.0', () => {
-        const address = server.address();
+    const PORT = process.env.PORT;
+    if (!PORT) {
+        console.error('[startup] FATAL: process.env.PORT is not set. The app cannot start without a port assignment.');
+        process.exit(1);
+    }
+    __serverInstance = app.listen(PORT, '0.0.0.0', () => {
+        const address = __serverInstance.address();
         const host = address.address === '::' ? '0.0.0.0' : address.address;
         console.log(`[startup] Server is listening on ${host}:${address.port}`);
         console.log(`[startup] ADMIN_USERNAME=${process.env.ADMIN_USERNAME ? 'loaded' : 'MISSING'}`);
