@@ -1,6 +1,8 @@
 // ============================================================================
 // HOSTINGER REVERSE-PROXY RUNTIME PATENCY HOOK
-// Place this at LINE 1 of your start.js file. Do not place any code above this.
+// Primary module-resolution intercept for versioned sandbox environments.
+// Hostinger's wrapper may strip NODE_PATH; this hook ensures dependencies
+// like multer/sharp remain resolvable from the domain-root node_modules.
 // ============================================================================
 const Module = require('module');
 const path = require('path');
@@ -27,14 +29,14 @@ Module._resolveFilename = function (request, parent, isMain, options) {
 // ============================================================================
 // END HOOK - STARTUP LOGIC RESUMES
 // ============================================================================
-// 'use strict';
 
-const path = require('path');
+'use strict';
+
 const dotenv = require('dotenv');
 const fs = require('fs');
 
 const ROOT_DIR = __dirname;
-const DOMAIN_ROOT = ROOT_DIR;  // start.js lives at domain root
+const DOMAIN_ROOT = ROOT_DIR;
 
 function loadEnvironment() {
   const candidates = [
