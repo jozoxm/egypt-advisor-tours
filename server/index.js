@@ -194,8 +194,28 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'OK' });
 });
 
+app.get('/debug/listening', (req, res) => {
+    const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' ||
+                        req.socket.remoteAddress === '127.0.0.1' || req.socket.remoteAddress === '::1';
+    if (!isLocalhost) {
+        return res.status(404).json({ error: 'Not found' });
+    }
+    const address = app.address ? app.address() : { address: 'unknown', port: process.env.PORT || 5000 };
+    res.status(200).json({
+        address: address.address,
+        port: address.port,
+        host: address.address === '::' ? '0.0.0.0' : address.address,
+        adminUsernameLoaded: !!process.env.ADMIN_USERNAME,
+        adminPasswordLoaded: !!process.env.ADMIN_PASSWORD,
+        adminSecretLoaded: !!process.env.ADMIN_SECRET,
+        corsOrigin: process.env.CORS_ORIGIN || null,
+        nodeEnv: process.env.NODE_ENV || null,
+    });
+});
+
 app.get('/debug/env-check', (req, res) => {
-    const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1';
+    const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' ||
+                        req.socket.remoteAddress === '127.0.0.1' || req.socket.remoteAddress === '::1';
     if (!isLocalhost) {
         return res.status(404).json({ error: 'Not found' });
     }
@@ -282,7 +302,14 @@ module.exports = app;
 // direct execution and test suites remain compatible.
 if (process.env.NODE_ENV !== 'test') {
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-        console.log(`Server is running on port ${PORT}`);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+        const address = server.address();
+        const host = address.address === '::' ? '0.0.0.0' : address.address;
+        console.log(`[startup] Server is listening on ${host}:${address.port}`);
+        console.log(`[startup] ADMIN_USERNAME=${process.env.ADMIN_USERNAME ? 'loaded' : 'MISSING'}`);
+        console.log(`[startup] ADMIN_PASSWORD=${process.env.ADMIN_PASSWORD ? 'loaded' : 'MISSING'}`);
+        console.log(`[startup] ADMIN_SECRET=${process.env.ADMIN_SECRET ? 'loaded' : 'MISSING'}`);
+        console.log(`[startup] CORS_ORIGIN=${process.env.CORS_ORIGIN || 'not set'}`);
+        console.log(`[startup] NODE_ENV=${process.env.NODE_ENV || 'not set'}`);
     });
 }
