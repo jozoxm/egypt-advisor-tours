@@ -234,6 +234,10 @@ jobs:
 
           ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
             "umask 077; cat > '${DEPLOY_DIR}/.env'" < "$server_env_file"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" \
+            "umask 077; cat > '${DEPLOY_DIR}/nodejs/.env'" < "$server_env_file"
+
           rm -f "$server_env_file"
 
       - name: Verify env files on server
