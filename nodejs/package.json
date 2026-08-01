@@ -1,25 +1,24 @@
 {
-  "name": "egypt-advisor-tours-nodejs",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Node.js runtime for Egypt Advisor Tours (Hostinger nodejs/ entrypoint)",
-  "main": "start.js",
-  "scripts": {
-    "start": "node start.js",
-    "postinstall": "node scripts/build-client.js"
-  },
-  "dependencies": {
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.21.0",
-    "express-rate-limit": "^8.3.2",
-    "helmet": "^8.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.2",
-    "sharp": "^0.35.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+    "name":  "egypt-advisor-tours-nodejs",
+    "version":  "1.0.0",
+    "private":  true,
+    "description":  "Node.js runtime for Egypt Advisor Tours (Hostinger nodejs/ entrypoint)",
+    "main":  "start.js",
+    "scripts":  {
+                    "start":  "node start.js"
+                },
+    "dependencies":  {
+                         "cookie-parser":  "^1.4.7",
+                         "cors":  "^2.8.5",
+                         "dotenv":  "^16.3.1",
+                         "express":  "^4.21.0",
+                         "express-rate-limit":  "^8.3.2",
+                         "helmet":  "^8.1.0",
+                         "jsonwebtoken":  "^9.0.2",
+                         "multer":  "^1.4.5-lts.2",
+                         "sharp":  "^0.35.3"
+                     },
+    "engines":  {
+                    "node":  "\u003e=18.0.0"
+                }
 }
