@@ -52,6 +52,20 @@ function loadEnvironment() {
       const result = dotenv.config({ path: envPath, override: true });
       if (!result.error) {
         console.log('[startup] Loaded environment from:', envPath);
+        const adminUsername = process.env.ADMIN_USERNAME;
+        const adminPassword = process.env.ADMIN_PASSWORD;
+        const adminSecret = process.env.ADMIN_SECRET;
+        console.log('[startup] Env diagnostics:', {
+          adminUsernameLoaded: !!adminUsername,
+          adminUsernameLength: adminUsername ? adminUsername.length : 0,
+          adminPasswordLoaded: !!adminPassword,
+          adminPasswordLength: adminPassword ? adminPassword.length : 0,
+          adminSecretLoaded: !!adminSecret,
+          adminSecretLength: adminSecret ? adminSecret.length : 0,
+          nodeEnv: process.env.NODE_ENV || 'undefined',
+          cwd: process.cwd(),
+          platform: process.platform,
+        });
         return;
       }
     } catch (err) {

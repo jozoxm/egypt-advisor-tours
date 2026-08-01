@@ -97,15 +97,19 @@ function loginHandler(req, res) {
     return res.status(400).json({ error: 'Missing username or password' });
   }
 
+  // Sanitize inputs to handle accidental CRLF/whitespace from config files
+  const sanitizedUsername = username.trim();
+  const sanitizedPassword = password.trim();
+
   const loadedUsername = ADMIN_USERNAME || 'admin';
   const loadedPassword = ADMIN_PASSWORD || 'change-me';
-  const usernameMatch = username.toLowerCase() === loadedUsername.toLowerCase();
-  const passwordMatch = password === loadedPassword;
+  const usernameMatch = sanitizedUsername.toLowerCase() === loadedUsername.toLowerCase();
+  const passwordMatch = sanitizedPassword === loadedPassword;
 
   if (process.env.ADMIN_LOGIN_DEBUG === '1') {
     console.log('[AdminLogin] Diagnostic:', {
-      hasUsername: !!username,
-      hasPassword: !!password,
+      hasUsername: !!sanitizedUsername,
+      hasPassword: !!sanitizedPassword,
       expectedUsername: loadedUsername,
       usernameMatch,
       passwordMatch,
@@ -115,7 +119,18 @@ function loginHandler(req, res) {
   }
 
   if (!usernameMatch || !passwordMatch) {
-    logAdminAction(req, 'LOGIN_FAILED', 'auth', 'login', { username, reason: 'invalid-credentials' });
+    const adminUsernameLen = loadedUsername ? loadedUsername.length : 0;
+    const adminPasswordLen = loadedPassword ? loadedPassword.length : 0;
+    console.warn('[AdminLogin] Failed attempt:', {
+      usernameMatch,
+      passwordMatch,
+      expectedUsernameLength: adminUsernameLen,
+      expectedPasswordLength: adminPasswordLen,
+      receivedUsernameLength: sanitizedUsername ? sanitizedUsername.length : 0,
+      receivedPasswordLength: sanitizedPassword ? sanitizedPassword.length : 0,
+      nodeEnv: process.env.NODE_ENV || 'undefined',
+    });
+    logAdminAction(req, 'LOGIN_FAILED', 'auth', 'login', { username: sanitizedUsername, reason: 'invalid-credentials' });
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   const token = jwt.sign({ username, role: 'admin' }, ADMIN_SECRET, { expiresIn: ADMIN_TOKEN_EXPIRY });
