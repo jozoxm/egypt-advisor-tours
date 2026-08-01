@@ -154,7 +154,7 @@
         const res = await api('/api/admin/verify');
         if (res.ok) {
           const cookies = document.cookie.split(';').reduce((acc, c) => { const [k,v] = c.trim().split('='); acc[k] = v; return acc; }, {});
-          csrfToken = cookies['csrf_token'] || cookies['adminCsrfToken'] || '';
+          csrfToken = cookies['adminCsrfToken'] || '';
         }
       } catch (_) {
         csrfToken = '';

@@ -1,6 +1,6 @@
 # Egypt Advisor Tours
 
-Full-stack tour website built with React and Express, supporting **WordPress (headless)** or **Storyblok** for editor-managed content.
+Full-stack tour website built with React and Express, featuring a built-in Admin Panel for content management.
 
 ## Local development
 
@@ -15,9 +15,6 @@ npm run setup
 
 Fill in at least:
 
-- `CMS_PROVIDER` (`wordpress` or `storyblok`)
-- `STORYBLOK_SPACE_ID`
-- `WORDPRESS_BASE_URL` (when `CMS_PROVIDER=wordpress`)
 - `ADMIN_SECRET`
 - `ADMIN_PASSWORD`
 
@@ -30,143 +27,30 @@ npm start
 - Site/API: `http://localhost:5000`
 - React dev server: `npm run dev:client`
 - Express dev server: `npm run dev:server`
-- CMS admin entry point: `http://localhost:5000/admin` (WordPress mode redirects to `/wp-admin`, Storyblok mode opens Storyblok launcher)
+- Admin Panel: `http://localhost:5000/admin`
 
-## WordPress setup (headless mode)
+## Admin Panel
 
-Set:
+The built-in Admin Panel provides:
 
-```env
-CMS_PROVIDER=wordpress
-WORDPRESS_BASE_URL=https://cms.egyptadvisortours.com
-WORDPRESS_API_NAMESPACE=ramacf/v1
-```
+- **Content Management**: Edit tours, blogs, gallery, slideshow, promotions, destinations, contact info, homepage, about page, FAQ, and tailor-trip settings
+- **Image Uploads**: Upload and auto-optimize images to WebP format
+- **Booking Management**: View and manage customer bookings
+- **Audit Logs**: Track admin actions with IP and timestamp
 
-When `CMS_PROVIDER=wordpress`, public API content is read directly from WordPress on every request (no filesystem fallback for tours), so site content stays synced with the CMS.
-`WORDPRESS_URL` and `CMS_URL` are also accepted as aliases for `WORDPRESS_BASE_URL`.
-When `CMS_PROVIDER=auto`, an explicitly configured WordPress URL is preferred over Storyblok token auto-detection.
+Access the admin panel at `/admin` and log in with the credentials set in `.env`.
 
-Server read order in WordPress mode:
+## Data Storage
 
-1. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/<resource>`
-2. `GET /wp-json/<WORDPRESS_API_NAMESPACE>/content/<resource>`
-3. `GET /wp-json/wp/v2/pages?slug=cms-<resource>`
-4. `GET /wp-json/wp/v2/posts?slug=cms-<resource>`
+Content is stored locally in JSON files under `server/data/`. This provides:
 
-Supported resources: `tours`, `contact`, `blogs`, `gallery`, `slideshow`, `settings`, `promotions`, `destinations`.
-
-## Storyblok setup (exact UI + env steps)
-
-The site keeps its existing API shapes (`/api/tours`, `/api/blogs`, `/api/settings`, etc.) and maps them to Storyblok stories.
-
-1. Create or open your Storyblok space.
-2. Go to **Settings → Access Tokens** and copy:
-   - **Preview token** → `STORYBLOK_PREVIEW_TOKEN`
-   - (Optional) **Management token** → `STORYBLOK_MANAGEMENT_TOKEN` (required for `npm run sync:storyblok`)
-3. Copy your **Space ID** from Storyblok space settings → `STORYBLOK_SPACE_ID`.
-4. In Storyblok, go to **Components** and create:
-   - Component name: `json_document`
-   - Field name: `json`
-   - Field type: **Long text**
-5. In Storyblok, create these stories (or override with env vars):
-
-| API resource | Default Storyblok slug |
-|---|---|
-| Tours + testimonials | `cms-tours` |
-| Contact info | `cms-contact` |
-| Blogs | `cms-blogs` |
-| Gallery | `cms-gallery` |
-| Slideshow | `cms-slideshow` |
-| Site settings | `cms-settings` |
-| Promotions | `cms-promotions` |
-| Destinations | `cms-destinations` |
-
-6. Configure local env values in `.env`:
-
-```env
-STORYBLOK_PREVIEW_TOKEN=<preview_token>
-STORYBLOK_SPACE_ID=<space_id>
-STORYBLOK_MANAGEMENT_TOKEN=<management_token>
-STORYBLOK_REGION=eu
-STORYBLOK_PREVIEW_SECRET=<long-random-secret>
-ADMIN_SECRET=<long-random-secret>
-ADMIN_PASSWORD=<secure-password>
-```
-
-- Set `STORYBLOK_REGION=us` only if your Storyblok space is in the US region.
-
-7. Install dependencies and bootstrap Storyblok content:
-
-```bash
-npm install
-npm install --prefix server
-npm run sync:storyblok
-```
-
-8. In Storyblok, set preview URL to:
-
-```text
-https://your-domain.com/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
-```
-
-Local alternative:
-
-```text
-http://localhost:5000/api/admin/preview/<STORYBLOK_PREVIEW_SECRET>
-```
-
-9. Start and verify:
-
-```bash
-npm start
-```
-
-- `/admin` serves an authenticated admin shell that launches Storyblok in a new tab (with preview controls kept in-app)
-- `/api/tours` and other APIs serve Storyblok-backed content
-- `/api/admin/preview/<secret>` enables draft preview mode
-- `/api/admin/preview/exit` clears preview mode
-
-Each story stores the same JSON shape the existing API already returns. Examples:
-
-- `cms-tours`: `{ "tours": [...], "testimonials": [...] }`
-- `cms-blogs`: `{ "blogs": [...] }`
-- `cms-settings`: `{ "hero": { ... }, ... }`
-
-### Bootstrap Storyblok from the current repository data
-
-If you have a management token, the repository can seed/update those stories for you:
-
-```bash
-npm run sync:storyblok
-```
-
-Required env vars for the sync script:
-
-- `STORYBLOK_SPACE_ID`
-- `STORYBLOK_MANAGEMENT_TOKEN`
-
-## Preview / draft mode
-
-Set Storyblok's preview URL to:
-
-```text
-https://your-domain.com/api/admin/preview/YOUR_PREVIEW_SECRET
-```
-
-- `STORYBLOK_PREVIEW_SECRET` is optional but recommended
-- The route sets a short-lived preview cookie so the API reads Storyblok draft content
-- `/api/admin/preview/exit` clears the preview cookie
-- `/admin` provides a protected admin shell that opens the Storyblok editor in a new tab
-- `/api/admin/preview/status` reports preview state for authenticated admins
-- `/api/admin/preview/enable` lets the admin shell enable preview mode without exposing `STORYBLOK_PREVIEW_SECRET` in browser links
-
-## Security note
-
-If any Storyblok token was exposed in screenshots, chats, or public logs, rotate/regenerate it immediately in Storyblok and update your `.env`.
+- Fast, reliable content serving without external dependencies
+- Simple backup by copying the `server/data/` directory
+- No database setup required
 
 ## SEO & discoverability
 
-- Route-level SEO metadata is now set dynamically in the React app for:
+- Route-level SEO metadata is set dynamically in the React app for:
   - `/`, `/tours`, `/tours/:id`, `/blogs`, `/destinations`, `/special-offers`, `/about`
 - Canonical, Open Graph, Twitter, and JSON-LD tags are injected per page.
 - The server now serves:
@@ -178,13 +62,6 @@ If any Storyblok token was exposed in screenshots, chats, or public logs, rotate
 - Recommended URL config:
   - `PUBLIC_SITE_URL` (server-side canonical/sitemap base URL)
   - `REACT_APP_SITE_URL` (client-side canonical/meta base URL)
-
-## What changed in this migration
-
-- Removed the local Payload CMS app and its build/start scripts
-- Replaced CMS reads with Storyblok-backed server helpers
-- Added Storyblok preview support and editor redirect handling
-- Added a Storyblok sync script for bootstrapping stories from the existing local data
 
 ## Validation
 
@@ -199,7 +76,7 @@ npm run build
 The Hostinger deploy workflow now runs a post-deploy debug snapshot that logs:
 
 - Node/process count on Hostinger (to catch accidental double app instances)
-- Effective CMS env presence checks (`CMS_PROVIDER`, provider-specific keys, slug vars)
+- Effective environment presence checks
 - Public endpoint status + short body snippets for:
   - `/health`
   - `/api/admin/health`
@@ -209,9 +86,8 @@ The Hostinger deploy workflow now runs a post-deploy debug snapshot that logs:
   - `/api/about`
   - `/api/footer`
 - Same endpoint checks from Hostinger localhost (`127.0.0.1:$PORT`, falling back to `5000`)
-- WordPress upstream reachability checks when `CMS_PROVIDER=wordpress`
 
 Use this snapshot after each redeploy to quickly separate:
 
-- app/config or CMS connectivity issues (both public + localhost failing),
+- app/config issues (both public + localhost failing),
 - vs. proxy/domain routing issues (public failing but localhost healthy).

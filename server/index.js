@@ -17,8 +17,8 @@ const setupAdmin = require('./adminSetup');
 const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
 const PUBLIC_SITE_URL = process.env.PUBLIC_SITE_URL || process.env.SITE_URL || DEFAULT_PUBLIC_SITE_URL;
 
-const ADMIN_COOKIE_NAME = 'admin_session';
-const CSRF_COOKIE_NAME = 'csrf_token';
+const ADMIN_COOKIE_NAME = 'adminToken';
+const CSRF_COOKIE_NAME = 'adminCsrfToken';
 const CSRF_HEADER_NAME = 'x-csrf-token';
 
 const app = express();
@@ -286,10 +286,55 @@ const buildDir = possibleBuildDirs.find((dir) => fs.existsSync(dir));
 
 if (buildDir) {
     app.use(express.static(buildDir));
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(buildDir, 'index.html'));
-    });
 }
+
+// Always provide a catch-all so the app does not hang on missing-build deploys.
+app.get('*', (req, res) => {
+    if (buildDir) {
+        return res.sendFile(path.join(buildDir, 'index.html'));
+    }
+    return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'The frontend build is not present. Please run npm run build or redeploy.',
+        path: req.path,
+    });
+});
+
+// ============================================
+// GLOBAL ERROR HANDLER (must be after all routes)
+// ============================================
+app.use((err, req, res, next) => {
+    const isLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' ||
+                        req.socket.remoteAddress === '127.0.0.1' || req.socket.remoteAddress === '::1';
+    const requestId = req.headers['x-request-id'] || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    res.set('x-request-id', requestId);
+
+    const status = err.status || err.statusCode || 500;
+    const payload = {
+        error: status === 500 && !isLocalhost ? 'Internal Server Error' : (err.message || 'Internal Server Error'),
+        requestId,
+    };
+
+    if (isLocalhost || process.env.NODE_ENV !== 'production') {
+        payload.stack = err.stack;
+        payload.details = err;
+    }
+
+    console.error(`[Error ${status}] ${err.message}`, {
+        requestId,
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+        stack: err.stack,
+    });
+
+    // Attempt resource cleanup on known error shapes
+    if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'EPIPE') {
+        console.warn(`[Cleanup] Connection error for ${req.method} ${req.path}: ${err.code}`);
+    }
+
+    res.status(status).json(payload);
+});
 
 // ============================================
 // SERVER LIFECYCLE INITIALIZATION

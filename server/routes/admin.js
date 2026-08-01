@@ -43,6 +43,12 @@ const upload = multer({
     fileFilter: fileFilter
 });
 
+function asyncHandler(fn) {
+    return (req, res, next) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
+}
+
 async function optimizeImage(filePath, originalName) {
     const ext = path.extname(filePath).toLowerCase();
     const baseName = path.basename(filePath, ext);
@@ -92,55 +98,51 @@ async function optimizeImage(filePath, originalName) {
     }
 }
 
-router.post('/upload', verifyAdmin, verifyCsrf, upload.single('image'), async (req, res) => {
+router.post('/upload', verifyAdmin, verifyCsrf, upload.single('image'), asyncHandler(async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No image file provided' });
     }
     
-    try {
-        const result = await optimizeImage(req.file.path, req.file.originalname);
-        res.json(result);
-    } catch (err) {
-        res.status(500).json({ error: 'Image processing failed: ' + err.message });
-    }
-});
+    const result = await optimizeImage(req.file.path, req.file.originalname);
+    res.json(result);
+}));
 
-router.get('/audit', verifyAdmin, (req, res) => {
+router.get('/audit', verifyAdmin, asyncHandler((req, res) => {
     const logs = dataStore.getAuditLogs();
     res.json(logs);
-});
+}));
 
-router.get('/content/:section', verifyAdmin, (req, res) => {
+router.get('/content/:section', verifyAdmin, asyncHandler((req, res) => {
     const section = req.params.section;
     const data = dataStore.getAll(section);
     res.json(data);
-});
+}));
 
-router.post('/content/:section', verifyAdmin, verifyCsrf, (req, res) => {
+router.post('/content/:section', verifyAdmin, verifyCsrf, asyncHandler((req, res) => {
     const section = req.params.section;
     dataStore.saveAll(section, req.body);
     res.json({ success: true });
-});
+}));
 
-router.get('/bookings', verifyAdmin, (req, res) => {
+router.get('/bookings', verifyAdmin, asyncHandler((req, res) => {
     res.json(dataStore.getBookings());
-});
+}));
 
-router.delete('/bookings/:id', verifyAdmin, verifyCsrf, (req, res) => {
+router.delete('/bookings/:id', verifyAdmin, verifyCsrf, asyncHandler((req, res) => {
     const id = req.params.id;
     const bookings = dataStore.getBookings().filter(b => b.id !== id);
     dataStore.saveBookings(bookings);
     res.json({ success: true });
-});
+}));
 
-router.get('/settings', verifyAdmin, (req, res) => {
+router.get('/settings', verifyAdmin, asyncHandler((req, res) => {
     const settings = dataStore.getAll('settings');
     res.json(settings);
-});
+}));
 
-router.post('/settings', verifyAdmin, verifyCsrf, (req, res) => {
+router.post('/settings', verifyAdmin, verifyCsrf, asyncHandler((req, res) => {
     dataStore.saveAll('settings', req.body);
     res.json({ success: true });
-});
+}));
 
 module.exports = router;

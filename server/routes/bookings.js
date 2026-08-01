@@ -10,11 +10,17 @@ function maybeVerifyAdmin(req, res, next) {
     return verifyAdmin(req, res, next);
 }
 
-router.get('/', maybeVerifyAdmin, (req, res) => {
-    res.status(200).json(dataStore.getBookings());
-});
+function asyncHandler(fn) {
+    return (req, res, next) => {
+        Promise.resolve(fn(req, res, next)).catch(next);
+    };
+}
 
-router.post('/', maybeVerifyAdmin, (req, res) => {
+router.get('/', maybeVerifyAdmin, asyncHandler((req, res) => {
+    res.status(200).json(dataStore.getBookings());
+}));
+
+router.post('/', maybeVerifyAdmin, asyncHandler((req, res) => {
     const booking = req.body || {};
     if (!booking.id) {
         booking.id = Date.now().toString();
@@ -23,16 +29,16 @@ router.post('/', maybeVerifyAdmin, (req, res) => {
     bookings.push(booking);
     dataStore.saveBookings(bookings);
     res.status(201).json({ message: 'Booking created', booking });
-});
+}));
 
-router.delete('/:id', maybeVerifyAdmin, (req, res) => {
+router.delete('/:id', maybeVerifyAdmin, asyncHandler((req, res) => {
     const bookingId = req.params.id;
     const bookings = dataStore.getBookings().filter(b => b.id !== bookingId);
     dataStore.saveBookings(bookings);
     res.status(204).send();
-});
+}));
 
-router.post('/customer', (req, res) => {
+router.post('/customer', asyncHandler((req, res) => {
     const booking = req.body || {};
     const missing = REQUIRED_CUSTOMER_FIELDS.filter((field) => !booking[field]);
     if (missing.length > 0) {
@@ -49,6 +55,6 @@ router.post('/customer', (req, res) => {
     dataStore.saveBookings(bookings);
 
     res.status(201).json({ success: true, bookingId: record.id });
-});
+}));
 
 module.exports = router;

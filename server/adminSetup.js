@@ -27,6 +27,13 @@ function getCookieOptions(isProduction = false) {
   return baseOptions;
 }
 
+function getClearCookieOptions(isProduction = false) {
+  if (isProduction) {
+    return { secure: true, sameSite: 'Strict' };
+  }
+  return {};
+}
+
 function createCsrfToken() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -115,9 +122,9 @@ function verifyHandler(req, res) {
 
 function logoutHandler(req, res) {
   const isProduction = process.env.NODE_ENV === 'production';
-  const cookieOptions = getCookieOptions(isProduction);
-  res.clearCookie(ADMIN_COOKIE_NAME, cookieOptions);
-  res.clearCookie(CSRF_COOKIE_NAME, cookieOptions);
+  const clearOptions = getClearCookieOptions(isProduction);
+  res.clearCookie(ADMIN_COOKIE_NAME, clearOptions);
+  res.clearCookie(CSRF_COOKIE_NAME, clearOptions);
   logAdminAction(req, 'LOGOUT', 'auth', 'logout', {});
   return res.status(200).json({ success: true, message: 'Logged out successfully' });
 }

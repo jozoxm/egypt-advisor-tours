@@ -18,7 +18,8 @@ function readJsonFile(filename, fallback) {
     try {
         const content = fs.readFileSync(filePath, 'utf8');
         return JSON.parse(content);
-    } catch {
+    } catch (err) {
+        console.error(`[DataStore] Failed to read ${filename}:`, err.message);
         return fallback;
     }
 }
@@ -26,7 +27,12 @@ function readJsonFile(filename, fallback) {
 function writeJsonFile(filename, data) {
     ensureDataDir();
     const filePath = path.join(DATA_DIR, filename);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    try {
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    } catch (err) {
+        console.error(`[DataStore] Failed to write ${filename}:`, err.message);
+        throw err;
+    }
 }
 
 function getAll(resource) {
