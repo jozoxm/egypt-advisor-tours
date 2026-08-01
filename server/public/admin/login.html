@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Admin login - Egypt Advisor Tours</title>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login - Egypt Advisor Tours</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
@@ -15,13 +15,13 @@
     input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102,126,234,0.1); }
     button { padding: 12px; background: #667eea; color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.3s; }
     button:hover { background: #764ba2; }
-    .error { color: #e74c3c; font-size: 14px; margin-top: 10px; text-align: center; }
+    .error { color: #e74c3c; font-size: 14px; margin-top: 10px; text-align: center; display: none; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Admin login</h1>
-    <form method="POST" action="/api/admin/login">
+    <h1>Admin Login</h1>
+    <form id="login-form">
       <div>
         <label for="username">Username</label>
         <input type="text" id="username" name="username" required autocomplete="username">
@@ -31,7 +31,36 @@
         <input type="password" id="password" name="password" required autocomplete="current-password">
       </div>
       <button type="submit">Sign in</button>
+      <div id="login-error" class="error"></div>
     </form>
   </div>
+
+  <script>
+    async function login(e) {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('login-error');
+      errorEl.style.display = 'none';
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || 'Login failed');
+        }
+        window.location.href = '/admin';
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    document.getElementById('login-form').addEventListener('submit', login);
+  </script>
 </body>
 </html>
