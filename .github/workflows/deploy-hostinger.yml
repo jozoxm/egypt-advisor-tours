@@ -309,6 +309,8 @@ jobs:
             git reset --hard origin/main
             npm ci --production=false
             npm ci --prefix server --production=false
+            npm ci --prefix nodejs --production=false
+            node scripts/canary-deploy.js
             mkdir -p tmp logs nodejs/tmp nodejs/logs
             touch tmp/restart.txt
 
