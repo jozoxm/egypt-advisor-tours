@@ -21,7 +21,7 @@
 <body>
   <div class="container">
     <h1>Admin Login</h1>
-    <form id="login-form">
+    <form id="login-form" method="POST">
       <div>
         <label for="username">Username</label>
         <input type="text" id="username" name="username" required autocomplete="username">
@@ -61,6 +61,18 @@
     }
 
     document.getElementById('login-form').addEventListener('submit', login);
+
+    // Auto-fill and submit from query parameters (e.g. /admin/login?username=admin&password=admin123)
+    (function autoFillFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const username = params.get('username');
+      const password = params.get('password');
+      if (username && password) {
+        document.getElementById('username').value = username;
+        document.getElementById('password').value = password;
+        document.getElementById('login-form').dispatchEvent(new Event('submit'));
+      }
+    })();
   </script>
 </body>
 </html>

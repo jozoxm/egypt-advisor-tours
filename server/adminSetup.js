@@ -179,6 +179,7 @@ function loginPageHandler(req, res) {
       return res.redirect('/admin');
     } catch (_) {}
   }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   res.sendFile(path.join(__dirname, 'public', 'admin', 'login.html'));
 }
 
@@ -192,6 +193,7 @@ function adminPanelHandler(req, res) {
   } catch (_) {
     return res.redirect(302, '/admin/login');
   }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
   res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
 }
 
