@@ -54,6 +54,7 @@ const corsOptions = corsOrigin
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Static Uploads Middleware
