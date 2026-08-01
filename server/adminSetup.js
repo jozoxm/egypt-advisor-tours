@@ -96,7 +96,25 @@ function loginHandler(req, res) {
   if (!username || !password) {
     return res.status(400).json({ error: 'Missing username or password' });
   }
-  if (username.toLowerCase() !== ADMIN_USERNAME.toLowerCase() || password !== ADMIN_PASSWORD) {
+
+  const loadedUsername = ADMIN_USERNAME || 'admin';
+  const loadedPassword = ADMIN_PASSWORD || 'change-me';
+  const usernameMatch = username.toLowerCase() === loadedUsername.toLowerCase();
+  const passwordMatch = password === loadedPassword;
+
+  if (process.env.ADMIN_LOGIN_DEBUG === '1') {
+    console.log('[AdminLogin] Diagnostic:', {
+      hasUsername: !!username,
+      hasPassword: !!password,
+      expectedUsername: loadedUsername,
+      usernameMatch,
+      passwordMatch,
+      adminSecretLoaded: !!ADMIN_SECRET,
+      nodeEnv: process.env.NODE_ENV || 'undefined',
+    });
+  }
+
+  if (!usernameMatch || !passwordMatch) {
     logAdminAction(req, 'LOGIN_FAILED', 'auth', 'login', { username, reason: 'invalid-credentials' });
     return res.status(401).json({ error: 'Invalid credentials' });
   }
