@@ -56,3 +56,14 @@ client/package-lock.json
 
 # Hostinger build artifacts
 .builds/
+
+# SSH deploy keys — never commit private keys
+hostinger_deploy_key
+hostinger_deploy_key.pub
+hostinger_github_actions
+hostinger_github_actions.pub
+*.key
+*.pub
+
+# Auto-generated repo maps
+project_structure.txt

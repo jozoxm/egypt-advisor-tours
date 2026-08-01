@@ -336,7 +336,18 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.html [QSA,L]
 HTACCESS
 
-                        if command -v pm2 >/dev/null 2>&1; then
+                        # Create Hostinger .builds/current/nodejs/start.js shim
+            # Hostinger's lsnode.js wrapper looks for .builds/current/nodejs/start.js
+            mkdir -p '${DEPLOY_DIR}/.builds/current/nodejs'
+            cat > '${DEPLOY_DIR}/.builds/current/nodejs/start.js' <<'SHIM'
+const path = require('path');
+const fs = require('fs');
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+process.chdir(REPO_ROOT);
+require(path.join(REPO_ROOT, 'start.js'));
+SHIM
+
+            if command -v pm2 >/dev/null 2>&1; then
               pm2 delete egypt-advisor || true
               pm2 start start.js --name egypt-advisor
               pm2 save
