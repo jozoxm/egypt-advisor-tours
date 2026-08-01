@@ -62,6 +62,21 @@
     .json-editor { font-family: 'Courier New', monospace; font-size: 13px; }
     .empty-state { text-align: center; padding: 40px; color: #666; }
     .empty-state p { margin-top: 10px; }
+    .tour-card { border: 1px solid #eee; border-radius: 8px; padding: 20px; margin-bottom: 15px; }
+    .tour-card h3 { margin-bottom: 10px; color: #333; }
+    .tour-card img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 4px; margin-bottom: 10px; }
+    .tour-card .meta { color: #666; font-size: 14px; margin-bottom: 10px; }
+    .tour-card .actions { display: flex; gap: 10px; }
+    .booking-actions { display: flex; gap: 8px; align-items: center; }
+    .status-select { padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px; }
+    .upload-zone { border: 2px dashed #ddd; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: border-color 0.3s; }
+    .upload-zone:hover { border-color: #667eea; }
+    .upload-zone.dragover { border-color: #667eea; background: #f0f4ff; }
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-top: 20px; }
+    .image-card { border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
+    .image-card img { width: 100%; height: 150px; object-fit: cover; }
+    .image-card .info { padding: 10px; font-size: 12px; color: #666; }
+    .image-card .actions { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 10px; }
   </style>
 </head>
 <body>
@@ -78,8 +93,8 @@
           <input type="password" id="password" name="password" required autocomplete="current-password">
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%; padding:12px; font-size:16px;">Sign In</button>
+        <div id="login-error" class="error hidden" style="margin-top:15px;"></div>
       </form>
-      <div id="login-error" class="error hidden" style="margin-top:15px;"></div>
     </div>
   </div>
 
@@ -113,8 +128,8 @@
     let currentTab = 'dashboard';
 
     const SECTIONS = [
+      { id: 'dashboard', name: 'Dashboard' },
       { id: 'tours', name: 'Tours' },
-      { id: 'blogs', name: 'Blogs' },
       { id: 'gallery', name: 'Gallery' },
       { id: 'slideshow', name: 'Slideshow' },
       { id: 'promotions', name: 'Promotions' },
@@ -124,7 +139,6 @@
       { id: 'about', name: 'About' },
       { id: 'faq', name: 'FAQ' },
       { id: 'tailor-trip', name: 'Tailor Trip' },
-      { id: 'settings', name: 'Settings' },
       { id: 'bookings', name: 'Bookings' },
       { id: 'uploads', name: 'Image Upload' },
       { id: 'audit', name: 'Audit Log' },
@@ -264,60 +278,6 @@
       return `<textarea id="${id}" class="json-editor" rows="20"></textarea>`;
     }
 
-    function arrayEditor(items, itemName, fields, onSave) {
-      const list = items || [];
-      return `
-        <div style="margin-bottom:15px;">
-          <button class="btn btn-success" onclick="addItem()">Add ${itemName}</button>
-        </div>
-        <table>
-          <thead><tr>${fields.map(f => `<th>${f.label}</th>`).join('')}<th>Actions</th></tr></thead>
-          <tbody>
-            ${list.map((item, idx) => `
-              <tr>
-                ${fields.map(f => `<td>${escapeHtml(String(item[f.key] ?? ''))}</td>`).join('')}
-                <td>
-                  <button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="editItem(${idx})">Edit</button>
-                  <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteItem(${idx})">Delete</button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <script>
-          let currentData = ${JSON.stringify(list).replace(/</g, '\\u003c')};
-          function addItem() {
-            const newItem = { ${fields.slice(0,3).map(f => `${f.key}: ''`).join(', ')} };
-            currentData.push(newItem);
-            refreshEditor();
-          }
-          function editItem(idx) {
-            const item = currentData[idx];
-            const fieldsStr = ${JSON.stringify(fields).replace(/</g, '\\u003c')};
-            let html = '<div class="form-group"><label>JSON</label><textarea id="item-json" rows="15" class="json-editor">' + escapeHtml(JSON.stringify(item, null, 2)) + '</textarea></div>';
-            openModal('Edit ${itemName}', html + '<button class="btn btn-primary" onclick="saveItem(' + idx + ')">Save</button>');
-          }
-          function saveItem(idx) {
-            const el = document.getElementById('item-json');
-            try {
-              currentData[idx] = JSON.parse(el.value);
-              refreshEditor();
-              closeModal();
-            } catch (err) { alert('Invalid JSON'); }
-          }
-          function deleteItem(idx) {
-            if (confirm('Delete this ${itemName}?')) {
-              currentData.splice(idx, 1);
-              refreshEditor();
-            }
-          }
-          function refreshEditor() {
-            onSave(currentData);
-          }
-        <\/script>
-      `;
-    }
-
     function escapeHtml(text) {
       const div = document.createElement('div');
       div.textContent = text;
@@ -350,27 +310,60 @@
         container.innerHTML = `
           <div class="card">
             <h2>Tours</h2>
-            ${tours.length === 0 ? '<div class="empty-state"><p>No tours yet.</p></div>' : arrayEditor(tours, 'Tour', [
-              { key: 'title', label: 'Title' }, { key: 'duration', label: 'Duration' }, { key: 'price', label: 'Price' }
-            ], async (updated) => {
-              await saveSection('tours', { ...data, tours: updated });
+            <button class="btn btn-success" onclick="addTour()" style="margin-bottom:15px;">+ Add Tour</button>
+            <div id="tours-list">
+              ${tours.length === 0 ? '<div class="empty-state"><p>No tours yet.</p></div>' : tours.map((tour, idx) => `
+                <div class="tour-card">
+                  ${tour.image ? `<img src="${escapeHtml(tour.image)}" alt="${escapeHtml(tour.title)}">` : ''}
+                  ${tour.banner ? `<img src="${escapeHtml(tour.banner)}" alt="Banner" style="margin-top:10px; max-height:120px;">` : ''}
+                  <h3>${escapeHtml(tour.title || 'Untitled')}</h3>
+                  <div class="meta">${escapeHtml(tour.duration || '')} | ${escapeHtml(tour.price || '')}</div>
+                  <div class="actions">
+                    <button class="btn btn-primary" onclick="editTour(${idx})">Edit</button>
+                    <button class="btn btn-danger" onclick="deleteTour(${idx})">Delete</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <script>
+            let tourData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+
+            async function addTour() {
+              openModal('Add Tour', '<div class="form-group"><label>Title</label><input id="tour-title"></div><div class="form-group"><label>Duration</label><input id="tour-duration"></div><div class="form-group"><label>Price</label><input id="tour-price"></div><div class="form-group"><label>Description</label><textarea id="tour-description" rows="4"></textarea></div><div class="form-group"><label>Image URL</label><input id="tour-image"></div><div class="form-group"><label>Banner URL</label><input id="tour-banner"></div><button class="btn btn-primary" onclick="saveTour()">Save</button>');
+            }
+
+            async function editTour(idx) {
+              const tour = tourData.tours[idx];
+              openModal('Edit Tour', '<div class="form-group"><label>Title</label><input id="tour-title" value="${escapeHtml(tour.title || '')}"></div><div class="form-group"><label>Duration</label><input id="tour-duration" value="${escapeHtml(tour.duration || '')}"></div><div class="form-group"><label>Price</label><input id="tour-price" value="${escapeHtml(tour.price || '')}"></div><div class="form-group"><label>Description</label><textarea id="tour-description" rows="4">${escapeHtml(tour.description || '')}</textarea></div><div class="form-group"><label>Image URL</label><input id="tour-image" value="${escapeHtml(tour.image || '')}"></div><div class="form-group"><label>Banner URL</label><input id="tour-banner" value="${escapeHtml(tour.banner || '')}"></div><button class="btn btn-primary" onclick="saveTour(${idx})">Save</button>');
+            }
+
+            async function saveTour(idx) {
+              const tour = {
+                title: document.getElementById('tour-title').value,
+                duration: document.getElementById('tour-duration').value,
+                price: document.getElementById('tour-price').value,
+                description: document.getElementById('tour-description').value,
+                image: document.getElementById('tour-image').value,
+                banner: document.getElementById('tour-banner').value,
+              };
+              if (idx !== undefined) {
+                tourData.tours[idx] = { ...tourData.tours[idx], ...tour };
+              } else {
+                tourData.tours.push(tour);
+              }
+              await saveSection('tours', tourData);
+              closeModal();
               switchTab('tours');
-            })}
-          </div>`;
-      },
-      blogs: async (container) => {
-        const data = await loadSection('blogs');
-        const blogs = data.blogs || [];
-        container.innerHTML = `
-          <div class="card">
-            <h2>Blogs</h2>
-            ${blogs.length === 0 ? '<div class="empty-state"><p>No blogs yet.</p></div>' : arrayEditor(blogs, 'Blog', [
-              { key: 'title', label: 'Title' }, { key: 'date', label: 'Date' }
-            ], async (updated) => {
-              await saveSection('blogs', { ...data, blogs: updated });
-              switchTab('blogs');
-            })}
-          </div>`;
+            }
+
+            async function deleteTour(idx) {
+              if (!confirm('Delete this tour?')) return;
+              tourData.tours.splice(idx, 1);
+              await saveSection('tours', tourData);
+              switchTab('tours');
+            }
+          <\/script>`;
       },
       gallery: async (container) => {
         const data = await loadSection('gallery');
@@ -378,7 +371,13 @@
         container.innerHTML = `
           <div class="card">
             <h2>Gallery</h2>
-            <div class="gallery-grid">
+            <div class="upload-zone" id="gallery-upload-zone">
+              <p>Drag & drop images here or click to upload</p>
+              <input type="file" id="gallery-file-input" accept="image/*" multiple style="display:none;">
+              <button class="btn btn-primary" style="margin-top:10px;" onclick="document.getElementById('gallery-file-input').click()">Select Images</button>
+            </div>
+            <div id="gallery-preview" class="image-grid"></div>
+            <div class="gallery-grid" style="margin-top:20px;">
               ${items.map((item, idx) => `
                 <div class="gallery-item">
                   <img src="${item.src || item.url || ''}" alt="">
@@ -386,161 +385,55 @@
                 </div>
               `).join('')}
             </div>
-            <p style="margin-top:15px; color:#666; font-size:14px;">${items.length} images</p>
           </div>
           <script>
-            async function deleteGalleryItem(idx) {
-              if (!confirm('Delete this image?')) return;
-              const updated = [...${JSON.stringify(items).replace(/</g, '\\u003c')}];
-              updated.splice(idx, 1);
-              await saveSection('gallery', { gallery: updated });
+            const galleryData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+
+            async function uploadGalleryFiles(files) {
+              for (const file of files) {
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('section', 'gallery');
+                const res = await fetch(API_BASE + '/api/admin/upload', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'X-CSRF-Token': csrfToken },
+                  body: formData
+                });
+                if (res.ok) {
+                  const result = await res.json();
+                  galleryData.gallery = galleryData.gallery || [];
+                  galleryData.gallery.push({ src: result.optimized || result.original });
+                  await saveSection('gallery', galleryData);
+                }
+              }
               switchTab('gallery');
             }
-          <\/script>`;
-      },
-      slideshow: async (container) => {
-        const data = await loadSection('slideshow');
-        const slides = data.slides || [];
-        container.innerHTML = `
-          <div class="card">
-            <h2>Slideshow</h2>
-            ${arrayEditor(slides, 'Slide', [
-              { key: 'title', label: 'Title' }, { key: 'image', label: 'Image' }
-            ], async (updated) => {
-              await saveSection('slideshow', { ...data, slides: updated });
-              switchTab('slideshow');
-            })}
-          </div>`;
-      },
-      promotions: async (container) => {
-        const data = await loadSection('promotions');
-        const promos = data.promotions || [];
-        container.innerHTML = `
-          <div class="card">
-            <h2>Promotions</h2>
-            ${arrayEditor(promos, 'Promotion', [
-              { key: 'title', label: 'Title' }, { key: 'discount', label: 'Discount' }
-            ], async (updated) => {
-              await saveSection('promotions', { ...data, promotions: updated });
-              switchTab('promotions');
-            })}
-          </div>`;
-      },
-      destinations: async (container) => {
-        const data = await loadSection('destinations');
-        const dests = data.destinations || [];
-        container.innerHTML = `
-          <div class="card">
-            <h2>Destinations</h2>
-            ${arrayEditor(dests, 'Destination', [
-              { key: 'name', label: 'Name' }, { key: 'region', label: 'Region' }
-            ], async (updated) => {
-              await saveSection('destinations', { ...data, destinations: updated });
-              switchTab('destinations');
-            })}
-          </div>`;
-      },
-      contact: async (container) => {
-        const data = await loadSection('contact');
-        container.innerHTML = `
-          <div class="card">
-            <h2>Contact Info</h2>
-            <div id="contact-editor"></div>
-            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveContact()">Save Contact</button>
-          </div>
-          <script>
-            let contactData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
-            const container = document.getElementById('contact-editor');
-            container.innerHTML = jsonEditor(contactData, (val) => { contactData = val; });
-            async function saveContact() {
-              await saveSection('contact', contactData);
-              alert('Saved');
-            }
-          <\/script>`;
-      },
-      settings: async (container) => {
-        const data = await loadSection('settings');
-        container.innerHTML = `
-          <div class="card">
-            <h2>Settings</h2>
-            <div id="settings-editor"></div>
-            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveSettings()">Save Settings</button>
-          </div>
-          <script>
-            let settingsData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
-            const container = document.getElementById('settings-editor');
-            container.innerHTML = jsonEditor(settingsData, (val) => { settingsData = val; });
-            async function saveSettings() {
-              await api('/api/admin/settings', { method: 'POST', body: JSON.stringify(settingsData) });
-              alert('Saved');
-            }
-          <\/script>`;
-      },
-      homepage: async (container) => {
-        const data = await loadSection('homepage');
-        container.innerHTML = `
-          <div class="card">
-            <h2>Homepage</h2>
-            <div id="homepage-editor"></div>
-            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveHomepage()">Save Homepage</button>
-          </div>
-          <script>
-            let homepageData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
-            const container = document.getElementById('homepage-editor');
-            container.innerHTML = jsonEditor(homepageData, (val) => { homepageData = val; });
-            async function saveHomepage() {
-              await saveSection('homepage', homepageData);
-              alert('Saved');
-            }
-          <\/script>`;
-      },
-      about: async (container) => {
-        const data = await loadSection('about');
-        container.innerHTML = `
-          <div class="card">
-            <h2>About</h2>
-            <div id="about-editor"></div>
-            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveAbout()">Save About</button>
-          </div>
-          <script>
-            let aboutData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
-            const container = document.getElementById('about-editor');
-            container.innerHTML = jsonEditor(aboutData, (val) => { aboutData = val; });
-            async function saveAbout() {
-              await saveSection('about', aboutData);
-              alert('Saved');
-            }
-          <\/script>`;
-      },
-      faq: async (container) => {
-        const data = await loadSection('faq');
-        const faqs = data.faqs || data.questions || [];
-        container.innerHTML = `
-          <div class="card">
-            <h2>FAQ</h2>
-            ${arrayEditor(faqs, 'FAQ', [
-              { key: 'question', label: 'Question' }, { key: 'answer', label: 'Answer' }
-            ], async (updated) => {
-              await saveSection('faq', { ...data, faqs: updated });
-              switchTab('faq');
-            })}
-          </div>`;
-      },
-      'tailor-trip': async (container) => {
-        const data = await loadSection('tailor-trip');
-        container.innerHTML = `
-          <div class="card">
-            <h2>Tailor Trip</h2>
-            <div id="tailor-editor"></div>
-            <button class="btn btn-primary" style="margin-top:15px;" onclick="saveTailor()">Save Tailor Trip</button>
-          </div>
-          <script>
-            let tailorData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
-            const container = document.getElementById('tailor-editor');
-            container.innerHTML = jsonEditor(tailorData, (val) => { tailorData = val; });
-            async function saveTailor() {
-              await saveSection('tailor-trip', tailorData);
-              alert('Saved');
+
+            document.getElementById('gallery-file-input').addEventListener('change', (e) => {
+              if (e.target.files.length) uploadGalleryFiles(e.target.files);
+            });
+
+            document.getElementById('gallery-upload-zone').addEventListener('dragover', (e) => {
+              e.preventDefault();
+              e.currentTarget.classList.add('dragover');
+            });
+            document.getElementById('gallery-upload-zone').addEventListener('dragleave', (e) => {
+              e.currentTarget.classList.remove('dragover');
+            });
+            document.getElementById('gallery-upload-zone').addEventListener('drop', (e) => {
+              e.preventDefault();
+              e.currentTarget.classList.remove('dragover');
+              if (e.dataTransfer.files.length) uploadGalleryFiles(e.dataTransfer.files);
+            });
+
+            async function deleteGalleryItem(idx) {
+              if (!confirm('Delete this image?')) return;
+              const updated = [...galleryData.gallery];
+              updated.splice(idx, 1);
+              galleryData.gallery = updated;
+              await saveSection('gallery', galleryData);
+              switchTab('gallery');
             }
           <\/script>`;
       },
@@ -565,7 +458,13 @@
                         <td>${escapeHtml(b.tour || '')}</td>
                         <td>${escapeHtml(b.date || '')}</td>
                         <td>${escapeHtml(String(b.guests || ''))}</td>
-                        <td><span class="badge badge-${b.status || 'pending'}">${escapeHtml(b.status || 'pending')}</span></td>
+                        <td>
+                          <select class="status-select" onchange="updateBookingStatus('${b.id}', this.value)">
+                            <option value="pending" ${b.status === 'pending' ? 'selected' : ''}>Pending</option>
+                            <option value="confirmed" ${b.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+                            <option value="cancelled" ${b.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                          </select>
+                        </td>
                         <td><button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteBooking('${b.id}')">Delete</button></td>
                       </tr>
                     `).join('')}
@@ -575,6 +474,17 @@
             `}
           </div>
           <script>
+            async function updateBookingStatus(id, status) {
+              const bookings = ${JSON.stringify(bookings).replace(/</g, '\\u003c')};
+              const booking = bookings.find(b => b.id === id);
+              if (booking) {
+                booking.status = status;
+                await api('/api/admin/bookings/status', {
+                  method: 'POST',
+                  body: JSON.stringify({ id, status })
+                });
+              }
+            }
             async function deleteBooking(id) {
               if (!confirm('Delete this booking?')) return;
               await api('/api/admin/bookings/' + encodeURIComponent(id), { method: 'DELETE' });
@@ -589,6 +499,18 @@
             <p style="color:#666; margin-bottom:15px;">Upload images. They will be optimized to WebP automatically.</p>
             <form id="upload-form" enctype="multipart/form-data">
               <div class="form-group">
+                <label>Section</label>
+                <select id="upload-section">
+                  <option value="tours">Tours</option>
+                  <option value="gallery">Gallery</option>
+                  <option value="slideshow">Slideshow</option>
+                  <option value="promotions">Promotions</option>
+                  <option value="destinations">Destinations</option>
+                  <option value="bookings">Bookings</option>
+                  <option value="settings">Settings</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label>Select Image</label>
                 <input type="file" id="image-file" accept="image/jpeg,image/png,image/webp,image/gif" required>
               </div>
@@ -601,10 +523,12 @@
             document.getElementById('upload-form').addEventListener('submit', async (e) => {
               e.preventDefault();
               const fileInput = document.getElementById('image-file');
+              const section = document.getElementById('upload-section').value;
               const file = fileInput.files[0];
               if (!file) return;
               const formData = new FormData();
               formData.append('image', file);
+              formData.append('section', section);
               const errorEl = document.getElementById('upload-error');
               errorEl.classList.add('hidden');
               try {

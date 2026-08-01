@@ -119,17 +119,19 @@ function loginHandler(req, res) {
   }
 
   if (!usernameMatch || !passwordMatch) {
-    const adminUsernameLen = loadedUsername ? loadedUsername.length : 0;
-    const adminPasswordLen = loadedPassword ? loadedPassword.length : 0;
-    console.warn('[AdminLogin] Failed attempt:', {
-      usernameMatch,
-      passwordMatch,
-      expectedUsernameLength: adminUsernameLen,
-      expectedPasswordLength: adminPasswordLen,
-      receivedUsernameLength: sanitizedUsername ? sanitizedUsername.length : 0,
-      receivedPasswordLength: sanitizedPassword ? sanitizedPassword.length : 0,
-      nodeEnv: process.env.NODE_ENV || 'undefined',
-    });
+    if (process.env.ADMIN_LOGIN_DEBUG === '1') {
+      const adminUsernameLen = loadedUsername ? loadedUsername.length : 0;
+      const adminPasswordLen = loadedPassword ? loadedPassword.length : 0;
+      console.warn('[AdminLogin] Failed attempt:', {
+        usernameMatch,
+        passwordMatch,
+        expectedUsernameLength: adminUsernameLen,
+        expectedPasswordLength: adminPasswordLen,
+        receivedUsernameLength: sanitizedUsername ? sanitizedUsername.length : 0,
+        receivedPasswordLength: sanitizedPassword ? sanitizedPassword.length : 0,
+        nodeEnv: process.env.NODE_ENV || 'undefined',
+      });
+    }
     logAdminAction(req, 'LOGIN_FAILED', 'auth', 'login', { username: sanitizedUsername, reason: 'invalid-credentials' });
     return res.status(401).json({ error: 'Invalid credentials' });
   }
