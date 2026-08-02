@@ -68,6 +68,9 @@ app.use((req, res, next) => {
 // Static Uploads Middleware
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+// Serve repo-root static assets (e.g. /Assets/* used by slideshow defaults)
+app.use('/Assets', express.static(path.join(__dirname, '..', 'Assets')));
+
 // app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 
 const allowedOrigins = new Set(

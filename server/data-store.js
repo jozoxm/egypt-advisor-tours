@@ -5,9 +5,13 @@ const logger = require('./lib/logger');
 const DATA_DIR = (() => {
     const envPath = process.env.HOSTINGER_DATA_PATH || process.env.DATA_PATH;
     if (envPath && typeof envPath === 'string' && envPath.trim()) {
-        return path.resolve(envPath.trim());
+        const resolved = path.resolve(envPath.trim());
+        logger.info('DataStore using HOSTINGER_DATA_PATH', { dataDir: resolved });
+        return resolved;
     }
-    return path.join(__dirname, 'data');
+    const fallback = path.join(__dirname, 'data');
+    logger.info('DataStore using fallback repo-relative path', { dataDir: fallback });
+    return fallback;
 })();
 
 function ensureDataDir() {
