@@ -200,9 +200,22 @@
       const content = document.getElementById('tab-content');
       content.innerHTML = '<div class="card"><p>Loading...</p></div>';
       const handler = tabHandlers[tab];
-      if (handler) handler(content).catch(err => {
-        content.innerHTML = `<div class="card"><div class="error">Error: ${err.message}</div></div>`;
-      });
+      if (handler) {
+        handler(content).catch(err => {
+          content.innerHTML = `
+            <div class="card">
+              <h2>Something went wrong</h2>
+              <p class="error">We couldn't load this section. Please try again.</p>
+              <button class="btn btn-primary" onclick="switchTab('${tab}')">Retry</button>
+            </div>`;
+        });
+      } else {
+        content.innerHTML = `
+          <div class="card">
+            <h2>Coming Soon</h2>
+            <p>This section is under development.</p>
+          </div>`;
+      }
     }
 
     async function login(e) {
@@ -434,6 +447,164 @@
               galleryData.gallery = updated;
               await saveSection('gallery', galleryData);
               switchTab('gallery');
+            }
+          <\/script>`;
+      },
+      slideshow: async (container) => {
+        const data = await loadSection('slideshow');
+        const items = data.slides || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Slideshow</h2>
+            <button class="btn btn-success" onclick="addSlide()" style="margin-bottom:15px;">+ Add Slide</button>
+            <div class="image-grid">
+              ${items.map((item, idx) => `
+                <div class="image-card">
+                  ${item.image ? `<img src="${escapeHtml(item.image)}" alt="">` : '<div style="height:150px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;">No image</div>'}
+                  <div class="info">${escapeHtml(item.title || 'Untitled')}</div>
+                  <div class="actions">
+                    <button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="editSlide(${idx})">Edit</button>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteSlide(${idx})">Delete</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <script>
+            let slideshowData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            async function addSlide() {
+              openModal('Add Slide', '<div class="form-group"><label>Title</label><input id="slide-title"></div><div class="form-group"><label>Image URL</label><input id="slide-image"></div><button class="btn btn-primary" onclick="saveSlide()">Save</button>');
+            }
+            async function editSlide(idx) {
+              const item = slideshowData.slides[idx];
+              openModal('Edit Slide', '<div class="form-group"><label>Title</label><input id="slide-title" value="${escapeHtml(item.title || '')}"></div><div class="form-group"><label>Image URL</label><input id="slide-image" value="${escapeHtml(item.image || '')}"></div><button class="btn btn-primary" onclick="saveSlide(${idx})">Save</button>');
+            }
+            async function saveSlide(idx) {
+              const item = {
+                title: document.getElementById('slide-title').value,
+                image: document.getElementById('slide-image').value,
+              };
+              if (idx !== undefined) {
+                slideshowData.slides[idx] = { ...slideshowData.slides[idx], ...item };
+              } else {
+                slideshowData.slides = slideshowData.slides || [];
+                slideshowData.slides.push(item);
+              }
+              await saveSection('slideshow', slideshowData);
+              closeModal();
+              switchTab('slideshow');
+            }
+            async function deleteSlide(idx) {
+              if (!confirm('Delete this slide?')) return;
+              slideshowData.slides.splice(idx, 1);
+              await saveSection('slideshow', slideshowData);
+              switchTab('slideshow');
+            }
+          <\/script>`;
+      },
+      promotions: async (container) => {
+        const data = await loadSection('promotions');
+        const items = data.promotions || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Promotions</h2>
+            <button class="btn btn-success" onclick="addPromo()" style="margin-bottom:15px;">+ Add Promotion</button>
+            <div class="image-grid">
+              ${items.map((item, idx) => `
+                <div class="image-card">
+                  ${item.image ? `<img src="${escapeHtml(item.image)}" alt="">` : '<div style="height:150px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;">No image</div>'}
+                  <div class="info">${escapeHtml(item.title || 'Untitled')} ${item.discount ? '| ' + escapeHtml(item.discount) : ''}</div>
+                  <div class="actions">
+                    <button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="editPromo(${idx})">Edit</button>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deletePromo(${idx})">Delete</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <script>
+            let promosData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            async function addPromo() {
+              openModal('Add Promotion', '<div class="form-group"><label>Title</label><input id="promo-title"></div><div class="form-group"><label>Discount</label><input id="promo-discount"></div><div class="form-group"><label>Image URL</label><input id="promo-image"></div><button class="btn btn-primary" onclick="savePromo()">Save</button>');
+            }
+            async function editPromo(idx) {
+              const item = promosData.promotions[idx];
+              openModal('Edit Promotion', '<div class="form-group"><label>Title</label><input id="promo-title" value="${escapeHtml(item.title || '')}"></div><div class="form-group"><label>Discount</label><input id="promo-discount" value="${escapeHtml(item.discount || '')}"></div><div class="form-group"><label>Image URL</label><input id="promo-image" value="${escapeHtml(item.image || '')}"></div><button class="btn btn-primary" onclick="savePromo(${idx})">Save</button>');
+            }
+            async function savePromo(idx) {
+              const item = {
+                title: document.getElementById('promo-title').value,
+                discount: document.getElementById('promo-discount').value,
+                image: document.getElementById('promo-image').value,
+              };
+              if (idx !== undefined) {
+                promosData.promotions[idx] = { ...promosData.promotions[idx], ...item };
+              } else {
+                promosData.promotions = promosData.promotions || [];
+                promosData.promotions.push(item);
+              }
+              await saveSection('promotions', promosData);
+              closeModal();
+              switchTab('promotions');
+            }
+            async function deletePromo(idx) {
+              if (!confirm('Delete this promotion?')) return;
+              promosData.promotions.splice(idx, 1);
+              await saveSection('promotions', promosData);
+              switchTab('promotions');
+            }
+          <\/script>`;
+      },
+      destinations: async (container) => {
+        const data = await loadSection('destinations');
+        const items = data.destinations || [];
+        container.innerHTML = `
+          <div class="card">
+            <h2>Destinations</h2>
+            <button class="btn btn-success" onclick="addDest()" style="margin-bottom:15px;">+ Add Destination</button>
+            <div class="image-grid">
+              ${items.map((item, idx) => `
+                <div class="image-card">
+                  ${item.image ? `<img src="${escapeHtml(item.image)}" alt="">` : '<div style="height:150px;background:#f0f0f0;display:flex;align-items:center;justify-content:center;color:#999;">No image</div>'}
+                  <div class="info">${escapeHtml(item.name || 'Untitled')} ${item.region ? '| ' + escapeHtml(item.region) : ''}</div>
+                  <div class="actions">
+                    <button class="btn btn-primary" style="padding:4px 8px; font-size:12px;" onclick="editDest(${idx})">Edit</button>
+                    <button class="btn btn-danger" style="padding:4px 8px; font-size:12px;" onclick="deleteDest(${idx})">Delete</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          <script>
+            let destsData = ${JSON.stringify(data).replace(/</g, '\\u003c')};
+            async function addDest() {
+              openModal('Add Destination', '<div class="form-group"><label>Name</label><input id="dest-name"></div><div class="form-group"><label>Region</label><input id="dest-region"></div><div class="form-group"><label>Image URL</label><input id="dest-image"></div><button class="btn btn-primary" onclick="saveDest()">Save</button>');
+            }
+            async function editDest(idx) {
+              const item = destsData.destinations[idx];
+              openModal('Edit Destination', '<div class="form-group"><label>Name</label><input id="dest-name" value="${escapeHtml(item.name || '')}"></div><div class="form-group"><label>Region</label><input id="dest-region" value="${escapeHtml(item.region || '')}"></div><div class="form-group"><label>Image URL</label><input id="dest-image" value="${escapeHtml(item.image || '')}"></div><button class="btn btn-primary" onclick="saveDest(${idx})">Save</button>');
+            }
+            async function saveDest(idx) {
+              const item = {
+                name: document.getElementById('dest-name').value,
+                region: document.getElementById('dest-region').value,
+                image: document.getElementById('dest-image').value,
+              };
+              if (idx !== undefined) {
+                destsData.destinations[idx] = { ...destsData.destinations[idx], ...item };
+              } else {
+                destsData.destinations = destsData.destinations || [];
+                destsData.destinations.push(item);
+              }
+              await saveSection('destinations', destsData);
+              closeModal();
+              switchTab('destinations');
+            }
+            async function deleteDest(idx) {
+              if (!confirm('Delete this destination?')) return;
+              destsData.destinations.splice(idx, 1);
+              await saveSection('destinations', destsData);
+              switchTab('destinations');
             }
           <\/script>`;
       },

@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const dataStore = require('./data-store');
 const bookingsRouter = require('./routes/bookings');
+const logger = require('./lib/logger');
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'dev-secret-change-in-production';
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
@@ -61,7 +62,7 @@ async function logAdminAction(req, action, resourceType, resourceId, changes) {
     });
     dataStore.saveAuditLogs(logs);
   } catch (err) {
-    console.error('[AuditLog] Failed to log admin action:', err.message);
+    logger.error('Failed to log admin action', { error: err, resourceType, resourceId });
   }
 }
 
@@ -122,7 +123,7 @@ function loginHandler(req, res) {
     if (process.env.ADMIN_LOGIN_DEBUG === '1') {
       const adminUsernameLen = loadedUsername ? loadedUsername.length : 0;
       const adminPasswordLen = loadedPassword ? loadedPassword.length : 0;
-      console.warn('[AdminLogin] Failed attempt:', {
+      logger.warn('Admin login failed attempt', {
         usernameMatch,
         passwordMatch,
         expectedUsernameLength: adminUsernameLen,

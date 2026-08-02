@@ -1,7 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+const logger = require('./lib/logger');
 
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = (() => {
+    const envPath = process.env.HOSTINGER_DATA_PATH || process.env.DATA_PATH;
+    if (envPath && typeof envPath === 'string' && envPath.trim()) {
+        return path.resolve(envPath.trim());
+    }
+    return path.join(__dirname, 'data');
+})();
 
 function ensureDataDir() {
     if (!fs.existsSync(DATA_DIR)) {
@@ -19,7 +26,7 @@ function readJsonFile(filename, fallback) {
         const content = fs.readFileSync(filePath, 'utf8');
         return JSON.parse(content);
     } catch (err) {
-        console.error(`[DataStore] Failed to read ${filename}:`, err.message);
+        logger.error('Failed to read JSON file', { filename, error: err });
         return fallback;
     }
 }
@@ -30,7 +37,7 @@ function writeJsonFile(filename, data) {
     try {
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
     } catch (err) {
-        console.error(`[DataStore] Failed to write ${filename}:`, err.message);
+        logger.error('Failed to write JSON file', { filename, error: err });
         throw err;
     }
 }
@@ -130,6 +137,10 @@ function getAuditLogs() {
 }
 
 function saveAuditLogs(logs) {
+    const maxEntries = parseInt(process.env.AUDIT_LOG_MAX_ENTRIES, 10);
+    if (!Number.isNaN(maxEntries) && maxEntries > 0 && Array.isArray(logs) && logs.length > maxEntries) {
+        logs = logs.slice(-maxEntries);
+    }
     writeJsonFile('audit_logs.json', { logs });
 }
 

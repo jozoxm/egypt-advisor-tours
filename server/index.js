@@ -12,6 +12,7 @@ const cookieParser = require('cookie-parser');
 
 // Admin Panel Connection
 const setupAdmin = require('./adminSetup');
+const logger = require('./lib/logger');
 
 // Constants & Configurations
 const DEFAULT_PUBLIC_SITE_URL = 'https://egyptadvisortours.com';
@@ -56,6 +57,13 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+app.use((req, res, next) => {
+    const requestId = req.headers['x-request-id'] || logger.generateRequestId();
+    req.id = requestId;
+    res.set('x-request-id', requestId);
+    next();
+});
 
 // Static Uploads Middleware
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
@@ -141,7 +149,8 @@ app.use((req, res, next) => {
     }
 
     if (ORIGIN_LOG_REJECTED) {
-        console.warn('[OriginBlocked]', {
+        logger.warn('Origin blocked', {
+            reqId: req.id,
             method: req.method,
             path: req.path,
             origin: rawOrigin,
@@ -149,7 +158,6 @@ app.use((req, res, next) => {
             host,
             ip: req.ip,
             userAgent: req.get('user-agent'),
-            timestamp: new Date().toISOString(),
         });
     }
 
@@ -321,17 +329,23 @@ app.use((err, req, res, next) => {
         payload.details = err;
     }
 
-    console.error(`[Error ${status}] ${err.message}`, {
-        requestId,
+    logger.error(`HTTP ${status}`, {
+        reqId: req.id,
         path: req.path,
         method: req.method,
         ip: req.ip,
+        error: err,
         stack: err.stack,
     });
 
     // Attempt resource cleanup on known error shapes
     if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'EPIPE') {
-        console.warn(`[Cleanup] Connection error for ${req.method} ${req.path}: ${err.code}`);
+        logger.warn(`Connection cleanup for ${req.method} ${req.path}: ${err.code}`, {
+            reqId: req.id,
+            path: req.path,
+            method: req.method,
+            error: err,
+        });
     }
 
     res.status(status).json(payload);
@@ -351,16 +365,18 @@ let __serverInstance = null;
 if (process.env.NODE_ENV !== 'test') {
     const PORT = process.env.PORT || 3000;
     if (!process.env.PORT) {
-        console.warn('[startup] WARNING: process.env.PORT is not set. Falling back to port 3000.');
+        logger.warn('process.env.PORT is not set. Falling back to port 3000.');
     }
     __serverInstance = app.listen(PORT, '0.0.0.0', () => {
         const address = __serverInstance.address();
         const host = address.address === '::' ? '0.0.0.0' : address.address;
-        console.log(`[startup] Server is listening on ${host}:${address.port}`);
-        console.log(`[startup] ADMIN_USERNAME=${process.env.ADMIN_USERNAME ? 'loaded' : 'MISSING'}`);
-        console.log(`[startup] ADMIN_PASSWORD=${process.env.ADMIN_PASSWORD ? 'loaded' : 'MISSING'}`);
-        console.log(`[startup] ADMIN_SECRET=${process.env.ADMIN_SECRET ? 'loaded' : 'MISSING'}`);
-        console.log(`[startup] CORS_ORIGIN=${process.env.CORS_ORIGIN || 'not set'}`);
-        console.log(`[startup] NODE_ENV=${process.env.NODE_ENV || 'not set'}`);
+        logger.info('Server listening', { host, port: address.port });
+        logger.info('Startup config', {
+            adminUsername: process.env.ADMIN_USERNAME ? 'loaded' : 'MISSING',
+            adminPassword: process.env.ADMIN_PASSWORD ? 'loaded' : 'MISSING',
+            adminSecret: process.env.ADMIN_SECRET ? 'loaded' : 'MISSING',
+            corsOrigin: process.env.CORS_ORIGIN || 'not set',
+            nodeEnv: process.env.NODE_ENV || 'not set',
+        });
     });
 }

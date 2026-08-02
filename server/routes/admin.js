@@ -4,7 +4,15 @@ const dataStore = require('../data-store');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const sharp = require('sharp');
+const logger = require('../lib/logger');
+
+let sharp;
+try {
+    sharp = require('sharp');
+} catch (err) {
+    logger.warn('sharp not available; image optimization disabled', { error: err });
+}
+
 const adminSetup = require('../adminSetup');
 
 const verifyAdmin = adminSetup.verifyAdmin;
@@ -100,6 +108,10 @@ function asyncHandler(fn) {
 }
 
 async function processImage(buffer, originalName, section) {
+    if (!sharp) {
+        throw new Error('Image optimization is unavailable because the sharp module failed to load on this platform.');
+    }
+
     const sectionDir = path.join(UPLOAD_ROOT, section);
     if (!fs.existsSync(sectionDir)) {
         fs.mkdirSync(sectionDir, { recursive: true });
@@ -142,7 +154,7 @@ async function processImage(buffer, originalName, section) {
             filename: fileName,
         };
     } catch (err) {
-        console.error('Image processing error:', err.message);
+        logger.error('Image processing error', { error: err });
         throw new Error(`Image processing failed: ${err.message}`);
     }
 }
@@ -157,7 +169,7 @@ function deleteFileByUrl(url) {
             return true;
         }
     } catch (err) {
-        console.error('Failed to delete file:', url, err.message);
+        logger.error('Failed to delete file', { url, error: err });
     }
     return false;
 }
@@ -244,7 +256,7 @@ router.post('/cleanup-orphans', verifyAdmin, verifyCsrf, asyncHandler(async (req
                 fs.unlinkSync(filePath);
                 deleted++;
             } catch (err) {
-                console.error('Failed to delete orphan:', filePath, err.message);
+                logger.error('Failed to delete orphan', { filePath, error: err });
             }
         }
     }
@@ -294,6 +306,21 @@ router.post('/content/:section', verifyAdmin, verifyCsrf, asyncHandler((req, res
 
 router.get('/bookings', verifyAdmin, asyncHandler((req, res) => {
     res.json(dataStore.getBookings());
+}));
+
+router.post('/bookings/status', verifyAdmin, verifyCsrf, asyncHandler((req, res) => {
+    const { id, status } = req.body || {};
+    if (!id || !status) {
+        return res.status(400).json({ error: 'Missing id or status' });
+    }
+    const bookings = dataStore.getBookings();
+    const booking = bookings.find(b => b.id === id);
+    if (!booking) {
+        return res.status(404).json({ error: 'Booking not found' });
+    }
+    booking.status = status;
+    dataStore.saveBookings(bookings);
+    res.json({ success: true, booking });
 }));
 
 router.delete('/bookings/:id', verifyAdmin, verifyCsrf, asyncHandler((req, res) => {
