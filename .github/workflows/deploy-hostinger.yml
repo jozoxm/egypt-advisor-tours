@@ -10,6 +10,8 @@ permissions:
   contents: read
 
 env:
+  HOSTINGER_APP_DIR: /home/u239421793/domains/egyptadvisortours.com/.builds/versions/019fc323-e1a2-7203-92a4-b8d9a4f6dd1f/nodejs
+  HOSTINGER_DATA_PATH: /home/u239421793/egypt_admin_data
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
